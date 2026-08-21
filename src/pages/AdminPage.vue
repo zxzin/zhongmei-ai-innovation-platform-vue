@@ -4,13 +4,21 @@ import { useRoute, useRouter } from 'vue-router'
 import { Users, FileStack, ChartNoAxesCombined, Upload, UserPlus, Search, MoreHorizontal, Database, Activity, Clock3, Network, BookOpenText, Settings2, ScrollText, Building2, ChevronRight, Plus, ShieldCheck, ServerCog, CheckCircle2 } from '@lucide/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BaseDrawer from '../components/BaseDrawer.vue'
+import BaseSelect from '../components/BaseSelect.vue'
 import LineChart from '../components/LineChart.vue'
 import { users, templates, cockpitTrend, agentUsage } from '../data/demo.js'
 import { companyLibraries, departmentTree, systemLogs } from '../data/platform.js'
 import { useUiStore } from '../stores/ui.js'
 
 const route = useRoute(); const router = useRouter(); const ui = useUiStore()
-const query = ref(''); const selectedUser = ref(null); const selectedLibrary = ref(null); const logType = ref('全部日志')
+const query = ref(''); const selectedUser = ref(null); const selectedLibrary = ref(null); const logType = ref('全部日志'); const roleFilter = ref('全部角色'); const statusFilter = ref('全部状态')
+const roleFilterOptions = ['全部角色', '平台管理员', '科研人员', '复核专家']
+const statusFilterOptions = ['全部状态', '启用', '停用']
+const logTypeOptions = ['全部日志', '登录日志', '操作日志']
+const companyOptions = ['中煤集团', '中煤深圳研究院']
+const userRoleOptions = ['科研人员', '复核专家', '平台管理员']
+const accountStatusOptions = ['启用', '停用']
+const libraryAccessOptions = ['全集团', '深圳院及子部门', '授权项目组']
 const selectedDepartment = ref({ name:'技术研发部', parent:'中煤深圳研究院', count:31, admin:'王工' })
 const sectionIds = ['operations','departments','templates','knowledge','users','config','logs']
 const section = computed(() => sectionIds.includes(route.params.section) ? route.params.section : 'operations')
@@ -64,7 +72,7 @@ function selectDepartment(company, child) {
         <template v-else-if="section === 'users'">
           <header class="panel-heading"><div><h2>用户管理</h2><p>账号由管理员分配，可按公司、子部门和角色设置访问权限。</p></div><div><label class="button secondary import-button"><Upload :size="17" />Excel 批量导入<input type="file" accept=".xlsx,.xls" @change="importUsers" /></label><button class="button primary" type="button" @click="selectedUser = { name:'',id:'',company:'中煤集团',department:'',role:'科研人员',status:'启用' }"><UserPlus :size="17" />单独创建</button></div></header>
           <div class="admin-summary"><article><span>平台账号</span><b>156</b><small>含 3 类角色</small></article><article><span>二级公司</span><b>12</b><small>组织树统一维护</small></article><article><span>当前启用</span><b>151</b><small>5 个账号停用</small></article></div>
-          <div class="table-tools"><label class="search-field"><Search :size="17" /><input v-model="query" placeholder="搜索姓名、工号或部门" /></label><select><option>全部角色</option><option>平台管理员</option><option>科研人员</option><option>复核专家</option></select><select><option>全部状态</option><option>启用</option><option>停用</option></select></div>
+          <div class="table-tools"><label class="search-field"><Search :size="17" /><input v-model="query" placeholder="搜索姓名、工号或部门" /></label><BaseSelect v-model="roleFilter" :options="roleFilterOptions" aria-label="筛选角色" /><BaseSelect v-model="statusFilter" :options="statusFilterOptions" aria-label="筛选账号状态" /></div>
           <div class="data-table-wrap"><table><thead><tr><th>用户</th><th>账号 / 工号</th><th>公司</th><th>部门</th><th>角色</th><th>状态</th><th>最近登录</th><th aria-label="操作" /></tr></thead><tbody><tr v-for="user in filteredUsers" :key="user.id"><td><b>{{ user.name }}</b></td><td>{{ user.id }}</td><td>{{ user.company }}</td><td>{{ user.department }}</td><td>{{ user.role }}</td><td><span class="status-chip" :class="user.status === '启用' ? 'success' : 'neutral'">{{ user.status }}</span></td><td>{{ user.lastLogin }}</td><td><button class="icon-button" aria-label="编辑用户" @click="selectedUser = { ...user }"><MoreHorizontal :size="18" /></button></td></tr></tbody></table></div>
         </template>
 
@@ -74,13 +82,13 @@ function selectDepartment(company, child) {
         </template>
 
         <template v-else>
-          <header class="panel-heading"><div><h2>系统日志</h2><p>登录日志与操作日志分别记录账号访问和关键业务操作。</p></div><select v-model="logType"><option>全部日志</option><option>登录日志</option><option>操作日志</option></select></header>
+          <header class="panel-heading"><div><h2>系统日志</h2><p>登录日志与操作日志分别记录账号访问和关键业务操作。</p></div><BaseSelect v-model="logType" :options="logTypeOptions" aria-label="筛选日志类型" /></header>
           <div class="data-table-wrap"><table><thead><tr><th>日志编号</th><th>类型</th><th>用户</th><th>操作</th><th>对象</th><th>时间</th><th>结果</th></tr></thead><tbody><tr v-for="item in filteredLogs" :key="item.id"><td>{{ item.id }}</td><td>{{ item.type }}</td><td><b>{{ item.user }}</b></td><td>{{ item.action }}</td><td>{{ item.target }}</td><td>{{ item.time }}</td><td><span class="status-chip" :class="item.result === '成功' ? 'success' : 'warning'">{{ item.result }}</span></td></tr></tbody></table></div>
         </template>
       </main>
     </div>
 
-    <BaseDrawer :open="Boolean(selectedUser)" :title="selectedUser?.id ? '编辑用户' : '新建用户'" @close="selectedUser = null"><form v-if="selectedUser" class="drawer-form" @submit.prevent="ui.notify('用户信息已保存','success'); selectedUser = null"><label>姓名<input v-model="selectedUser.name" required /></label><label>账号 / 工号<input v-model="selectedUser.id" required /></label><label>所属公司<select v-model="selectedUser.company"><option>中煤集团</option><option>中煤深圳研究院</option></select></label><label>所属部门<input v-model="selectedUser.department" required /></label><label>平台角色<select v-model="selectedUser.role"><option>科研人员</option><option>复核专家</option><option>平台管理员</option></select></label><label>账号状态<select v-model="selectedUser.status"><option>启用</option><option>停用</option></select></label><section><h3>功能权限</h3><label><input type="checkbox" checked />使用六项智能应用</label><label><input type="checkbox" />查看驾驶舱</label><label><input type="checkbox" />进入管理员工作台</label></section><button class="button primary wide" type="submit">保存用户</button></form></BaseDrawer>
-    <BaseDrawer :open="Boolean(selectedLibrary)" :title="selectedLibrary?.name || '创建公司知识库'" @close="selectedLibrary = null"><form v-if="selectedLibrary" class="drawer-form" @submit.prevent="ui.notify('公司知识库已保存','success'); selectedLibrary = null"><label>知识库名称<input v-model="selectedLibrary.name" required /></label><label>简介<textarea v-model="selectedLibrary.description" /></label><label>使用范围<select v-model="selectedLibrary.access"><option>全集团</option><option>深圳院及子部门</option><option>授权项目组</option></select></label><section><h3>库权限</h3><label><input type="checkbox" checked />允许智能应用召回</label><label><input type="checkbox" />允许普通用户上传</label><label><input type="checkbox" checked />仅管理员可删除</label></section><button class="button primary wide" type="submit">保存知识库</button></form></BaseDrawer>
+    <BaseDrawer :open="Boolean(selectedUser)" :title="selectedUser?.id ? '编辑用户' : '新建用户'" @close="selectedUser = null"><form v-if="selectedUser" class="drawer-form" @submit.prevent="ui.notify('用户信息已保存','success'); selectedUser = null"><label>姓名<input v-model="selectedUser.name" required /></label><label>账号 / 工号<input v-model="selectedUser.id" required /></label><label><span>所属公司</span><BaseSelect v-model="selectedUser.company" :options="companyOptions" aria-label="所属公司" /></label><label>所属部门<input v-model="selectedUser.department" required /></label><label><span>平台角色</span><BaseSelect v-model="selectedUser.role" :options="userRoleOptions" aria-label="平台角色" /></label><label><span>账号状态</span><BaseSelect v-model="selectedUser.status" :options="accountStatusOptions" aria-label="账号状态" /></label><section><h3>功能权限</h3><label><input type="checkbox" checked />使用六项智能应用</label><label><input type="checkbox" />查看驾驶舱</label><label><input type="checkbox" />进入管理员工作台</label></section><button class="button primary wide" type="submit">保存用户</button></form></BaseDrawer>
+    <BaseDrawer :open="Boolean(selectedLibrary)" :title="selectedLibrary?.name || '创建公司知识库'" @close="selectedLibrary = null"><form v-if="selectedLibrary" class="drawer-form" @submit.prevent="ui.notify('公司知识库已保存','success'); selectedLibrary = null"><label>知识库名称<input v-model="selectedLibrary.name" required /></label><label>简介<textarea v-model="selectedLibrary.description" /></label><label><span>使用范围</span><BaseSelect v-model="selectedLibrary.access" :options="libraryAccessOptions" aria-label="使用范围" /></label><section><h3>库权限</h3><label><input type="checkbox" checked />允许智能应用召回</label><label><input type="checkbox" />允许普通用户上传</label><label><input type="checkbox" checked />仅管理员可删除</label></section><button class="button primary wide" type="submit">保存知识库</button></form></BaseDrawer>
   </section>
 </template>

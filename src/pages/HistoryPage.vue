@@ -4,12 +4,25 @@ import { useRouter } from 'vue-router'
 import { Search, CalendarDays, RotateCcw, ArrowRight, FileCheck2, Trash2 } from '@lucide/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BaseDrawer from '../components/BaseDrawer.vue'
+import BaseSelect from '../components/BaseSelect.vue'
 import { agents, agentMap } from '../data/agents.js'
 import { useTasksStore } from '../stores/tasks.js'
 import { useUiStore } from '../stores/ui.js'
 
 const router = useRouter(); const tasks = useTasksStore(); const ui = useUiStore()
 const query = ref(''); const application = ref('all'); const range = ref('all'); const sort = ref('time'); const selected = ref([])
+const applicationOptions = [{ value: 'all', label: '全部' }, ...agents.map((item) => ({ value: item.id, label: item.name }))]
+const rangeOptions = [{ value: 'all', label: '全部时间' }, { value: 'week', label: '近 7 天' }, { value: 'month', label: '近 30 天' }]
+const sortOptions = [{ value: 'time', label: '日期' }, { value: 'name', label: '名称' }]
+const accentStyles = {
+  blue: { '--record-accent': '#1688e5', '--record-tint': '#e6f3ff' },
+  cyan: { '--record-accent': '#1eb7d0', '--record-tint': '#e2f8fb' },
+  teal: { '--record-accent': '#429a4d', '--record-tint': '#eaf6e9' },
+  amber: { '--record-accent': '#d99a1c', '--record-tint': '#fff3db' },
+  violet: { '--record-accent': '#746bf1', '--record-tint': '#eeecff' },
+  rose: { '--record-accent': '#e46b88', '--record-tint': '#ffecf1' },
+}
+function recordAccent(record) { return accentStyles[agentMap[record.agent]?.accent] || accentStyles.blue }
 const filtered = computed(() => tasks.records.filter((record) => {
   const matchesQuery = !query.value || `${record.title}${record.id}${record.user}`.toLowerCase().includes(query.value.toLowerCase())
   const recordTime = new Date(record.date.replace(' ', 'T')).getTime()
@@ -34,11 +47,11 @@ function reopen(record) { tasks.selectedRecord = null; router.push(record.agent 
 <template>
   <section class="page-container history-page">
     <PageHeader title="历史记录" />
-    <div class="filter-bar history-filters"><label class="search-field"><Search :size="18" /><input v-model="query" placeholder="搜索任务名称、编号或用户" /></label><label><span>智能应用</span><select v-model="application"><option value="all">全部智能应用</option><option v-for="item in agents" :key="item.id" :value="item.id">{{ item.name }}</option></select></label><label><span>时间</span><select v-model="range"><option value="all">全部时间</option><option value="week">近 7 天</option><option value="month">近 30 天</option></select></label><label><span>排序</span><select v-model="sort"><option value="time">最近使用</option><option value="name">任务名称</option></select></label><button class="button ghost" @click="reset"><RotateCcw :size="17" />重置</button></div>
+    <div class="filter-bar history-filters"><label class="search-field"><Search :size="18" /><input v-model="query" placeholder="搜索任务名称、编号或用户" /></label><BaseSelect v-model="application" class="history-filter-application" :options="applicationOptions" prefix="名称" aria-label="筛选名称" /><BaseSelect v-model="range" class="history-filter-range" :options="rangeOptions" prefix="时间" aria-label="筛选时间" /><BaseSelect v-model="sort" class="history-filter-sort" :options="sortOptions" prefix="排序" aria-label="筛选排序" /><button class="button ghost history-filter-reset" aria-label="重置筛选条件" title="重置筛选条件" @click="reset"><RotateCcw :size="17" /><span>重置</span></button></div>
     <div class="history-summary"><span>共 <b>{{ filtered.length }}</b> 条记录</span><span><CalendarDays :size="16" />截至 2026-08-21</span></div>
     <div class="history-bulkbar"><label><input type="checkbox" :checked="allSelected" @change="toggleAll" />选择当前列表</label><span v-if="selected.length">已选择 {{ selected.length }} 条</span><button v-if="selected.length" class="button ghost" @click="deleteSelected"><Trash2 :size="16" />删除所选</button></div>
     <div class="record-list enhanced-record-list">
-      <article v-for="record in filtered" :key="record.id" class="record-row"><label class="record-check"><input v-model="selected" type="checkbox" :value="record.id" /><span class="sr-only">选择 {{ record.title }}</span></label><i><component :is="agentMap[record.agent].icon" :size="20" /></i><button class="record-open" @click="tasks.selectedRecord = record"><div class="record-main"><span>{{ agentMap[record.agent].name }} · {{ record.date }}</span><h2>{{ record.title }}</h2><p>{{ record.id }} · {{ record.user }} · {{ record.org }}</p></div><div class="record-result"><b>{{ record.result }}</b><span>{{ record.status }}</span></div><ArrowRight :size="19" /></button><button class="icon-button record-delete" aria-label="删除记录" @click="deleteRecord(record)"><Trash2 :size="17" /></button></article>
+      <article v-for="record in filtered" :key="record.id" class="record-row" :style="recordAccent(record)"><label class="record-check"><input v-model="selected" type="checkbox" :value="record.id" /><span class="sr-only">选择 {{ record.title }}</span></label><i><component :is="agentMap[record.agent].icon" :size="20" /></i><button class="record-open" @click="tasks.selectedRecord = record"><div class="record-main"><span>{{ agentMap[record.agent].name }} · {{ record.date }}</span><h2>{{ record.title }}</h2><p>{{ record.id }} · {{ record.user }} · {{ record.org }}</p></div><div class="record-result"><b>{{ record.result }}</b><span>{{ record.status }}</span></div><ArrowRight :size="19" /></button><button class="icon-button record-delete" aria-label="删除记录" @click="deleteRecord(record)"><Trash2 :size="17" /></button></article>
       <div v-if="!filtered.length" class="empty-state"><Search :size="28" /><h2>没有匹配记录</h2><p>调整关键词或智能应用条件后重新查找。</p></div>
     </div>
     <BaseDrawer :open="Boolean(tasks.selectedRecord)" :title="tasks.selectedRecord?.title" @close="tasks.selectedRecord = null"><div v-if="tasks.selectedRecord" class="record-detail"><div class="result-callout"><FileCheck2 :size="24" /><div><span>已形成成果</span><b>{{ tasks.selectedRecord.result }}</b></div></div><dl><div><dt>任务编号</dt><dd>{{ tasks.selectedRecord.id }}</dd></div><div><dt>使用智能应用</dt><dd>{{ agentMap[tasks.selectedRecord.agent].name }}</dd></div><div><dt>发起用户</dt><dd>{{ tasks.selectedRecord.user }}</dd></div><div><dt>所属单位</dt><dd>{{ tasks.selectedRecord.org }}</dd></div><div><dt>创建时间</dt><dd>{{ tasks.selectedRecord.date }}</dd></div><div><dt>运行结果</dt><dd>{{ tasks.selectedRecord.status }}</dd></div></dl><section><h3>保留内容</h3><p>输入快照、过程步骤、引用来源、关键操作与成果文件均与任务编号关联，可继续核验。</p></section></div><template #footer><button class="button primary wide" @click="reopen(tasks.selectedRecord)">打开成果 <ArrowRight :size="18" /></button></template></BaseDrawer>

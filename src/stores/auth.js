@@ -21,7 +21,6 @@ export const useAuthStore = defineStore('auth', () => {
   const profile = ref(saved && profiles[saved.account] ? profiles[saved.account] : null)
   const authenticated = computed(() => Boolean(profile.value))
   const isAdmin = computed(() => profile.value?.role === 'admin')
-  const canViewCockpit = computed(() => ['admin', 'reviewer'].includes(profile.value?.role))
 
   function login(account = 'Admin') {
     profile.value = profiles[account] || profiles.Admin
@@ -38,5 +37,5 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = { ...profile.value, ...changes }
   }
 
-  return { profile, authenticated, isAdmin, canViewCockpit, login, logout, updateProfile, profiles }
+  return { profile, authenticated, isAdmin, login, logout, updateProfile, profiles }
 })

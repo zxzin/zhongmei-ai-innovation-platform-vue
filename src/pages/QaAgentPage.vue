@@ -1,12 +1,10 @@
 <script setup>
 import { nextTick, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Send, Plus, ExternalLink, FileText, CheckCircle2, Clock3, Layers3 } from '@lucide/vue'
+import { Send, Plus, ExternalLink, FileText, Clock3, Layers3 } from '@lucide/vue'
 import BaseDrawer from '../components/BaseDrawer.vue'
 import { evidenceItems } from '../data/demo.js'
 import { useTasksStore } from '../stores/tasks.js'
 
-const router = useRouter()
 const tasks = useTasksStore()
 const input = ref('')
 const thinking = ref(false)
@@ -39,7 +37,6 @@ function ask(text = input.value) {
 
 <template>
   <section class="qa-workspace">
-    <header><button class="brand-back" type="button" @click="router.push('/agents')"><ArrowLeft :size="17" />智能应用首页</button><div><b>技术问答</b><span>连续对话 · 引用可核验</span></div><span class="status-chip success"><CheckCircle2 :size="14" />服务可用</span></header>
     <div class="qa-layout">
       <aside class="qa-context"><h1>技术问答</h1><p>最简单、直接的科研问答入口。回答引用来自授权专利、论文和知识库。</p><section><h2>可以这样问</h2><button v-for="item in examples" :key="item" type="button" @click="ask(item)">{{ item }}<Send :size="15" /></button></section><footer><FileText :size="18" /><span><b>回答依据</b><small>专利 · 论文 · 企业知识库</small></span></footer></aside>
       <main class="qa-conversation">

@@ -33,7 +33,7 @@ export const agents = [
     sample: '井下高矿化度矿井水资源化利用有哪些关键约束？',
     steps: ['提出问题', '证据检索', '生成回答', '继续追问'],
     sources: ['专利数据库', '论文数据库', '企业知识库'],
-    output: '带引用的连续技术问答', accent: 'blue',
+    output: '带引用的连续技术问答', accent: 'rose',
   },
   {
     id: 'research', number: '04', name: '技术预研报告', action: '开始预研', icon: FileText,
@@ -45,7 +45,7 @@ export const agents = [
     output: '可编辑、可引用的技术预研报告', accent: 'violet',
   },
   {
-    id: 'feasibility', number: '05', name: '可行性分析助手', action: '开始论证', icon: ShieldCheck,
+    id: 'feasibility', number: '05', name: '可行性分析', action: '开始论证', icon: ShieldCheck,
     description: '识别方案假设、约束、风险和论文证据，形成验证路径。',
     placeholder: '输入技术方案、工况边界和预期指标',
     sample: '井下巡检机器人采用激光雷达、视觉、IMU 与 5G 专网的融合方案。',

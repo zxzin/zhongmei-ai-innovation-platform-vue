@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { BookOpenText, Search, Plus, Upload, Trash2, RotateCcw, MoreHorizontal, FileText, Pencil, FolderOpen, ShieldCheck } from '@lucide/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BaseDrawer from '../components/BaseDrawer.vue'
+import BaseSelect from '../components/BaseSelect.vue'
 import { personalLibraries, libraryFiles, recycledFiles } from '../data/platform.js'
 import { useUiStore } from '../stores/ui.js'
 
@@ -11,6 +12,7 @@ const libraries = ref(personalLibraries.map((item) => ({ ...item })))
 const recycle = ref(recycledFiles.map((item) => ({ ...item })))
 const query = ref('')
 const sort = ref('最近更新')
+const sortOptions = ['最近更新', '名称']
 const view = ref('libraries')
 const selectedLibrary = ref(null)
 const editor = ref(null)
@@ -51,7 +53,7 @@ function restoreFile(item) {
     <div class="knowledge-toolbar">
       <div class="segmented-control"><button :class="{ active: view === 'libraries' }" @click="view = 'libraries'"><BookOpenText :size="17" />知识库</button><button :class="{ active: view === 'recycle' }" @click="view = 'recycle'"><Trash2 :size="17" />回收站 <span>{{ recycle.length }}</span></button></div>
       <label class="search-field"><Search :size="17" /><input v-model="query" placeholder="搜索知识库或文件" /></label>
-      <select v-model="sort" aria-label="排序规则"><option>最近更新</option><option>名称</option></select>
+      <BaseSelect v-model="sort" :options="sortOptions" aria-label="排序规则" />
       <button v-if="view === 'libraries'" class="button primary" type="button" @click="editor = { name: '', description: '' }"><Plus :size="17" />创建知识库</button>
     </div>
 

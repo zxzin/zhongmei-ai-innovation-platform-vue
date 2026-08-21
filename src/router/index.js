@@ -68,7 +68,7 @@ router.beforeEach((to) => {
   if (!to.meta.public && !session) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.name === 'login' && session) return { name: 'agents' }
   if (to.meta.admin && session?.account !== 'Admin') return { name: 'agents' }
-  if (to.meta.cockpit && !['Admin', 'Judge'].includes(session?.account)) return { name: 'agents' }
+  if (to.meta.cockpit && session?.account !== 'Admin') return { name: 'agents' }
   return true
 })
 

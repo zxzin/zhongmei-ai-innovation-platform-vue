@@ -56,12 +56,12 @@ export const systemLogs = [
 ]
 
 export const appPerformance = [
-  { name: '语义检索', calls: 258, outputs: 252, duration: '42 秒', success: 98.4, online: 1 },
-  { name: '技术问答', calls: 201, outputs: 198, duration: '18 秒', success: 99.0, online: 1 },
-  { name: '技术预研报告', calls: 109, outputs: 102, duration: '8 分 12 秒', success: 95.4, online: 1 },
-  { name: '创新性分析', calls: 101, outputs: 92, duration: '11 分 34 秒', success: 94.1, online: 1 },
-  { name: '可行性分析', calls: 92, outputs: 87, duration: '6 分 08 秒', success: 96.7, online: 1 },
-  { name: '技术交底书撰写', calls: 76, outputs: 65, duration: '7 分 21 秒', success: 93.4, online: 1 },
+  { name: '语义检索', calls: 258, outputs: 252, duration: '42 秒', completion: 97.9, success: 98.4, online: 1 },
+  { name: '技术问答', calls: 201, outputs: 198, duration: '18 秒', completion: 98.5, success: 99.0, online: 1 },
+  { name: '技术预研报告', calls: 109, outputs: 102, duration: '8 分 12 秒', completion: 94.7, success: 95.4, online: 1 },
+  { name: '创新性分析', calls: 101, outputs: 92, duration: '11 分 34 秒', completion: 93.2, success: 94.1, online: 1 },
+  { name: '可行性分析', calls: 92, outputs: 87, duration: '6 分 08 秒', completion: 95.6, success: 96.7, online: 1 },
+  { name: '技术交底书撰写', calls: 76, outputs: 65, duration: '7 分 21 秒', completion: 92.4, success: 93.4, online: 1 },
 ]
 
 export const taskStatus = [
@@ -69,4 +69,76 @@ export const taskStatus = [
   { id: 'qa-service', name: '技术问答服务', status: 1, updated: '09:30', note: '连续对话正常' },
   { id: 'report-service', name: '报告生成服务', status: 1, updated: '09:29', note: 'Word 导出正常' },
   { id: 'patent-service', name: '智慧芽专利服务', status: 0, updated: '09:28', note: '外部服务暂停' },
+]
+
+// 驾驶舱本地演示汇总：字段结构对应后续运营统计接口，不代表实时生产数据。
+export const cockpitPeriods = [
+  {
+    id: 'year', name: '本年度', label: '2026年02月—08月', scale: 1, userScale: 1, activeDays: 8.6,
+    trend: [
+      { label: '02月', calls: 48, results: 44 }, { label: '03月', calls: 62, results: 59 },
+      { label: '04月', calls: 88, results: 83 }, { label: '05月', calls: 118, results: 112 },
+      { label: '06月', calls: 139, results: 133 }, { label: '07月', calls: 179, results: 171 },
+      { label: '08月', calls: 203, results: 194 },
+    ],
+  },
+  {
+    id: 'quarter', name: '近 90 天', label: '2026年06月—08月', scale: 521 / 837, userScale: 0.79, activeDays: 4.8,
+    trend: [
+      { label: '06月', calls: 139, results: 133 }, { label: '07月', calls: 179, results: 171 }, { label: '08月', calls: 203, results: 194 },
+    ],
+  },
+  {
+    id: 'month', name: '近 30 天', label: '2026年08月', scale: 203 / 837, userScale: 0.56, activeDays: 2.1,
+    trend: [
+      { label: '第 1 周', calls: 39, results: 37 }, { label: '第 2 周', calls: 47, results: 45 },
+      { label: '第 3 周', calls: 55, results: 53 }, { label: '第 4 周', calls: 62, results: 59 },
+    ],
+  },
+]
+
+export const cockpitScopes = [
+  {
+    id: 'group', name: '全集团', calls: 837, successfulCalls: 810, starts: 889, tasks: 821, completedTasks: 795,
+    reports: 362, reviews: 74, activeUsers: 156, responseSeconds: 156,
+    children: [
+      { name: '中煤深圳研究院', calls: 249, tasks: 244, reports: 114, users: 47 },
+      { name: '煤矿智能化公司', calls: 222, tasks: 217, reports: 98, users: 42 },
+      { name: '装备技术公司', calls: 191, tasks: 188, reports: 83, users: 37 },
+      { name: '安全技术中心', calls: 175, tasks: 172, reports: 67, users: 30 },
+    ],
+  },
+  {
+    id: 'shenzhen', name: '中煤深圳研究院', calls: 249, successfulCalls: 241, starts: 263, tasks: 244, completedTasks: 237,
+    reports: 114, reviews: 24, activeUsers: 47, responseSeconds: 176,
+    children: [
+      { name: '科研管理部', calls: 79, tasks: 77, reports: 35, users: 13 },
+      { name: '技术研发部', calls: 112, tasks: 110, reports: 49, users: 22 },
+      { name: '专家委员会', calls: 58, tasks: 57, reports: 30, users: 12 },
+    ],
+  },
+  {
+    id: 'intelligent-mine', name: '煤矿智能化公司', calls: 222, successfulCalls: 215, starts: 235, tasks: 217, completedTasks: 210,
+    reports: 98, reviews: 15, activeUsers: 42, responseSeconds: 148,
+    children: [
+      { name: '产品研发部', calls: 126, tasks: 123, reports: 55, users: 24 },
+      { name: '工程验证部', calls: 96, tasks: 94, reports: 43, users: 18 },
+    ],
+  },
+  {
+    id: 'equipment', name: '装备技术公司', calls: 191, successfulCalls: 185, starts: 202, tasks: 188, completedTasks: 182,
+    reports: 83, reviews: 20, activeUsers: 37, responseSeconds: 203,
+    children: [
+      { name: '智能装备部', calls: 104, tasks: 102, reports: 46, users: 21 },
+      { name: '安全技术部', calls: 87, tasks: 86, reports: 37, users: 16 },
+    ],
+  },
+  {
+    id: 'safety', name: '安全技术中心', calls: 175, successfulCalls: 169, starts: 189, tasks: 172, completedTasks: 166,
+    reports: 67, reviews: 15, activeUsers: 30, responseSeconds: 121,
+    children: [
+      { name: '安全监测部', calls: 98, tasks: 97, reports: 38, users: 17 },
+      { name: '应急技术部', calls: 77, tasks: 75, reports: 29, users: 13 },
+    ],
+  },
 ]

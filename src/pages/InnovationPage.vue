@@ -1,9 +1,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FileUp, ArrowLeft, ArrowRight, Lightbulb, Database, FileCheck2, UserRoundCheck, SlidersHorizontal, Check, ExternalLink, Search } from '@lucide/vue'
+import { FileUp, ArrowLeft, ArrowRight, Database, FileCheck2, UserRoundCheck, SlidersHorizontal, Check, ExternalLink, Search } from '@lucide/vue'
 import StepRail from '../components/StepRail.vue'
 import BaseDrawer from '../components/BaseDrawer.vue'
+import BaseSelect from '../components/BaseSelect.vue'
 import { useInnovationStore } from '../stores/innovation.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useTasksStore } from '../stores/tasks.js'
@@ -26,6 +27,7 @@ const generating = ref(false)
 const evidenceScope = ref('技术主题资料')
 const supplementOpen = ref(false)
 const fullReport = ref(false)
+const scoreTemplateOptions = ['标准创新性评价 V2.3', '重大专项评价 V1.1']
 
 const canSwitchMode = computed(() => auth.isAdmin || auth.profile?.role === 'reviewer')
 const visibleEvidence = computed(() => innovation.evidence.filter((item) => sourceTab.value === '全部' || item.type === sourceTab.value))
@@ -67,13 +69,8 @@ function selectStep(index) { if (index <= innovation.maxStep) routeTo(index) }
 
 <template>
   <section class="innovation-workspace">
-    <header class="innovation-head">
-      <button type="button" class="back-link" @click="router.push('/agents')"><ArrowLeft :size="17" />智能应用首页</button>
-      <div><i><Lightbulb :size="22" /></i><span><b>{{ innovation.isReviewer ? '创新性分析 · 专家评审' : '创新性分析 · 科研人员' }}</b><small>{{ innovation.isReviewer ? '完整方案评审、评分与裁判依据' : '技术构想梳理、创新点核验与改进建议' }}</small></span></div>
-      <div v-if="canSwitchMode" class="mode-switch"><button :class="{ active: !innovation.isReviewer }" @click="selectMode('researcher')">科研人员入口</button><button :class="{ active: innovation.isReviewer }" @click="selectMode('reviewer')">管理员评审入口</button></div>
-    </header>
     <div class="innovation-layout">
-      <aside class="innovation-rail"><h1>创新性分析</h1><StepRail :steps="steps" :current="current" :max="innovation.maxStep" @select="selectStep" /></aside>
+      <aside class="innovation-rail"><h1>创新性分析</h1><div v-if="canSwitchMode" class="mode-switch innovation-mode-switch"><button :class="{ active: !innovation.isReviewer }" @click="selectMode('researcher')">科研人员入口</button><button :class="{ active: innovation.isReviewer }" @click="selectMode('reviewer')">管理员评审入口</button></div><StepRail :steps="steps" :current="current" :max="innovation.maxStep" @select="selectStep" /></aside>
       <main class="innovation-stage">
         <section v-if="current === 0" class="innovation-upload">
           <header><span>{{ innovation.isReviewer ? '完整方案评审入口' : '技术构想分析入口' }}</span><h1>{{ innovation.isReviewer ? '上传待评审的完整技术方案' : '从现有构想或项目材料开始' }}</h1><p>{{ innovation.isReviewer ? '评审材料通常包含完整方案、指标、实施路径和已有验证数据。' : '科研人员可以从不完整的构想开始，系统会引导补充必要信息。' }}</p></header>
@@ -109,7 +106,7 @@ function selectStep(index) { if (index <= innovation.maxStep) routeTo(index) }
           <div class="stage-title"><span>05</span><h1>{{ innovation.isReviewer ? '政策与评价规则' : '政策依据确认' }}</h1><p>{{ innovation.isReviewer ? '确认政策条款，并选择管理员发布的评价模板。' : '仅列出与当前方案相关的政策依据。' }}</p></div>
           <div class="policy-list"><article v-for="item in innovation.evidence.filter(item => item.type === '政策')" :key="item.id"><Check :size="18" /><div><b>{{ item.title }}</b><span>{{ item.source }} · {{ item.id }}</span></div><button type="button" @click="detail = item">查看</button></article></div>
           <template v-if="innovation.isReviewer">
-            <section class="score-config"><header><div><h2>评价模板</h2><p>模板由平台管理员维护，选择后会影响报告评价方式。</p></div><select v-model="innovation.selectedTemplate"><option>标准创新性评价 V2.3</option><option>重大专项评价 V1.1</option></select></header><div><label>新颖性 <input v-model.number="innovation.weights.novelty" type="number" min="0" max="100" /><span>%</span></label><label>先进性 <input v-model.number="innovation.weights.advancement" type="number" min="0" max="100" /><span>%</span></label><label>应用价值 <input v-model.number="innovation.weights.applicability" type="number" min="0" max="100" /><span>%</span></label></div><footer>当前权重合计：<b>{{ innovation.weights.novelty + innovation.weights.advancement + innovation.weights.applicability }}%</b></footer></section>
+            <section class="score-config"><header><div><h2>评价模板</h2><p>模板由平台管理员维护，选择后会影响报告评价方式。</p></div><BaseSelect v-model="innovation.selectedTemplate" :options="scoreTemplateOptions" aria-label="选择评价模板" /></header><div><label>新颖性 <input v-model.number="innovation.weights.novelty" type="number" min="0" max="100" /><span>%</span></label><label>先进性 <input v-model.number="innovation.weights.advancement" type="number" min="0" max="100" /><span>%</span></label><label>应用价值 <input v-model.number="innovation.weights.applicability" type="number" min="0" max="100" /><span>%</span></label></div><footer>当前权重合计：<b>{{ innovation.weights.novelty + innovation.weights.advancement + innovation.weights.applicability }}%</b></footer></section>
           </template>
         </section>
 
