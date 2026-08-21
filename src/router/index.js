@@ -19,7 +19,7 @@ function pathFromLegacyRoute(route = '') {
     if (id === 'profile') return '/profile'
     if (id === 'knowledge') return '/knowledge'
     if (id === 'cockpit') return '/cockpit'
-    if (['admin', 'users', 'templates', 'operations', 'security'].includes(id)) return `/admin/${id === 'admin' ? 'users' : id}`
+    if (['admin', 'users', 'templates', 'operations', 'security'].includes(id)) return `/admin/${id === 'admin' ? 'users' : id === 'security' ? 'logs' : id}`
   }
   if (kind === 'agent') return id === 'qa' ? `/agent/qa/${stage || 'brief'}` : `/agent/${id}/${stage || 'brief'}`
   if (kind === 'innovation') return `/innovation/researcher/${id || 'upload'}`

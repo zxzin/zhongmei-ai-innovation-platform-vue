@@ -22,10 +22,10 @@ export const templates = [
 ]
 
 export const cockpitTrend = [
-  { label: '02月', calls: 58, results: 51 }, { label: '03月', calls: 72, results: 66 },
-  { label: '04月', calls: 96, results: 89 }, { label: '05月', calls: 124, results: 116 },
-  { label: '06月', calls: 141, results: 132 }, { label: '07月', calls: 167, results: 158 },
-  { label: '08月', calls: 203, results: 191 },
+  { label: '02月', calls: 48, results: 44 }, { label: '03月', calls: 62, results: 59 },
+  { label: '04月', calls: 88, results: 83 }, { label: '05月', calls: 118, results: 112 },
+  { label: '06月', calls: 139, results: 133 }, { label: '07月', calls: 179, results: 171 },
+  { label: '08月', calls: 203, results: 194 },
 ]
 
 export const agentUsage = [

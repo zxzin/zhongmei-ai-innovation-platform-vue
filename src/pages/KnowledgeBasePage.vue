@@ -76,7 +76,7 @@ function restoreFile(item) {
       <div v-if="selectedLibrary" class="library-files">
         <header><div><span class="eyebrow">{{ selectedLibrary.id }}</span><h2>{{ selectedLibrary.files }} 个文件</h2><p>默认按最近更新时间排序；可检索文件会参与个人知识库召回。</p></div><label class="button primary"><Upload :size="17" />上传文件<input type="file" multiple @change="ui.notify('文件已加入解析队列', 'success')" /></label></header>
         <label class="search-field"><Search :size="17" /><input placeholder="在当前知识库中搜索" /></label>
-        <div class="file-list"><article v-for="file in libraryFiles" :key="file.id"><i><FileText :size="19" /></i><span><b>{{ file.name }}</b><small>{{ file.type }} · {{ file.size }} · {{ file.source }}</small></span><em>{{ file.status }}</em><button class="icon-button"><MoreHorizontal :size="18" /></button></article></div>
+        <div class="file-list"><article v-for="file in libraryFiles" :key="file.id"><i><FileText :size="19" /></i><span><b>{{ file.name }}</b><small>{{ file.type }} · {{ file.size }} · {{ file.source }}</small></span><em>{{ file.status }}</em><button class="icon-button" :aria-label="`管理${file.name}`" @click="ui.notify(`已打开${file.name}的文件操作`)"><MoreHorizontal :size="18" /></button></article></div>
       </div>
     </BaseDrawer>
 

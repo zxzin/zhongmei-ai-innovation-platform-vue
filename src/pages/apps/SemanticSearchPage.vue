@@ -4,8 +4,10 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Search, SlidersHorizontal, ExternalLink, Image, AlertTriangle, CheckCircle2, Database, ChevronDown } from '@lucide/vue'
 import BaseDrawer from '../../components/BaseDrawer.vue'
 import { sourceCatalog } from '../../data/platform.js'
+import { useUiStore } from '../../stores/ui.js'
 
 const router = useRouter()
+const ui = useUiStore()
 const query = ref('检索煤岩识别技术路线相关专利与论文，重点关注多模态传感、弱光粉尘环境适配、井下通信中断时的任务连续性，以及已开展现场验证的技术方案。')
 const searched = ref(false)
 const type = ref('全部')
@@ -31,6 +33,6 @@ const results = computed(() => {
         <div class="semantic-result-list"><article v-for="item in results" :key="item.id"><label><input type="checkbox" />选择</label><div><span>{{ item.type }} · {{ item.id }}</span><h3>{{ item.title }}</h3><p>{{ item.summary }}</p><footer><span><Database :size="14" />{{ item.source }}</span><span>{{ item.owner }}</span><span>{{ item.date }}</span></footer></div><strong>{{ item.relevance }}<small>%</small><em>语义相关度</em></strong><div class="result-actions"><button v-if="item.images" type="button" @click="detail = { ...item, showImage: true }"><Image :size="16" />查看图片</button><button type="button" @click="detail = item">查看详情 <ExternalLink :size="15" /></button></div></article></div>
       </section>
     </main>
-    <BaseDrawer :open="Boolean(detail)" :title="detail?.title" width="720px" @close="detail = null"><div v-if="detail" class="source-detail"><span class="eyebrow">{{ detail.type }} · {{ detail.id }}</span><h2>{{ detail.title }}</h2><div v-if="detail.showImage" class="patent-figure"><Image :size="42" /><b>专利附图 {{ detail.images }} 张</b><p>点击附图缩略图可逐张放大查看。</p></div><ul><li>正式来源：{{ detail.source }}</li><li>申请人／作者：{{ detail.owner }}</li><li>公开日期：{{ detail.date }}</li><li>语义相关度：{{ detail.relevance }}%</li><li>排序规则：当前问题与标题、摘要、权利要求的向量相似度</li></ul><p>{{ detail.summary }}</p><button class="button primary wide">打开资料原文 <ExternalLink :size="17" /></button></div></BaseDrawer>
+    <BaseDrawer :open="Boolean(detail)" :title="detail?.title" width="720px" @close="detail = null"><div v-if="detail" class="source-detail"><span class="eyebrow">{{ detail.type }} · {{ detail.id }}</span><h2>{{ detail.title }}</h2><div v-if="detail.showImage" class="patent-figure"><Image :size="42" /><b>专利附图 {{ detail.images }} 张</b><p>点击附图缩略图可逐张放大查看。</p></div><ul><li>正式来源：{{ detail.source }}</li><li>申请人／作者：{{ detail.owner }}</li><li>公开日期：{{ detail.date }}</li><li>语义相关度：{{ detail.relevance }}%</li><li>排序规则：当前问题与标题、摘要、权利要求的向量相似度</li></ul><p>{{ detail.summary }}</p><button class="button primary wide" @click="ui.notify('已打开资料原文')">打开资料原文 <ExternalLink :size="17" /></button></div></BaseDrawer>
   </section>
 </template>

@@ -56,12 +56,12 @@ export const systemLogs = [
 ]
 
 export const appPerformance = [
-  { name: '语义检索', calls: 258, completion: 97.7, duration: '42 秒', success: 98.4, online: 1 },
-  { name: '技术问答', calls: 201, completion: 98.5, duration: '18 秒', success: 99.0, online: 1 },
-  { name: '技术预研报告', calls: 109, completion: 93.6, duration: '8 分 12 秒', success: 95.4, online: 1 },
-  { name: '创新性分析', calls: 101, completion: 91.1, duration: '11 分 34 秒', success: 94.1, online: 1 },
-  { name: '可行性分析', calls: 92, completion: 94.6, duration: '6 分 08 秒', success: 96.7, online: 1 },
-  { name: '技术交底书撰写', calls: 76, completion: 92.1, duration: '7 分 21 秒', success: 93.4, online: 1 },
+  { name: '语义检索', calls: 258, outputs: 252, duration: '42 秒', success: 98.4, online: 1 },
+  { name: '技术问答', calls: 201, outputs: 198, duration: '18 秒', success: 99.0, online: 1 },
+  { name: '技术预研报告', calls: 109, outputs: 102, duration: '8 分 12 秒', success: 95.4, online: 1 },
+  { name: '创新性分析', calls: 101, outputs: 92, duration: '11 分 34 秒', success: 94.1, online: 1 },
+  { name: '可行性分析', calls: 92, outputs: 87, duration: '6 分 08 秒', success: 96.7, online: 1 },
+  { name: '技术交底书撰写', calls: 76, outputs: 65, duration: '7 分 21 秒', success: 93.4, online: 1 },
 ]
 
 export const taskStatus = [

@@ -11,45 +11,49 @@ import { useUiStore } from '../stores/ui.js'
 
 const route = useRoute(); const router = useRouter(); const ui = useUiStore()
 const query = ref(''); const selectedUser = ref(null); const selectedLibrary = ref(null); const logType = ref('全部日志')
+const selectedDepartment = ref({ name:'技术研发部', parent:'中煤深圳研究院', count:31, admin:'王工' })
 const sectionIds = ['operations','departments','templates','knowledge','users','config','logs']
 const section = computed(() => sectionIds.includes(route.params.section) ? route.params.section : 'operations')
 const filteredUsers = computed(() => users.filter((user) => `${user.name}${user.id}${user.department}`.toLowerCase().includes(query.value.toLowerCase())))
 const filteredLogs = computed(() => logType.value === '全部日志' ? systemLogs : systemLogs.filter((item) => item.type === logType.value))
 const tabs = [
-  { id:'operations',label:'运营数据',icon:ChartNoAxesCombined,detail:'登录、调用与处理效率' },
-  { id:'departments',label:'部门管理',icon:Network,detail:'公司与子部门组织树' },
-  { id:'templates',label:'模板管理',icon:FileStack,detail:'报告结构与评分权重' },
-  { id:'knowledge',label:'公司知识库',icon:BookOpenText,detail:'企业资料与使用权限' },
-  { id:'users',label:'用户管理',icon:Users,detail:'账号、角色与批量导入' },
-  { id:'config',label:'配置管理',icon:Settings2,detail:'智能应用与模型配置' },
-  { id:'logs',label:'系统日志',icon:ScrollText,detail:'登录与操作记录' },
+  { id:'operations',label:'运营数据',icon:ChartNoAxesCombined },
+  { id:'departments',label:'部门管理',icon:Network },
+  { id:'templates',label:'模板管理',icon:FileStack },
+  { id:'knowledge',label:'公司知识库',icon:BookOpenText },
+  { id:'users',label:'用户管理',icon:Users },
+  { id:'config',label:'配置管理',icon:Settings2 },
+  { id:'logs',label:'系统日志',icon:ScrollText },
 ]
 function importUsers() { ui.notify('Excel 用户表已读取，进入导入确认步骤', 'success') }
+function selectDepartment(company, child) {
+  selectedDepartment.value = { name:child.name, parent:company.name, count:child.count, admin:child.name === '技术研发部' ? '王工' : '待分配' }
+}
 </script>
 
 <template>
   <section class="page-container admin-workbench-page">
-    <PageHeader title="管理员工作台" description="按平台功能分别管理运营数据、组织、模板、知识库、用户、配置和系统日志。" eyebrow="平台管理" />
+    <PageHeader title="管理中心" />
     <div class="admin-workbench-shell">
-      <nav class="admin-workbench-nav" aria-label="管理员功能"><button v-for="tab in tabs" :key="tab.id" :class="{ active: section === tab.id }" @click="router.push(`/admin/${tab.id}`)"><i><component :is="tab.icon" :size="19" /></i><span><b>{{ tab.label }}</b><small>{{ tab.detail }}</small></span><ChevronRight :size="17" /></button></nav>
+      <nav class="admin-workbench-nav" aria-label="管理员功能"><button v-for="tab in tabs" :key="tab.id" :class="{ active: section === tab.id }" @click="router.push(`/admin/${tab.id}`)"><i><component :is="tab.icon" :size="19" /></i><b>{{ tab.label }}</b><ChevronRight :size="17" /></button></nav>
 
       <main class="admin-panel" :class="`admin-section-${section}`">
         <template v-if="section === 'operations'">
           <header class="panel-heading"><div><h2>运营数据</h2><p>数据来自统一身份登录日志、智能应用调用日志和成果台账。</p></div><span class="data-date"><Database :size="17" />数据截至 2026-08-21</span></header>
-          <div class="operations-metrics"><article><Users :size="20" /><span>历史使用用户<b>156 人</b><small>按账号去重</small></span></article><article><Activity :size="20" /><span>智能应用调用<b>837 次</b><small>成功创建的调用记录</small></span></article><article><Clock3 :size="20" /><span>平均处理时长<b>5 分 21 秒</b><small>已完成任务平均值</small></span></article><article><CheckCircle2 :size="20" /><span>任务完成率<b>94.6%</b><small>完成状态为 1 的占比</small></span></article></div>
+          <div class="operations-metrics"><article><Users :size="20" /><span>使用用户<b>156 人</b><small>按账号去重</small></span></article><article><Activity :size="20" /><span>智能应用调用<b>837 次</b><small>按 call_id 去重</small></span></article><article><CheckCircle2 :size="20" /><span>形成成果<b>796 份</b><small>已归档成果</small></span></article><article><Clock3 :size="20" /><span>平均处理时长<b>5 分 21 秒</b><small>已结束调用平均值</small></span></article></div>
           <section class="operations-chart"><header><h3>用户登录与调用趋势</h3><span>按月统计</span></header><LineChart :data="cockpitTrend" /></section>
           <section class="agent-operation-list"><header><h3>按智能应用统计</h3><span>记录来源：智能应用调用日志</span></header><div v-for="item in agentUsage" :key="item.id"><i :style="{ background: item.color }" /><span>{{ item.name }}</span><div><b :style="{ width: `${item.value * 2.8}%`, background: item.color }" /></div><strong>{{ item.value }}%</strong></div></section>
         </template>
 
         <template v-else-if="section === 'departments'">
           <header class="panel-heading"><div><h2>部门管理</h2><p>维护根公司、二级公司、子部门与成员归属，权限按组织树向下生效。</p></div><button class="button primary" @click="ui.notify('已创建待编辑子部门')"><Plus :size="17" />新建部门</button></header>
-          <div class="department-layout"><section class="department-tree"><article v-for="root in departmentTree" :key="root.name"><header><i><Building2 :size="20" /></i><span><b>{{ root.name }}</b><small>{{ root.count }} 名成员</small></span></header><div v-for="company in root.children" :key="company.name" class="tree-company"><div><Network :size="17" /><b>{{ company.name }}</b><span>{{ company.count }} 人</span></div><button v-for="child in company.children" :key="child.name"><span>{{ child.name }}</span><em>{{ child.count }} 人</em><ChevronRight :size="15" /></button></div></article></section><aside class="department-detail"><span class="eyebrow">当前部门</span><h2>中煤深圳研究院 · 技术研发部</h2><dl><div><dt>上级组织</dt><dd>中煤深圳研究院</dd></div><div><dt>部门成员</dt><dd>31 人</dd></div><div><dt>部门管理员</dt><dd>王工</dd></div><div><dt>可用知识库</dt><dd>集团技术标准库、深圳院项目成果库</dd></div></dl><button class="button secondary">编辑部门信息</button></aside></div>
+          <div class="department-layout"><section class="department-tree"><article v-for="root in departmentTree" :key="root.name"><header><i><Building2 :size="20" /></i><span><b>{{ root.name }}</b><small>{{ root.count }} 名成员</small></span></header><div v-for="company in root.children" :key="company.name" class="tree-company"><div><Network :size="17" /><b>{{ company.name }}</b><span>{{ company.count }} 人</span></div><button v-for="child in company.children" :key="child.name" :class="{ active: selectedDepartment.name === child.name && selectedDepartment.parent === company.name }" @click="selectDepartment(company, child)"><span>{{ child.name }}</span><em>{{ child.count }} 人</em><ChevronRight :size="15" /></button></div></article></section><aside class="department-detail"><span class="eyebrow">当前部门</span><h2>{{ selectedDepartment.parent }} · {{ selectedDepartment.name }}</h2><dl><div><dt>上级组织</dt><dd>{{ selectedDepartment.parent }}</dd></div><div><dt>部门成员</dt><dd>{{ selectedDepartment.count }} 人</dd></div><div><dt>部门管理员</dt><dd>{{ selectedDepartment.admin }}</dd></div><div><dt>可用知识库</dt><dd>集团技术标准库、深圳院项目成果库</dd></div></dl><button class="button secondary" @click="ui.notify('已打开部门编辑')">编辑部门信息</button></aside></div>
         </template>
 
         <template v-else-if="section === 'templates'">
           <header class="panel-heading"><div><h2>模板管理</h2><p>维护报告结构，以及管理员创新性评价使用的评分权重。</p></div><button class="button primary" @click="ui.notify('已新建模板草稿')"><Plus :size="17" />新建模板</button></header>
           <div class="template-list"><article v-for="item in templates" :key="item.id"><i><FileStack :size="21" /></i><div><span>{{ item.id }} · {{ item.scope }}</span><h3>{{ item.name }}</h3><p>{{ item.owner }} · {{ item.version }}</p></div><span class="status-chip" :class="item.status === '已发布' ? 'success' : 'warning'">{{ item.status }}</span><button class="button ghost" @click="ui.notify('已打开模板详情')">查看</button></article></div>
-          <section class="weight-template"><header><div><span class="eyebrow">管理员评审专用</span><h3>创新性分析评分权重模板</h3><p>科研人员不可见；管理员生成评审报告前选择，选择结果会影响评价内容。</p></div><ShieldCheck :size="27" /></header><div><span>新颖性<b>40%</b></span><span>先进性<b>35%</b></span><span>应用价值<b>25%</b></span></div><button class="button secondary">编辑权重</button></section>
+          <section class="weight-template"><header><div><span class="eyebrow">管理员评审专用</span><h3>创新性分析评分权重模板</h3><p>管理员生成评审报告前选择，科研人员端不展示评分。</p></div><ShieldCheck :size="27" /></header><div><span>新颖性<b>40%</b></span><span>先进性<b>35%</b></span><span>应用价值<b>25%</b></span></div><button class="button secondary" @click="ui.notify('已打开评分权重编辑')">编辑权重</button></section>
         </template>
 
         <template v-else-if="section === 'knowledge'">
@@ -66,7 +70,7 @@ function importUsers() { ui.notify('Excel 用户表已读取，进入导入确�
 
         <template v-else-if="section === 'config'">
           <header class="panel-heading"><div><h2>配置管理</h2><p>分别设置智能应用可调用知识库数量和大模型服务参数。</p></div><button class="button primary" @click="ui.notify('配置已保存','success')">保存配置</button></header>
-          <div class="config-grid"><section><header><i><Settings2 :size="22" /></i><div><h3>智能应用配置</h3><p>按应用控制企业知识库和个人知识库召回数量。</p></div></header><article v-for="item in agentUsage" :key="item.id"><span>{{ item.name }}</span><label>企业库 <input type="number" value="3" min="0" max="10" /></label><label>个人库 <input type="number" value="2" min="0" max="10" /></label></article></section><section><header><i><ServerCog :size="22" /></i><div><h3>大模型配置</h3><p>显示服务状态和用途，不在客户端展示密钥。</p></div></header><dl><div><dt>模型服务</dt><dd>企业大模型网关</dd></div><div><dt>服务状态</dt><dd><span class="status-chip success">连接正常</span></dd></div><div><dt>输出温度</dt><dd>0.2（严谨模式）</dd></div><div><dt>最长上下文</dt><dd>128K</dd></div></dl><button class="button secondary">测试连接</button></section></div>
+          <div class="config-grid"><section><header><i><Settings2 :size="22" /></i><div><h3>智能应用配置</h3><p>按应用控制企业知识库和个人知识库召回数量。</p></div></header><article v-for="item in agentUsage" :key="item.id"><span>{{ item.name }}</span><label>企业库 <input type="number" value="3" min="0" max="10" /></label><label>个人库 <input type="number" value="2" min="0" max="10" /></label></article></section><section><header><i><ServerCog :size="22" /></i><div><h3>大模型配置</h3><p>服务密钥不在客户端展示。</p></div></header><dl><div><dt>模型服务</dt><dd>企业大模型网关</dd></div><div><dt>服务状态</dt><dd><span class="status-chip success">连接正常</span></dd></div><div><dt>输出温度</dt><dd>0.2（严谨模式）</dd></div><div><dt>最长上下文</dt><dd>128K</dd></div></dl><button class="button secondary" @click="ui.notify('模型服务连接正常','success')">测试连接</button></section></div>
         </template>
 
         <template v-else>
