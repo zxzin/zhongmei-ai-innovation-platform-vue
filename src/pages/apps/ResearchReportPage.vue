@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowUp, CheckCircle2, ChevronRight, Download, MessageSquareText, PanelLeft, Plus, X } from '@lucide/vue'
+import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
 
 const route = useRoute()
@@ -68,7 +69,7 @@ watch(() => route.params.stage, (value) => {
   <section class="research-page">
     <main v-if="stage === 'launch'" class="research-launch">
       <section class="research-launch-inner">
-        <header class="research-launch-title"><div class="agent-flow-mark">◫</div><h1>技术预研报告</h1></header>
+        <ApplicationHeading class="research-launch-title" app="research" />
         <section class="research-composer"><textarea v-model="prompt" maxlength="5000" aria-label="技术预研问题" placeholder="请描述需要预研的技术问题、应用场景和研究目标。" /><footer><button class="research-clear" type="button" :disabled="!prompt" @click="prompt = ''">清空内容</button><button class="research-submit" type="button" :disabled="!prompt.trim()" aria-label="开始预研" title="开始预研" @click="startResearch"><span aria-hidden="true">➤</span></button></footer></section>
         <section class="research-examples" aria-label="示范输入"><span>示范输入</span><button type="button" title="带入完整示范内容" @click="prompt = examples[0][1]"><span>{{ examples[0][1] }}</span></button></section>
       </section>

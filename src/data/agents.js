@@ -9,7 +9,16 @@ import {
 
 export const agents = [
   {
-    id: 'semantic', number: '01', name: '语义检索', action: '开始检索', icon: Search,
+    id: 'qa', number: '01', name: '技术问答', action: '开始问答', icon: MessagesSquare,
+    description: '支持连续对话，以专利、论文和企业资料作为引用依据。',
+    placeholder: '输入技术问题，可继续补充工况、指标或对比方案',
+    sample: '井下高矿化度矿井水资源化利用有哪些关键约束？',
+    steps: ['提出问题', '证据检索', '生成回答', '继续追问'],
+    sources: ['专利数据库', '论文数据库', '企业知识库'],
+    output: '带引用的连续技术问答', accent: 'rose',
+  },
+  {
+    id: 'semantic', number: '02', name: '语义检索', action: '开始检索', icon: Search,
     description: '检索专利、论文与授权知识库，按语义相关度排序并返回原文核验。',
     placeholder: '输入技术主题或检索问题，不少于 200 字可获得更准确的结果',
     sample: '检索煤岩识别技术路线相关专利与论文，重点关注多模态传感与井下复杂环境适配。',
@@ -18,22 +27,13 @@ export const agents = [
     output: '按相关度排序的证据列表与检索式', accent: 'blue',
   },
   {
-    id: 'innovation', number: '02', name: '创新性分析', action: '开始分析', icon: Lightbulb,
+    id: 'innovation', number: '03', name: '创新性分析', action: '开始分析', icon: Lightbulb,
     description: '解析技术方案，核对创新点、现有技术、政策依据与评价结论。',
     placeholder: '上传立项材料，或输入技术方案、创新目标与关键技术内容',
     sample: '复杂煤矿环境下智能巡检机器人关键技术研究',
     steps: ['上传材料', '项目信息', '技术分析', '证据确认', '报告生成'],
     sources: ['专利数据库', '论文数据库', '政策法规', '立项材料'],
     output: '创新性分析报告与可追溯证据', accent: 'teal',
-  },
-  {
-    id: 'qa', number: '03', name: '技术问答', action: '开始问答', icon: MessagesSquare,
-    description: '支持连续对话，以专利、论文和企业资料作为引用依据。',
-    placeholder: '输入技术问题，可继续补充工况、指标或对比方案',
-    sample: '井下高矿化度矿井水资源化利用有哪些关键约束？',
-    steps: ['提出问题', '证据检索', '生成回答', '继续追问'],
-    sources: ['专利数据库', '论文数据库', '企业知识库'],
-    output: '带引用的连续技术问答', accent: 'rose',
   },
   {
     id: 'research', number: '04', name: '技术预研报告', action: '开始预研', icon: FileText,

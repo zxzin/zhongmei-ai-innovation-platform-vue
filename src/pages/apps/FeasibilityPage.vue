@@ -5,6 +5,7 @@ import {
   ArrowUp, Check, ChevronRight, Download, FileSearch, FileText,
   Network, Search, ShieldCheck, TriangleAlert,
 } from '@lucide/vue'
+import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useTasksStore } from '../../stores/tasks.js'
 
@@ -98,10 +99,7 @@ watch(() => route.params.stage, (value) => {
   <section class="feas-page">
     <main v-if="!started" class="feas-launch">
       <section class="feas-launch__inner">
-        <header class="feas-launch__title">
-          <i aria-hidden="true"><ShieldCheck :size="26" /></i>
-          <div><h1>可行性分析</h1></div>
-        </header>
+        <ApplicationHeading class="feas-launch__title" app="feasibility" />
         <section class="feas-launch__composer">
           <textarea v-model="proposal" maxlength="5000" aria-label="技术方案描述" placeholder="描述您的技术方案，进行可行性分析" @keydown.ctrl.enter.prevent="startAnalysis" />
           <footer><button class="feas-launch__clear" type="button" :disabled="!proposal" @click="proposal = ''">清空内容</button><button type="button" :disabled="!proposal.trim()" aria-label="开始分析" @click="startAnalysis"><ArrowUp :size="18" /></button></footer>

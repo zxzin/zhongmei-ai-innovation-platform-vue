@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BookmarkPlus, Check, Copy, Download, ExternalLink, Search, X } from '@lucide/vue'
+import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import BaseDrawer from '../../components/BaseDrawer.vue'
 import { semanticReferenceResults } from '../../data/semanticResults.js'
 import { useUiStore } from '../../stores/ui.js'
@@ -146,10 +147,7 @@ watch(() => route.params.stage, (stage) => {
   <section class="structured-workspace semantic-workspace">
     <main v-if="!searched" class="semantic-launch">
       <section class="semantic-launch__inner">
-        <header class="semantic-launch__title">
-          <i><Search :size="25" /></i>
-          <h1>语义检索</h1>
-        </header>
+        <ApplicationHeading class="semantic-launch__title" app="semantic" />
         <div class="semantic-composer">
           <textarea v-model="query" maxlength="20000" placeholder="输入一个专利的公开(公告)号（例如：CN103712722B）或者输入任意中文简繁体/英文文本，建议200字以上。" aria-label="语义检索内容" />
           <span class="semantic-composer__footer">

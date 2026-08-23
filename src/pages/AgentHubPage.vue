@@ -2,12 +2,19 @@
 import { useRouter } from 'vue-router'
 import { ArrowUpRight } from '@lucide/vue'
 import { agents } from '../data/agents.js'
+import { useAuthStore } from '../stores/auth.js'
 
+const auth = useAuthStore()
 const router = useRouter()
 
+function applicationPath(id) {
+  if (id === 'innovation') return `/innovation/${auth.isAdmin ? 'admin' : 'researcher'}/upload`
+  if (id === 'qa') return '/agent/qa/brief'
+  return `/agent/${id}/brief`
+}
+
 function applicationHref(id) {
-  const target = id === 'innovation' ? '/innovation/researcher/upload' : `/agent/${id}/brief`
-  return router.resolve(target).href
+  return router.resolve(applicationPath(id)).href
 }
 </script>
 
@@ -28,7 +35,7 @@ function applicationHref(id) {
         rel="noopener noreferrer"
         class="agent-tile"
         :class="`accent-${agent.accent}`"
-        :aria-label="`打开${agent.name}`"
+        :aria-label="`在新页面打开${agent.name}`"
       >
         <span class="agent-index">{{ agent.number }}</span>
         <i class="agent-tile-icon"><component :is="agent.icon" :size="25" /></i>

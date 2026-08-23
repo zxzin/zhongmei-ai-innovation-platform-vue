@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Check, Download, FileText, Info, Lightbulb, PanelRightClose, PanelRightOpen, Pencil, RefreshCw, ScrollText, Sparkles } from '@lucide/vue'
+import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
 
 const route = useRoute()
@@ -154,10 +155,10 @@ watch(stage, value => { if (value === 'workbench') nextTick(syncToc) })
   <section class="disclosure-page">
     <main v-if="stage === 'launch'" class="disclosure-launch">
       <section class="disclosure-launch__inner">
-        <header class="disclosure-launch__title">
-          <i><ScrollText :size="25" /></i><h1>技术交底书撰写</h1>
+        <div class="disclosure-launch__title">
+          <ApplicationHeading app="disclosure" />
           <div class="disclosure-help-wrap"><button type="button" class="disclosure-help" :aria-expanded="showGuide" @click="showGuide = !showGuide"><Info :size="17" /><span>说明</span></button><aside v-show="showGuide" class="disclosure-guide"><h2>建议从三个方面描述技术方案</h2><section><b>技术背景</b><p>说明现有技术在实际使用中的问题、局限，以及需要解决的技术问题。</p></section><section><b>技术手段</b><p>说明为解决上述问题采用的结构、部件关系、处理步骤、控制逻辑或关键参数。</p></section><section><b>技术效果</b><p>说明采用技术手段后取得的效果，以及相较现有方案带来的改进。</p></section></aside></div>
-        </header>
+        </div>
         <section class="disclosure-composer"><textarea v-model="input" maxlength="5000" placeholder="请输入包含了技术手段的想法或方案，让 AI 来帮助您生成专利交底书吧！（建议输入 200 字以上的内容，支持中文／英文）" aria-label="技术方案描述" @keydown.ctrl.enter.prevent="start" /><footer><button type="button" class="disclosure-clear" :disabled="!input" @click="clearInput">清空内容</button><button type="button" :disabled="!input.trim()" @click="start">开始生成</button></footer></section>
         <section class="disclosure-example"><span>示范输入</span><button type="button" title="带入完整示范内容" @click="input = example"><span>现有煤矿井下巡检机器人在弱光、粉尘和局部通信中断条件下容易出现定位漂移、任务中断和告警延迟……</span></button></section>
       </section>

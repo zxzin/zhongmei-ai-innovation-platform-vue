@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Bot, ChevronDown, FileText, Lightbulb, MessageSquareText, X } from '@lucide/vue'
+import ApplicationHeading from '../components/ApplicationHeading.vue'
 import { useTasksStore } from '../stores/tasks.js'
 
 const route = useRoute()
@@ -224,12 +225,7 @@ onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
   <section class="qa-page">
     <main v-if="stage === 'launch'" class="qa-launch">
       <section class="qa-launch__inner">
-        <header class="qa-launch__heading">
-          <div>
-            <i aria-hidden="true"><MessageSquareText :size="18" /></i>
-            <h1>技术问答</h1>
-          </div>
-        </header>
+        <ApplicationHeading class="qa-launch__heading" app="qa" />
 
         <section class="qa-launch__composer">
           <textarea

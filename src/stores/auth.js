@@ -4,7 +4,6 @@ import { defineStore } from 'pinia'
 const profiles = {
   Admin: { account: 'Admin', name: '平台管理员', label: '平台管理员', role: 'admin', avatar: 'A', department: '科研管理部', company: '中煤深圳研究院' },
   User: { account: 'User', name: '徐博', label: '科研人员', role: 'researcher', avatar: '徐', department: '技术研发部', company: '中煤深圳研究院' },
-  Judge: { account: 'Judge', name: '李专家', label: '复核专家', role: 'reviewer', avatar: '李', department: '专家委员会', company: '中煤深圳研究院' },
 }
 
 function readSavedSession() {
