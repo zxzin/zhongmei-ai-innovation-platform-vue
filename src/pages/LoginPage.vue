@@ -13,8 +13,8 @@ const password = ref('demo123')
 const remember = ref(true)
 const error = ref('')
 const accountOptions = [
-  { value: 'Admin', label: 'Admin', detail: '平台管理员' },
-  { value: 'User', label: 'User', detail: '普通用户' },
+  { value: 'Admin', label: 'Admin' },
+  { value: 'User', label: 'User' },
 ]
 
 function submit() {
@@ -32,7 +32,7 @@ function submit() {
         <header class="login-brand-header"><img src="/chinacoal-logo.png" alt="中国中煤能源集团有限公司" /></header>
         <div class="login-brand-message">
           <h1><span>让科研工作</span><span>更清晰、更高效</span></h1>
-          <p>汇聚科研 Agent、任务过程与交付成果，为技术创新<br />提供统一的智能工作平台。</p>
+          <p>汇聚科研智能应用、任务过程与交付成果，为技术创新<br />提供统一的智能工作平台。</p>
         </div>
       </section>
       <section class="login-form-area">
