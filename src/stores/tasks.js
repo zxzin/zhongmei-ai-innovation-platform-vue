@@ -5,7 +5,7 @@ import { historyRecords } from '../data/demo.js'
 export const useTasksStore = defineStore('tasks', () => {
   const records = ref([...historyRecords])
   const selectedRecord = ref(null)
-  const recent = computed(() => records.value.slice(0, 3))
+  const recent = computed(() => records.value.slice(0, 4))
 
   function addTask(agent, title, result = '结果预览') {
     const record = {

@@ -2,16 +2,18 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  History, Gauge, UserRound, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, BookOpenText,
+  House, UserRound, Settings, LogOut, BookOpenText,
 } from '@lucide/vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useUiStore } from '../stores/ui.js'
-import { agents } from '../data/agents.js'
+import { agents, agentMap } from '../data/agents.js'
+import { useTasksStore } from '../stores/tasks.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const ui = useUiStore()
+const tasks = useTasksStore()
 const accountOpen = ref(false)
 
 const displayProfile = computed(() => auth.profile ?? { avatar: '中', name: '用户', label: '平台用户' })
@@ -29,6 +31,13 @@ function applicationPath(id) {
 function applicationIsActive(id) {
   const path = applicationPath(id)
   return route.path.startsWith(path.slice(0, path.lastIndexOf('/') + 1))
+}
+
+function openRecentTask(task) {
+  accountOpen.value = false
+  router.push(task.agent === 'innovation'
+    ? `/innovation/${auth.isAdmin ? 'admin' : 'researcher'}/report`
+    : `/agent/${task.agent}/report`)
 }
 
 function logout() {
@@ -52,12 +61,21 @@ function logout() {
           :title="ui.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
           @click="accountOpen = false; ui.sidebarCollapsed = !ui.sidebarCollapsed"
         >
-          <ChevronRight v-if="ui.sidebarCollapsed" :size="17" :stroke-width="2.4" />
-          <ChevronLeft v-else :size="17" :stroke-width="2.4" />
+          <img
+            class="collapse-reference-icon"
+            :class="{ 'is-reversed': ui.sidebarCollapsed }"
+            src="/sidebar-collapse-control.png"
+            alt=""
+            aria-hidden="true"
+          />
         </button>
       </div>
 
       <nav>
+        <RouterLink class="nav-home" to="/agents" title="首页" @click="accountOpen = false">
+          <House :size="21" /><span>首页</span>
+        </RouterLink>
+
         <div class="side-nav-section application-links">
           <small class="side-nav-label">智能应用</small>
           <RouterLink
@@ -73,20 +91,18 @@ function logout() {
           </RouterLink>
         </div>
 
-        <div class="side-nav-section utility-links">
-          <RouterLink class="nav-utility" to="/history" title="历史记录" @click="accountOpen = false">
-            <History :size="21" /><span>历史记录</span>
-          </RouterLink>
-          <RouterLink v-if="auth.isAdmin" class="nav-utility" to="/cockpit" title="驾驶舱" @click="accountOpen = false">
-            <Gauge :size="21" /><span>驾驶舱</span>
-          </RouterLink>
-        </div>
+        <section v-if="tasks.recent.length" class="recent-tasks" aria-label="最近任务">
+          <h2>最近任务</h2>
+          <button v-for="task in tasks.recent" :key="task.id" type="button" :title="task.title" @click="openRecentTask(task)">
+            <component :is="agentMap[task.agent].icon" :size="20" />
+            <span>{{ task.title }}</span>
+          </button>
+        </section>
       </nav>
 
       <button class="side-account" type="button" :aria-expanded="accountOpen" @click="accountOpen = !accountOpen">
         <span>{{ displayProfile.avatar }}</span>
         <b>{{ displayProfile.name }}</b>
-        <ChevronDown v-if="!ui.sidebarCollapsed" :size="16" />
       </button>
     </aside>
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BookmarkPlus, Check, Copy, Download, ExternalLink, Search, X } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
@@ -24,6 +24,15 @@ const queryDialogOpen = ref(false)
 const hoverPreview = ref(null)
 const hoverPreviewPosition = ref({ left: 16, top: 16 })
 let hoverPreviewTimer
+const generating = ref(false)
+const generationStep = ref(0)
+let generationTimers = []
+const generationSteps = [
+  { title: '解析检索内容', detail: '识别技术主题、应用场景与关键约束' },
+  { title: '提取技术特征', detail: '构建多维语义特征与关联表达' },
+  { title: '匹配多源资料', detail: '比对专利、论文、政策与内部资料' },
+  { title: '生成相关性排序', detail: '综合技术语义与资料质量生成结果' },
+]
 const resultTypeLabels = { patent: '专利', paper: '论文', policy: '政策', internal: '内部资料' }
 const categoryRecords = computed(() => semanticReferenceResults.filter((item) => item.type === category.value))
 const filteredRecords = computed(() => categoryRecords.value)
@@ -43,11 +52,25 @@ const displayRange = computed(() => {
 
 function setCategory(value) { category.value = value; resultPage.value = 1; hoverPreview.value = null }
 function changePage(page) { resultPage.value = Math.min(Math.max(1, page), totalPages.value) }
+function clearGenerationTimers() {
+  generationTimers.forEach((timer) => window.clearTimeout(timer))
+  generationTimers = []
+}
+function beginGeneration() {
+  clearGenerationTimers()
+  generating.value = true
+  generationStep.value = 0
+  generationSteps.slice(1).forEach((_, index) => {
+    generationTimers.push(window.setTimeout(() => { generationStep.value = index + 1 }, 520 * (index + 1)))
+  })
+  generationTimers.push(window.setTimeout(() => { generating.value = false }, 2620))
+}
 function showResults() {
   if (!query.value.trim()) return
   resultPage.value = 1
+  hoverPreview.value = null
+  beginGeneration()
   if (route.params.stage !== 'results') router.push('/agent/semantic/results')
-  else ui.notify('已按修改后的检索内容重新检索', 'success')
 }
 async function copyQuery() {
   if (!query.value.trim()) return
@@ -139,8 +162,12 @@ function scheduleHoverPreviewClose() {
 
 watch(() => route.params.stage, (stage) => {
   searched.value = stage === 'results'
-  if (stage !== 'results') { resultPage.value = 1; hoverPreview.value = null }
+  if (stage !== 'results') { resultPage.value = 1; hoverPreview.value = null; generating.value = false; clearGenerationTimers() }
 }, { immediate: true })
+onBeforeUnmount(() => {
+  clearHoverPreviewTimer()
+  clearGenerationTimers()
+})
 </script>
 
 <template>
@@ -158,7 +185,21 @@ watch(() => route.params.stage, (stage) => {
         <div class="semantic-quick-sample"><span>示范输入</span><button type="button" title="带入完整示范内容" @click="query = semanticDemoInput"><span>一种适用于煤矿井下复杂环境的智能巡检机器人及其控制方法，包括移动底盘、激光雷达、低照度摄像头、热成像模块、惯性测量单元和气体传感器；通过多传感器融合定位建立巷道环境地图，并根据粉尘浓度、照度、通信质量和设备状态动态调整感知权重……</span></button></div>
       </section>
     </main>
-    <main v-else class="semantic-output">
+    <main v-else class="semantic-output" :class="{ 'semantic-output--generating': generating }">
+      <section v-if="generating" class="semantic-generation" role="status" aria-live="polite">
+        <div class="semantic-generation__panel">
+          <div class="semantic-generation__signal"><Search :size="28" /></div>
+          <header><span>语义检索引擎</span><h1>正在分析检索内容</h1><p>基于技术语义、应用场景和约束条件匹配多源资料</p></header>
+          <div class="semantic-generation__progress"><i :style="{ width: `${((generationStep + 1) / generationSteps.length) * 100}%` }"></i></div>
+          <ol class="semantic-generation__steps">
+            <li v-for="(step, index) in generationSteps" :key="step.title" :class="{ complete: index < generationStep, active: index === generationStep }">
+              <i>{{ index + 1 }}</i><div><b>{{ step.title }}</b><span>{{ step.detail }}</span></div><em>{{ index < generationStep ? '已完成' : index === generationStep ? '处理中' : '等待中' }}</em>
+            </li>
+          </ol>
+          <footer><span></span>正在生成可解释的相关性排序结果</footer>
+        </div>
+      </section>
+      <template v-else>
       <header class="semantic-output__heading">
         <i><Search :size="25" /></i>
         <h1>语义检索结果</h1>
@@ -207,6 +248,7 @@ watch(() => route.params.stage, (stage) => {
           </div>
           <footer class="semantic-pagination"><span>显示第 {{ displayRange }} 条，共 {{ filteredRecords.length }} 条结果</span><div><button type="button" :disabled="resultPage === 1" @click="changePage(resultPage - 1)">上一页</button><button v-for="page in pageNumbers" :key="page" type="button" :class="{ active: resultPage === page }" @click="changePage(page)">{{ page }}</button><i v-if="totalPages > pageNumbers.length">…</i><button type="button" :disabled="resultPage === totalPages" @click="changePage(resultPage + 1)">下一页</button></div></footer>
       </section>
+      </template>
     </main>
     <Teleport to="body">
       <aside v-if="hoverPreview" class="semantic-patent-hover-card" role="tooltip" :style="{ left: `${hoverPreviewPosition.left}px`, top: `${hoverPreviewPosition.top}px` }" @pointerenter="clearHoverPreviewTimer" @pointerleave="scheduleHoverPreviewClose">

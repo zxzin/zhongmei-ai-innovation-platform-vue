@@ -30,8 +30,10 @@ function submit() {
     <div class="login-stage">
       <section class="login-brand">
         <header class="login-brand-header"><img src="/chinacoal-logo.png" alt="中国中煤能源集团有限公司" /></header>
-        <span class="login-brand-index" aria-hidden="true">AI</span>
-        <div class="login-brand-identity"><span>中煤深圳院</span><h1>AI 创新应用平台</h1><p>科研智能工作平台</p></div>
+        <div class="login-brand-message">
+          <h1><span>让科研工作</span><span>更清晰、更高效</span></h1>
+          <p>汇聚科研 Agent、任务过程与交付成果，为技术创新<br />提供统一的智能工作平台。</p>
+        </div>
       </section>
       <section class="login-form-area">
         <form class="login-card" @submit.prevent="submit">

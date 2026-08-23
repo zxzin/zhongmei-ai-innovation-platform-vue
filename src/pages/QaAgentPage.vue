@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bot, ChevronDown, FileText, Lightbulb, MessageSquareText, X } from '@lucide/vue'
+import { Bot, Check, ChevronDown, FileText, Lightbulb, MessageSquareText, X } from '@lucide/vue'
 import ApplicationHeading from '../components/ApplicationHeading.vue'
 import { useTasksStore } from '../stores/tasks.js'
 
@@ -15,7 +15,6 @@ const followup = ref('')
 const messages = ref([])
 const thinking = ref(false)
 const recorded = ref(false)
-const timers = []
 
 const examples = [
   {
@@ -26,20 +25,20 @@ const examples = [
 
 const thinkingSteps = [
   {
-    title: '理解任务与约束',
-    content: '问题同时要求定位可靠性、安全监测和通信连续性，因此不能只比较单一传感器精度，需要按井下粉尘、弱光、盲区三个边界拆分。',
+    title: '解析提问与工程约束',
+    content: '识别出粉尘、弱光、局部通信盲区、定位可靠性和安全监测五项关键约束。',
   },
   {
-    title: '确定主从传感器分工',
-    content: '以激光雷达和 IMU 提供定位主干，视觉和热成像承担语义补充，气体传感器保持独立安全通道，避免任一链路失效放大为系统失效。',
+    title: '检索并匹配四路资料',
+    content: '从专利、论文、政策和内部资料中检索到 16 条候选资料，优先匹配组合定位、弱光感知和通信接续场景。',
   },
   {
-    title: '核对失效边界',
-    content: '重点检查点云因粉尘或水雾退化、视觉因照度不足退化、IMU 长时漂移以及 5G 中断后的状态保持能力。',
+    title: '交叉筛选可靠性证据',
+    content: '核对点云退化、视觉失效、惯导漂移和通信中断时的降级策略，保留可用于工程验证的依据。',
   },
   {
-    title: '形成工程验证方案',
-    content: '把传感器组合转化为可测的点云可用率、定位残余误差、盲区切换和报警本地可用性等验收指标，并为高粉尘和通信盲区配置替代链路。',
+    title: '组织结论与验证指标',
+    content: '按核心结论、可靠性依据、失效边界、验证指标和替代方案生成回答结构。',
   },
 ]
 
@@ -90,59 +89,121 @@ const sources = [
   },
 ]
 
-const activeSourceRoute = ref(sources[0].id)
-const activeSource = computed(() => sources.find((source) => source.id === activeSourceRoute.value) || sources[0])
 const sourceItemCount = computed(() => sources.reduce((total, source) => total + source.items.length, 0))
+
+const citations = {
+  fusionPatent: { sourceId: 'patents', code: 'CN114485643B', label: '[专利1]' },
+  weakLightPatent: { sourceId: 'patents', code: 'CN116412810B', label: '[专利2]' },
+  navigationPaper: { sourceId: 'papers', code: '10.3390/s22114051', label: '[论文1]' },
+  imageQualityPaper: { sourceId: 'papers', code: '论文资料 02', label: '[论文2]' },
+  safetyPolicy: { sourceId: 'policies', code: '政策资料 02', label: '[政策2]' },
+  networkPolicy: { sourceId: 'policies', code: '政策资料 04', label: '[政策4]' },
+  fieldTest: { sourceId: 'internal', code: '内部资料 01', label: '[内部资料1]' },
+  failureReview: { sourceId: 'internal', code: '内部资料 04', label: '[内部资料4]' },
+  handoffReport: { sourceId: 'internal', code: '内部资料 03', label: '[内部资料3]' },
+}
 
 function answerSections(question, isFollowup = false) {
   return [
     {
       title: isFollowup ? '补充结论' : '核心结论',
       paragraphs: [
-        isFollowup
-          ? `围绕“${question}”，建议仍以激光雷达与 IMU 的紧耦合定位作为主干，再用视觉或热成像补足语义信息；气体监测保持独立安全链路，通信中断时进入离线自主和缓存回传。`
-          : '建议采用“激光雷达 + IMU 主定位、视觉或热成像语义补充、气体传感独立安全监测、局部盲区离线自主与缓存回传”的分层组合。四类传感器不宜等权融合，而应各自承担定位、语义、高频桥接和安全功能。',
+        {
+          text: isFollowup
+            ? `围绕“${question}”，建议仍以激光雷达与 IMU 的紧耦合定位作为主干，再用视觉或热成像补足语义信息；气体监测保持独立安全链路，通信中断时进入离线自主和缓存回传。`
+            : '建议采用“激光雷达 + IMU 主定位、视觉或热成像语义补充、气体传感独立安全监测、局部盲区离线自主与缓存回传”的分层组合。四类传感器不宜等权融合，而应各自承担定位、语义、高频桥接和安全功能。',
+          citations: [citations.fusionPatent, citations.fieldTest],
+        },
       ],
     },
     {
       title: '可靠性依据',
       paragraphs: [
-        '巷道环境中的几何结构能为激光雷达提供稳定定位约束，IMU 可在短时点云退化或遮挡时保持姿态和航迹连续。视觉在弱光和粉尘条件下应作为补充观测，不应成为单点定位依赖。',
-        '气体传感器需要独立供电、独立报警与失联本地记录，避免导航系统或链路中断影响安全监测。',
+        {
+          text: '巷道环境中的几何结构能为激光雷达提供稳定定位约束，IMU 可在短时点云退化或遮挡时保持姿态和航迹连续。视觉在弱光和粉尘条件下应作为补充观测，不应成为单点定位依赖。',
+          citations: [citations.fusionPatent, citations.navigationPaper, citations.weakLightPatent],
+        },
+        {
+          text: '气体传感器需要独立供电、独立报警与失联本地记录，避免导航系统或链路中断影响安全监测。',
+          citations: [citations.safetyPolicy],
+        },
       ],
     },
     {
       title: '主要失效边界',
       bullets: [
-        '高浓度粉尘、镜面水雾或强反射煤壁会降低点云有效率，应触发降速、重定位或人工接管策略。',
-        '无补光、强粉尘遮蔽和热源干扰会同步削弱可见光与热成像，应保留非视觉定位链路。',
-        '外部观测长期缺失时，IMU 漂移不可单独消除，需通过回环、人工标志物或局部定位基站复位。',
+        { text: '高浓度粉尘、镜面水雾或强反射煤壁会降低点云有效率，应触发降速、重定位或人工接管策略。', citations: [citations.fieldTest, citations.navigationPaper] },
+        { text: '无补光、强粉尘遮蔽和热源干扰会同步削弱可见光与热成像，应保留非视觉定位链路。', citations: [citations.imageQualityPaper, citations.failureReview] },
+        { text: '外部观测长期缺失时，IMU 漂移不可单独消除，需通过回环、人工标志物或局部定位基站复位。', citations: [citations.navigationPaper, citations.fusionPatent] },
       ],
     },
     {
       title: '工程验证指标',
       bullets: [
-        '按粉尘浓度和照度分级测试有效点云占比、可用帧率与连续定位时长。',
-        '在长巷道往返场景比对纯惯导与融合定位的残余误差、重定位时间和任务完成率。',
-        '模拟 5G 盲区进出，核验中断检测、离线切换、缓存补传和气体报警本地可用性。',
+        { text: '按粉尘浓度和照度分级测试有效点云占比、可用帧率与连续定位时长。', citations: [citations.imageQualityPaper, citations.fieldTest] },
+        { text: '在长巷道往返场景比对纯惯导与融合定位的残余误差、重定位时间和任务完成率。', citations: [citations.navigationPaper] },
+        { text: '模拟 5G 盲区进出，核验中断检测、离线切换、缓存补传和气体报警本地可用性。', citations: [citations.networkPolicy, citations.handoffReport, citations.safetyPolicy] },
       ],
     },
     {
       title: '替代方案',
       paragraphs: [
-        '在点云长期失效的高粉尘区域，可增加 UWB 或人工标志物形成局部定位锚点；在回传不稳定区域，可采用矿用 Mesh 或漏泄通信承载低码率状态上报。替代链路应与主系统定期交叉校验，而不是仅在故障时启用。',
+        {
+          text: '在点云长期失效的高粉尘区域，可增加 UWB 或人工标志物形成局部定位锚点；在回传不稳定区域，可采用矿用 Mesh 或漏泄通信承载低码率状态上报。替代链路应与主系统定期交叉校验，而不是仅在故障时启用。',
+          citations: [citations.navigationPaper, citations.networkPolicy, citations.handoffReport],
+        },
       ],
     },
   ]
 }
 
-function createAssistantMessage(question, isFollowup = false) {
+function sourceFor(message) {
+  return message.sources.find((source) => source.id === message.activeSourceRoute) || message.sources[0]
+}
+
+function setActiveSource(message, sourceId) {
+  message.activeSourceRoute = sourceId
+  message.activeCitation = null
+}
+
+function openSourceReference(message, citation) {
+  message.activeSourceRoute = citation.sourceId
+  message.activeCitation = citation.code
+  message.sourcesOpen = true
+  nextTick(() => {
+    const panel = document.getElementById(`qa-sources-${message.id}`)
+    if (!panel) return
+    panel.open = true
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
+function statusText(message) {
+  if (message.status === 'done') return '已完成'
+  if (message.status === 'writing') return `正在撰写回答 ${message.visibleSections}/${message.sections.length}`
+  return message.thinking.find((step) => step.state === 'active')?.title || '正在准备分析'
+}
+
+function createAssistantMessage(question, isFollowup = false, animateIn = false) {
+  const sections = answerSections(question, isFollowup)
   return {
     id: `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     role: 'assistant',
-    thinking: thinkingSteps,
+    status: 'done',
+    thinking: thinkingSteps.map((step, index) => ({
+      ...step,
+      state: 'done',
+      streamDelay: index * 170,
+    })),
     sources,
-    sections: answerSections(question, isFollowup),
+    activeSourceRoute: sources[0].id,
+    activeCitation: null,
+    sourcesReady: true,
+    thinkingOpen: animateIn,
+    sourcesOpen: animateIn,
+    sections,
+    visibleSections: sections.length,
+    animateIn,
   }
 }
 
@@ -162,12 +223,9 @@ function recordTask(question) {
 
 function queueAnswer(question, isFollowup = false) {
   thinking.value = true
-  const timer = window.setTimeout(() => {
-    messages.value.push(createAssistantMessage(question, isFollowup))
-    thinking.value = false
-    nextTick(scrollToLatest)
-  }, 520)
-  timers.push(timer)
+  messages.value.push(createAssistantMessage(question, isFollowup, true))
+  thinking.value = false
+  nextTick(scrollToLatest)
 }
 
 function scrollToLatest() {
@@ -175,7 +233,12 @@ function scrollToLatest() {
   element?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' })
 }
 
-function startQuestion(question = draft.value) {
+function followGeneratedContent(event) {
+  if (event.target !== event.currentTarget) return
+  nextTick(() => event.currentTarget?.scrollIntoView({ behavior: 'smooth', block: 'end' }))
+}
+
+async function startQuestion(question = draft.value) {
   const value = question.trim()
   if (!value) return
 
@@ -185,7 +248,8 @@ function startQuestion(question = draft.value) {
   recorded.value = false
   recordTask(value)
   stage.value = 'chat'
-  updateRoute('chat')
+  await updateRoute('chat')
+  await nextTick()
   queueAnswer(value)
 }
 
@@ -218,7 +282,6 @@ watch(() => route.params.stage, (value) => {
   if (nextStage === 'chat') ensureDirectConversation()
 }, { immediate: true })
 
-onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
 </script>
 
 <template>
@@ -277,21 +340,39 @@ onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
                 <b>中煤 AI</b>
               </header>
 
-              <details class="qa-assistant__thinking" open>
+              <details class="qa-assistant__thinking" :open="message.thinkingOpen" @toggle="message.thinkingOpen = $event.currentTarget.open">
                 <summary>
-                  <span>思考过程</span>
-                  <small>已完成</small>
+                  <span>分析过程</span>
+                  <small :class="{ 'is-streaming': message.status !== 'done' }">{{ statusText(message) }}</small>
                   <ChevronDown :size="16" aria-hidden="true" />
                 </summary>
                 <ol>
-                  <li v-for="(step, index) in message.thinking" :key="step.title">
-                    <i>{{ index + 1 }}</i>
-                    <span><b>{{ step.title }}</b><small>{{ step.content }}</small></span>
+                  <li
+                    v-for="(step, index) in message.thinking"
+                    :key="step.title"
+                    :class="[`qa-thinking-step--${step.state}`, { 'qa-thinking-step--streamed': message.animateIn }]"
+                    :style="{ '--qa-stream-delay': `${step.streamDelay}ms` }"
+                  >
+                    <i :class="`qa-thinking-state--${step.state}`">
+                      <Check v-if="step.state === 'done'" :size="14" aria-hidden="true" />
+                      <span v-else>{{ index + 1 }}</span>
+                    </i>
+                    <span>
+                      <b>{{ step.title }}</b>
+                      <small>{{ step.state === 'pending' ? '等待处理' : step.content }}</small>
+                    </span>
                   </li>
                 </ol>
               </details>
 
-              <details class="qa-assistant__sources" open>
+              <details
+                v-if="message.sourcesReady"
+                :id="`qa-sources-${message.id}`"
+                :class="['qa-assistant__sources', { 'qa-assistant__sources--streamed': message.animateIn }]"
+                :open="message.sourcesOpen"
+                @animationend="message.animateIn && followGeneratedContent($event)"
+                @toggle="message.sourcesOpen = $event.currentTarget.open"
+              >
                 <summary>
                   <span><FileText :size="16" /><b>引用资料</b><small>4 路资料 · {{ sourceItemCount }} 条</small></span>
                   <ChevronDown :size="16" aria-hidden="true" />
@@ -302,19 +383,21 @@ onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
                     :key="source.id"
                     type="button"
                     role="tab"
-                    :aria-selected="activeSourceRoute === source.id"
-                    :class="{ active: activeSourceRoute === source.id }"
-                    @click="activeSourceRoute = source.id"
+                    :aria-selected="message.activeSourceRoute === source.id"
+                    :class="{ active: message.activeSourceRoute === source.id }"
+                    @click="setActiveSource(message, source.id)"
                   >
                     <span>{{ source.category }}</span>
                     <small>{{ source.items.length }} 条</small>
                   </button>
                 </nav>
                 <ol>
-                  <li v-for="(item, index) in activeSource.items" :key="item.code">
-                    <i>{{ String(index + 1).padStart(2, '0') }}</i>
+                  <li v-for="(item, index) in sourceFor(message).items" :key="item.code" :class="{ 'qa-source-row--cited': message.activeCitation === item.code }">
+                    <i>
+                      <small>{{ sourceFor(message).category }}</small>
+                      <b>{{ index + 1 }}</b>
+                    </i>
                     <div>
-                      <span>{{ activeSource.category }}</span>
                       <b>{{ item.title }}</b>
                       <p>{{ item.description }}</p>
                     </div>
@@ -327,28 +410,39 @@ onBeforeUnmount(() => timers.forEach((timer) => clearTimeout(timer)))
                 </ol>
               </details>
 
-              <section class="qa-assistant__answer" aria-label="回答内容">
-                <section v-for="section in message.sections" :key="section.title">
+              <section :class="['qa-assistant__answer', { 'qa-assistant__answer--streamed': message.animateIn }]" aria-label="回答内容">
+                <section
+                  v-for="(section, index) in message.sections.slice(0, message.visibleSections)"
+                  :key="section.title"
+                  :class="['qa-answer-section', { 'qa-answer-section--streamed': message.animateIn }]"
+                  :style="{ '--qa-answer-delay': `${1120 + index * 180}ms` }"
+                  @animationend="message.animateIn && followGeneratedContent($event)"
+                >
                   <h2>{{ section.title }}</h2>
-                  <p v-for="paragraph in section.paragraphs" :key="paragraph">{{ paragraph }}</p>
+                  <p v-for="paragraph in section.paragraphs" :key="paragraph.text">
+                    {{ paragraph.text }}
+                    <button
+                      v-for="citation in paragraph.citations"
+                      :key="citation.code"
+                      class="qa-inline-citation"
+                      type="button"
+                      @click="openSourceReference(message, citation)"
+                    >{{ citation.label }}</button>
+                  </p>
                   <ul v-if="section.bullets">
-                    <li v-for="bullet in section.bullets" :key="bullet">{{ bullet }}</li>
+                    <li v-for="bullet in section.bullets" :key="bullet.text">
+                      {{ bullet.text }}
+                      <button
+                        v-for="citation in bullet.citations"
+                        :key="citation.code"
+                        class="qa-inline-citation"
+                        type="button"
+                        @click="openSourceReference(message, citation)"
+                      >{{ citation.label }}</button>
+                    </li>
                   </ul>
                 </section>
               </section>
-            </div>
-          </article>
-
-          <article v-if="thinking" class="qa-message qa-message--assistant qa-message--loading">
-            <div class="qa-message__assistant">
-              <header class="qa-assistant__identity">
-                <i aria-hidden="true"><Bot :size="17" /></i>
-                <b>中煤 AI</b>
-              </header>
-              <div class="qa-loading" aria-label="正在组织回答">
-                <span></span><span></span><span></span>
-                正在组织回答
-              </div>
             </div>
           </article>
         </section>
@@ -589,17 +683,17 @@ summary:focus-visible {
 
 .qa-chat {
   min-height: 100vh;
-  padding: 30px clamp(16px, 3vw, 36px) 42px;
-  background: #f7fafc;
+  padding: 18px clamp(16px, 3vw, 36px) 28px;
+  background: #f8fafc;
 }
 
 .qa-chat__shell {
-  width: min(920px, 100%);
+  width: min(860px, 100%);
   margin: 0 auto;
 }
 
 .qa-chat__topbar {
-  min-height: 54px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -611,7 +705,7 @@ summary:focus-visible {
   align-items: center;
   gap: 8px;
   color: #20527b;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
 }
 
@@ -633,8 +727,8 @@ summary:focus-visible {
 
 .qa-chat__thread {
   display: grid;
-  gap: 34px;
-  padding: 32px 0 150px;
+  gap: 28px;
+  padding: 26px 0 126px;
 }
 
 .qa-message--user {
@@ -644,18 +738,18 @@ summary:focus-visible {
 
 .qa-message__user {
   width: fit-content;
-  max-width: min(82%, 700px);
-  border: 1px solid #cde3f4;
-  border-radius: 14px 14px 4px 14px;
-  padding: 13px 16px;
-  color: #294d6b;
-  background: #edf7ff;
+  max-width: min(80%, 680px);
+  border: 1px solid #d6e7f2;
+  border-radius: 15px 15px 5px 15px;
+  padding: 12px 15px;
+  color: #30536d;
+  background: #eef7fc;
 }
 
 .qa-message__user p {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.82;
+  font-size: 15px;
+  line-height: 1.78;
 }
 
 .qa-message__assistant {
@@ -666,33 +760,33 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
-  color: #284963;
-  font-size: 16px;
+  margin-bottom: 10px;
+  color: #2f5068;
+  font-size: 15px;
 }
 
 .qa-assistant__identity i {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
 }
 
 .qa-assistant__thinking {
   overflow: hidden;
-  border: 1px solid #dbe7f0;
-  border-radius: 10px;
-  background: #fbfdff;
+  border: 1px solid #e0eaf1;
+  border-radius: 12px;
+  background: #f8fbfd;
 }
 
 .qa-assistant__thinking summary {
-  min-height: 50px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
-  color: #3a5c77;
+  padding: 0 13px;
+  color: #45667d;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   list-style: none;
 }
@@ -708,6 +802,22 @@ summary:focus-visible {
   font-weight: 500;
 }
 
+.qa-assistant__thinking summary small.is-streaming {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2479b6;
+}
+
+.qa-assistant__thinking summary small.is-streaming::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3f91ca;
+  content: '';
+  animation: qa-pulse 1.25s ease-in-out infinite;
+}
+
 .qa-assistant__thinking summary svg {
   transition: transform .18s ease;
 }
@@ -718,10 +828,10 @@ summary:focus-visible {
 
 .qa-assistant__thinking ol {
   display: grid;
-  gap: 14px;
+  gap: 9px;
   margin: 0;
   border-top: 1px solid #e7eef4;
-  padding: 16px;
+  padding: 12px 13px 14px;
   list-style: none;
 }
 
@@ -730,9 +840,12 @@ summary:focus-visible {
   grid-template-columns: 23px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
+  border-radius: 7px;
+  padding: 3px 4px;
   color: #627b91;
   font-size: 13px;
   line-height: 1.72;
+  transition: color .2s ease, background .2s ease, opacity .2s ease;
 }
 
 .qa-assistant__thinking li > span {
@@ -743,6 +856,7 @@ summary:focus-visible {
 .qa-assistant__thinking li b {
   color: #45657e;
   font-size: 13px;
+  transition: color .2s ease;
 }
 
 .qa-assistant__thinking li small {
@@ -762,20 +876,60 @@ summary:focus-visible {
   font-size: 11px;
   font-style: normal;
   font-weight: 800;
+  transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+
+.qa-assistant__thinking li.qa-thinking-step--pending {
+  opacity: .46;
+}
+
+.qa-assistant__thinking li.qa-thinking-step--streamed {
+  animation: qa-reveal .32s ease-out var(--qa-stream-delay) both;
+}
+
+.qa-assistant__thinking li.qa-thinking-step--active {
+  color: #42677f;
+  background: #f1f8fd;
+}
+
+.qa-assistant__thinking li.qa-thinking-step--active b {
+  color: #216f9f;
+}
+
+.qa-assistant__thinking li i.qa-thinking-state--active {
+  color: #fff;
+  background: #3b8fc5;
+  box-shadow: 0 0 0 4px rgba(59, 143, 197, .12);
+  animation: qa-step-breathe 1.25s ease-in-out infinite;
+}
+
+.qa-assistant__thinking li i.qa-thinking-state--done {
+  color: #fff;
+  background: #4d9bd0;
 }
 
 .qa-assistant__sources {
-  margin-top: 18px;
+  margin-top: 14px;
+  border-top: 1px solid #e4edf3;
+  animation: qa-reveal .28s ease-out both;
+}
+
+.qa-assistant__sources--streamed {
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  animation: qa-stream-expand .36s cubic-bezier(.2, .8, .2, 1) 690ms both;
 }
 
 .qa-assistant__sources > summary {
-  min-height: 42px;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 9px;
-  color: #54718a;
-  font-size: 14px;
+  margin-bottom: 4px;
+  color: #59778d;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   list-style: none;
@@ -808,36 +962,34 @@ summary:focus-visible {
 }
 
 .qa-assistant__source-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-  margin: 0 0 9px;
+  display: flex;
+  gap: 2px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid #e5edf3;
 }
 
 .qa-assistant__source-tabs button {
   min-width: 0;
-  display: grid;
-  gap: 3px;
-  border: 1px solid #dbe6ee;
-  border-radius: 8px;
-  padding: 10px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 9px 10px 8px;
   color: #6a8296;
-  background: #fff;
+  background: transparent;
   text-align: left;
-  transition: border-color .16s ease, background .16s ease, color .16s ease;
+  transition: border-color .16s ease, color .16s ease;
 }
 
 .qa-assistant__source-tabs button:hover {
-  border-color: #a4c8e5;
   color: #287bb7;
-  background: #f8fcff;
 }
 
 .qa-assistant__source-tabs button.active {
-  border-color: #73acd5;
-  color: #1d74b2;
-  background: #eef7fd;
-  box-shadow: inset 0 0 0 1px rgba(79, 151, 202, .08);
+  border-bottom-color: #338bc4;
+  color: #2477ae;
 }
 
 .qa-assistant__source-tabs span {
@@ -857,21 +1009,21 @@ summary:focus-visible {
   display: grid;
   gap: 0;
   margin: 0;
-  border: 1px solid #dce7ef;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 0;
   padding: 0;
-  overflow: hidden;
-  background: #fff;
+  overflow: visible;
+  background: transparent;
   list-style: none;
 }
 
 .qa-assistant__sources li {
   min-width: 0;
   display: grid;
-  grid-template-columns: 27px minmax(0, 1fr) auto;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: start;
-  padding: 14px;
+  padding: 13px 2px;
   color: #567087;
 }
 
@@ -879,17 +1031,37 @@ summary:focus-visible {
   border-top: 1px solid #e7eef4;
 }
 
+.qa-assistant__sources li.qa-source-row--cited {
+  background: #f0f8fd;
+  box-shadow: inset 3px 0 0 #4599ce;
+}
+
 .qa-assistant__sources li > i {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
+  min-height: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 5px;
   color: #2f83be;
   background: #edf6fc;
-  font-size: 11px;
   font-style: normal;
   font-weight: 800;
+}
+
+.qa-assistant__sources li > i small {
+  color: #5d94bc;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.qa-assistant__sources li > i b {
+  color: #287bb7;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .qa-assistant__sources li > div {
@@ -953,25 +1125,41 @@ summary:focus-visible {
 }
 
 .qa-assistant__answer {
-  margin-top: 29px;
+  margin-top: 25px;
+}
+
+.qa-assistant__answer--streamed {
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  animation: qa-answer-expand .42s cubic-bezier(.2, .8, .2, 1) 1040ms both;
 }
 
 .qa-assistant__answer > section + section {
-  margin-top: 27px;
+  margin-top: 30px;
+}
+
+.qa-answer-section {
+  animation: qa-reveal .32s ease-out both;
+}
+
+.qa-answer-section--streamed {
+  animation: qa-reveal .32s ease-out var(--qa-answer-delay) both;
 }
 
 .qa-assistant__answer h2 {
-  margin: 0 0 10px;
-  color: #234966;
-  font-size: 20px;
-  letter-spacing: -.02em;
+  margin: 0 0 9px;
+  color: #244a65;
+  font-size: 18px;
+  letter-spacing: -.015em;
 }
 
 .qa-assistant__answer p,
 .qa-assistant__answer li {
-  color: #405c73;
-  font-size: 16px;
-  line-height: 1.88;
+  color: #465f73;
+  font-size: 15px;
+  line-height: 1.9;
 }
 
 .qa-assistant__answer p {
@@ -980,6 +1168,27 @@ summary:focus-visible {
 
 .qa-assistant__answer p + p {
   margin-top: 10px;
+}
+
+.qa-inline-citation {
+  display: inline;
+  border: 0;
+  margin: 0 0 0 4px;
+  padding: 0;
+  color: #7693a8;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: inherit;
+  text-decoration: none;
+  vertical-align: baseline;
+  transition: color .16s ease;
+}
+
+.qa-inline-citation:hover {
+  color: #176b9f;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .qa-assistant__answer ul {
@@ -1006,19 +1215,57 @@ summary:focus-visible {
   background: #4a9bd2;
 }
 
-.qa-loading {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #66829a;
-  font-size: 13px;
+@keyframes qa-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.qa-loading span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #70acd6;
+@keyframes qa-stream-expand {
+  from {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 820px;
+    margin-top: 18px;
+    opacity: 1;
+  }
+}
+
+@keyframes qa-answer-expand {
+  from {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 2200px;
+    margin-top: 29px;
+    opacity: 1;
+  }
+}
+
+@keyframes qa-pulse {
+  50% {
+    opacity: .35;
+    transform: scale(.72);
+  }
+}
+
+@keyframes qa-step-breathe {
+  50% {
+    box-shadow: 0 0 0 7px rgba(59, 143, 197, .04);
+  }
 }
 
 .qa-chat__composer {
@@ -1026,32 +1273,33 @@ summary:focus-visible {
   z-index: 3;
   bottom: 0;
   overflow: hidden;
-  border: 1px solid #cbddea;
-  border-radius: 10px;
+  border: 1px solid #cfdee8;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 -8px 26px rgba(39, 83, 119, .10);
+  box-shadow: 0 10px 28px rgba(43, 82, 112, .10);
 }
 
 .qa-chat__composer textarea {
   width: 100%;
-  min-height: 96px;
+  min-height: 72px;
+  height: 72px;
   display: block;
-  resize: vertical;
+  resize: none;
   border: 0;
   outline: 0;
-  padding: 15px 16px 8px;
+  padding: 13px 15px 6px;
   color: #314e66;
-  font: 15px/1.78 "Microsoft YaHei", sans-serif;
+  font: 14px/1.7 "Microsoft YaHei", sans-serif;
 }
 
 .qa-chat__composer > div {
-  min-height: 48px;
+  min-height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   border-top: 1px solid #e4edf3;
-  padding: 8px 10px 8px 15px;
+  padding: 6px 9px 7px 14px;
 }
 
 .qa-chat__composer > div > span {
@@ -1060,10 +1308,10 @@ summary:focus-visible {
 }
 
 .qa-chat__composer button {
-  min-width: 82px;
+  min-width: 74px;
   border: 0;
-  border-radius: 7px;
-  padding: 8px 13px;
+  border-radius: 8px;
+  padding: 7px 12px;
   color: #fff;
   background: var(--qa-accent);
   font-size: 13px;
@@ -1072,6 +1320,36 @@ summary:focus-visible {
 
 .qa-chat__composer button:hover:not(:disabled) {
   background: #0d73b1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qa-assistant__thinking summary small.is-streaming::before,
+  .qa-assistant__thinking li i.qa-thinking-state--active,
+  .qa-assistant__sources,
+  .qa-answer-section,
+  .qa-assistant__thinking li.qa-thinking-step--streamed {
+    animation: none;
+  }
+
+  .qa-assistant__sources--streamed {
+    max-height: none;
+    margin-top: 18px;
+    overflow: visible;
+    opacity: 1;
+  }
+
+  .qa-assistant__answer--streamed {
+    max-height: none;
+    margin-top: 29px;
+    overflow: visible;
+    opacity: 1;
+    animation: none;
+  }
+
+  .qa-answer-section--streamed {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1106,7 +1384,7 @@ summary:focus-visible {
   }
 
   .qa-assistant__sources li {
-    grid-template-columns: 23px minmax(0, 1fr);
+    grid-template-columns: 52px minmax(0, 1fr);
   }
 
   .qa-assistant__source-tabs {

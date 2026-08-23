@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Check, Download, FileText, Info, Lightbulb, PanelRightClose, PanelRightOpen, Pencil, RefreshCw, ScrollText, Sparkles } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
@@ -18,6 +18,12 @@ const regenerateReady = ref(false)
 const activeToc = ref('field')
 const documentPane = ref(null)
 const tocElement = ref(null)
+const isGenerating = ref(false)
+const generationProgress = ref(100)
+const generationMessage = ref('')
+const streamingSectionId = ref(null)
+const streamedText = ref('')
+let generationRun = 0
 
 const example = '技术背景：现有煤矿井下巡检机器人在弱光、粉尘、高湿和局部通信中断条件下，容易出现视觉定位失效、惯导误差累积、巡检任务中断以及告警信息无法及时上传等问题。单一传感器难以保证定位可靠性，依赖地面平台的控制方式也无法在 5G 专网暂时中断时维持安全巡检。\n\n技术手段：本技术方案提出一种煤矿井下自主巡检机器人系统，包括机器人本体、防爆驱动组件、多传感器检测组件、防爆边缘控制器和通信组件。多传感器检测组件包括视觉传感器、激光雷达、惯性测量单元和气体传感器。防爆边缘控制器根据视觉、激光雷达和惯性测量单元的检测结果进行融合定位，并依据各传感器的质量评分动态调整融合权重；当气体浓度达到预警阈值时，在本地生成告警并控制机器人进入安全巡检模式；当通信组件与地面管理平台的连接中断时，将巡检数据和告警事件存入本地任务队列，并按照预设安全路线继续巡检或返回安全区域；通信恢复后，再按照事件优先级向地面管理平台补传数据。\n\n技术效果：本技术方案能够提高机器人在弱光和粉尘环境下的定位稳定性，在通信中断时保留气体检测、障碍识别、安全巡检和自主返航能力，避免任务直接中断；同时通过本地告警与分级补传缩短危险事件响应时间，减少数据丢失，并降低井下巡检对持续网络连接和人工干预的依赖。'
 const sections = ref([
@@ -54,6 +60,8 @@ const sections = ref([
     { subtitle: '实施例三：', paragraphs: ['本发明提供的一种煤矿井下自主巡检机器人系统，包括机器人本体、防爆驱动组件、多传感器检测组件、防爆边缘控制器和通信组件。', '机器人本体可采用轻量化高强度材料构成，车身底板、主动轮组件、被动轮组件及升降机构协同工作，以适应不同巷道高度和复杂路况。', '多传感器检测组件采用模块化设计，视觉、激光雷达、惯性测量和气体检测数据由防爆边缘控制器统一进行质量评估与融合处理，保证复杂工况下的定位稳定性。', '通信组件支持主备链路与加密数据传输；当网络不可用时，机器人进入离线安全巡检或返航模式，并将巡检数据和告警事件存入本地任务队列，待通信恢复后按优先级补传。', '机器人同时配置安全避障、升降和悬挂机构，以支持环境感知、样本抓取、设备维护及后续功能扩展。'] },
   ] },
 ])
+const revealedSectionIds = ref(sections.value.map(section => section.id))
+const referencesRevealed = ref(true)
 const extracts = ref([
   { label: '改进主体', value: '煤矿井下自主巡检机器人系统' },
   { label: '用途', value: '煤矿巡检与安全监测' },
@@ -62,6 +70,9 @@ const extracts = ref([
   { label: '技术效果', value: '提高复杂井下环境中的定位稳定性和巡检连续性，缩短危险事件响应时间，减少数据丢失，并降低对持续网络连接和人工干预的依赖。' },
   { label: '待补充内容', value: '建议补充质量评分阈值、事件优先级规则、预设安全路线生成方式及关键部件的防爆参数。' },
 ])
+const revealedExtractCount = ref(extracts.value.length)
+const visibleExtracts = computed(() => extracts.value.slice(0, revealedExtractCount.value))
+const generatingSection = computed(() => sections.value.find(section => section.id === streamingSectionId.value) || null)
 const tocItems = [
   { id: 'field', label: '技术领域' },
   { id: 'background', label: '背景技术' },
@@ -95,15 +106,127 @@ const referenceGroups = [
     ['测试报告', '多传感器融合定位与断网续航测试报告'],
   ] },
 ]
+const activeReferenceTitle = ref('专利')
+const numberedReferenceGroups = computed(() => {
+  let number = 0
+  return referenceGroups.map(group => ({
+    ...group,
+    items: group.items.map(([source, title]) => ({ number: ++number, source, title })),
+  }))
+})
+const activeReferenceGroup = computed(() => numberedReferenceGroups.value.find(group => group.title === activeReferenceTitle.value) || numberedReferenceGroups.value[0])
 const paragraphRefs = {
+  '技术领域||0': ['4', '7'],
+  '背景技术||0': ['5', '7'],
+  '背景技术||1': ['5'],
+  '背景技术||2': ['4', '8'],
+  '背景技术|背景技术缺点|0': ['4', '5'],
   '背景技术|背景技术缺点|1': ['1', '10'],
   '背景技术|背景技术缺点|2': ['3', '8'],
   '背景技术|背景技术缺点|3': ['11', '12'],
   '背景技术|背景技术缺点|4': ['5', '13'],
+  '发明目的|现有问题描述|0': ['4', '7'],
+  '发明目的|有益效果描述|1': ['7', '11'],
+  '技术方案||0': ['4', '5', '7'],
+  '技术方案||4': ['7', '11'],
+  '技术方案||5': ['12', '15'],
+  '具体实施方式|实施例一：|0': ['4', '5'],
+  '具体实施方式|实施例二：|0': ['7', '8'],
+  '具体实施方式|实施例三：|0': ['4', '15'],
 }
 function refsFor(sectionTitle, blockTitle, index) { return paragraphRefs[`${sectionTitle}|${blockTitle || ''}|${index}`] || [] }
+function openReference(reference) {
+  const group = numberedReferenceGroups.value.find(item => item.items.some(source => source.number === Number(reference)))
+  if (!group) return
+  activeReferenceTitle.value = group.title
+  nextTick(() => goToSection('references'))
+}
 function setRoute(next, replace = false) { return router[replace ? 'replace' : 'push']('/agent/disclosure/' + next) }
-function start() { if (!input.value.trim()) return; stage.value = 'workbench'; assistantCollapsed.value = false; regenerateReady.value = false; activeToc.value = 'field'; setRoute('scope') }
+function isSectionVisible(id) { return id === 'references' ? referencesRevealed.value : revealedSectionIds.value.includes(id) }
+function waitForGeneration(ms) { return new Promise(resolve => window.setTimeout(resolve, ms)) }
+function firstParagraph(section) { return section.paragraphs?.[0] || section.blocks?.[0]?.paragraphs?.[0] || '' }
+function scrollDocumentTo(target, behavior = 'smooth') {
+  if (!target) return
+  const container = findScrollContainer(target) || documentPane.value
+  if (!container) return
+  const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top
+  container.scrollTo({ top: Math.max(0, container.scrollTop + offset - 16), behavior })
+}
+function bringStreamingBlockIntoView(behavior = 'smooth') {
+  scrollDocumentTo(documentPane.value?.querySelector('.disclosure-stream-block'), behavior)
+}
+async function runGeneration(isRegeneration = false) {
+  const runId = ++generationRun
+  isGenerating.value = true
+  generationProgress.value = 4
+  generationMessage.value = isRegeneration ? '正在根据调整内容重组交底书…' : '正在解析输入材料与技术要点…'
+  streamingSectionId.value = null
+  streamedText.value = ''
+  revealedSectionIds.value = []
+  referencesRevealed.value = false
+  revealedExtractCount.value = 1
+  activeToc.value = 'field'
+  await nextTick()
+  documentPane.value?.scrollTo({ top: 0, behavior: 'auto' })
+  await waitForGeneration(520)
+
+  for (let index = 0; index < sections.value.length; index += 1) {
+    if (runId !== generationRun) return
+    const section = sections.value[index]
+    const text = firstParagraph(section)
+    streamingSectionId.value = section.id
+    streamedText.value = ''
+    activeToc.value = section.id
+    generationMessage.value = `正在撰写「${section.title}」`
+    await nextTick()
+    bringStreamingBlockIntoView()
+
+    const chunkSize = Math.max(1, Math.ceil(text.length / 32))
+    for (let cursor = chunkSize; cursor < text.length + chunkSize; cursor += chunkSize) {
+      if (runId !== generationRun) return
+      streamedText.value = text.slice(0, cursor)
+      if (cursor % (chunkSize * 6) === 0 || cursor >= text.length) {
+        await nextTick()
+        bringStreamingBlockIntoView('auto')
+      }
+      await waitForGeneration(36)
+    }
+
+    if (runId !== generationRun) return
+    revealedSectionIds.value = [...revealedSectionIds.value, section.id]
+    revealedExtractCount.value = Math.min(extracts.value.length, Math.max(1, Math.ceil(((index + 1) / sections.value.length) * extracts.value.length)))
+    generationProgress.value = Math.round(((index + 1) / (sections.value.length + 1)) * 100)
+    streamingSectionId.value = null
+    streamedText.value = ''
+    await waitForGeneration(240)
+  }
+
+  if (runId !== generationRun) return
+  generationMessage.value = '正在整理引用资料并校验正文结构…'
+  generationProgress.value = 92
+  await waitForGeneration(680)
+  if (runId !== generationRun) return
+  referencesRevealed.value = true
+  revealedExtractCount.value = extracts.value.length
+  generationProgress.value = 100
+  await nextTick()
+  scrollDocumentTo(document.getElementById('disclosure-section-references'))
+  await waitForGeneration(650)
+  if (runId !== generationRun) return
+  isGenerating.value = false
+  generationMessage.value = ''
+  await nextTick()
+  scrollDocumentTo(documentPane.value?.querySelector('.disclosure-document-title-row'))
+}
+function start() {
+  if (!input.value.trim()) return
+  stage.value = 'workbench'
+  assistantCollapsed.value = false
+  regenerateReady.value = false
+  activeToc.value = 'field'
+  setRoute('scope')
+  nextTick(() => runGeneration())
+}
 function clearInput() { input.value = '' }
 function isEditing(key) { return editingBlock.value === key }
 function toggleBlockEdit(key) { editingBlock.value = isEditing(key) ? null : key }
@@ -125,14 +248,38 @@ function regenerateDocument() {
   editingBlock.value = null
   regenerateReady.value = false
   activeToc.value = 'field'
-  ui.notify('已根据重点内容重新生成左栏正文。', 'success')
+  runGeneration(true)
 }
 function beginAdjusting() { adjusting.value = true; regenerateReady.value = false }
+function findScrollContainer(element) {
+  let parent = element.parentElement
+  while (parent) {
+    const { overflowY } = window.getComputedStyle(parent)
+    if (/(auto|scroll|overlay)/.test(overflowY) && parent.scrollHeight > parent.clientHeight) return parent
+    parent = parent.parentElement
+  }
+  return null
+}
 function goToSection(id) {
+  if (isGenerating.value && !isSectionVisible(id)) return
   activeToc.value = id
-  document.getElementById(`disclosure-section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  nextTick(() => {
+    const target = document.getElementById(`disclosure-section-${id}`)
+    if (!target) return
+    const container = findScrollContainer(target)
+    if (container) {
+      const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top
+      container.scrollTo({ top: container.scrollTop + offset - 16, behavior: 'smooth' })
+      return
+    }
+    window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - 16, behavior: 'smooth' })
+  })
 }
 function syncToc() {
+  if (isGenerating.value && streamingSectionId.value) {
+    activeToc.value = streamingSectionId.value
+    return
+  }
   const pane = documentPane.value
   if (!pane) return
   const marker = pane.getBoundingClientRect().top + 104
@@ -143,12 +290,19 @@ function syncToc() {
   }
   if (current === activeToc.value) return
   activeToc.value = current
-  nextTick(() => tocElement.value?.querySelector(`[data-toc-id="${current}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }))
+  nextTick(() => {
+    const tocList = tocElement.value?.querySelector('ol')
+    const activeButton = tocElement.value?.querySelector(`[data-toc-id="${current}"]`)
+    if (!tocList || !activeButton || tocList.scrollWidth <= tocList.clientWidth) return
+    tocList.scrollTo({ left: activeButton.offsetLeft - (tocList.clientWidth - activeButton.offsetWidth) / 2, behavior: 'smooth' })
+  })
 }
-function newTask() { stage.value = 'launch'; input.value = ''; editingBlock.value = null; adjusting.value = false; regenerateReady.value = false; setRoute('brief', true) }
+function newTask() { generationRun += 1; isGenerating.value = false; stage.value = 'launch'; input.value = ''; editingBlock.value = null; adjusting.value = false; regenerateReady.value = false; setRoute('brief', true) }
 function exportDocument() { ui.notify('技术交底书已准备导出；正式环境将生成 Word 文档。', 'success') }
 watch(() => route.params.stage, (value) => { stage.value = value === 'scope' ? 'workbench' : 'launch' }, { immediate: true })
 watch(stage, value => { if (value === 'workbench') nextTick(syncToc) })
+onMounted(() => window.addEventListener('scroll', syncToc, true))
+onBeforeUnmount(() => { generationRun += 1; window.removeEventListener('scroll', syncToc, true) })
 </script>
 
 <template>
@@ -171,27 +325,28 @@ watch(stage, value => { if (value === 'workbench') nextTick(syncToc) })
           <div class="disclosure-document-shell">
           <nav ref="tocElement" class="disclosure-toc" aria-label="交底书章节导航">
             <header><b>文档导航</b></header>
-            <ol><li v-for="item in tocItems" :key="item.id"><button type="button" :data-toc-id="item.id" :class="{ active: activeToc === item.id }" @click="goToSection(item.id)"><span>{{ item.label }}</span></button></li></ol>
+            <ol><li v-for="item in tocItems" :key="item.id"><button type="button" :data-toc-id="item.id" :disabled="isGenerating && !isSectionVisible(item.id)" :class="{ active: activeToc === item.id }" @click.stop="goToSection(item.id)"><span>{{ item.label }}</span></button></li></ol>
           </nav>
           <article>
-            <header class="disclosure-document-title-row"><h2>一种煤矿井下自主巡检机器人系统</h2><button type="button" @click="exportDocument"><Download :size="16" />导出</button></header>
+            <header class="disclosure-document-title-row"><h2>一种煤矿井下自主巡检机器人系统</h2><div class="disclosure-document-title-row__actions"><span v-if="isGenerating" class="disclosure-generation-progress"><i></i>正在生成 {{ generationProgress }}%</span><button type="button" :disabled="isGenerating" @click="exportDocument"><Download :size="16" />导出</button></div></header>
             <template v-for="section in sections" :key="section.title">
-              <section v-if="section.paragraphs?.length" :id="`disclosure-section-${section.id}`" class="disclosure-edit-block" :class="{ 'is-editing': isEditing(section.title) }">
+              <section v-if="isSectionVisible(section.id) && section.paragraphs?.length" :id="`disclosure-section-${section.id}`" class="disclosure-edit-block" :class="{ 'is-editing': isEditing(section.title), 'is-generated': isGenerating }">
                 <div class="disclosure-block-actions"><button type="button" @click="optimizeBlock"><Sparkles :size="14" />AI 优化</button><button type="button" @click="toggleBlockEdit(section.title)"><Check v-if="isEditing(section.title)" :size="14" /><Pencil v-else :size="14" />{{ isEditing(section.title) ? '完成' : '编辑' }}</button></div>
-                <div class="disclosure-block-content"><h3>{{ section.title }}</h3><h4 v-if="section.subtitle">{{ section.subtitle }}</h4><template v-for="(_, index) in section.paragraphs" :key="`${section.title}-paragraph-${index}`"><textarea v-if="isEditing(section.title)" v-model="section.paragraphs[index]" /><p v-else>{{ section.paragraphs[index] }}</p></template></div>
+                <div class="disclosure-block-content"><h3>{{ section.title }}</h3><h4 v-if="section.subtitle">{{ section.subtitle }}</h4><template v-for="(_, index) in section.paragraphs" :key="`${section.title}-paragraph-${index}`"><textarea v-if="isEditing(section.title)" v-model="section.paragraphs[index]" /><p v-else>{{ section.paragraphs[index] }}<button v-for="reference in refsFor(section.title, '', index)" :key="reference" type="button" class="disclosure-ref" :title="`查看引用资料 [${reference}]`" @click="openReference(reference)">[{{ reference }}]</button></p></template></div>
               </section>
-              <section v-for="(block, blockIndex) in section.blocks || []" :id="blockIndex === 0 ? `disclosure-section-${section.id}` : undefined" :key="`${section.title}-${block.subtitle}`" class="disclosure-edit-block" :class="{ 'is-editing': isEditing(`${section.title}-${block.subtitle}`) }">
+              <section v-for="(block, blockIndex) in section.blocks || []" v-if="isSectionVisible(section.id)" :id="blockIndex === 0 ? `disclosure-section-${section.id}` : undefined" :key="`${section.title}-${block.subtitle}`" class="disclosure-edit-block" :class="{ 'is-editing': isEditing(`${section.title}-${block.subtitle}`), 'is-generated': isGenerating }">
                 <div class="disclosure-block-actions"><button type="button" @click="optimizeBlock"><Sparkles :size="14" />AI 优化</button><button type="button" @click="toggleBlockEdit(`${section.title}-${block.subtitle}`)"><Check v-if="isEditing(`${section.title}-${block.subtitle}`)" :size="14" /><Pencil v-else :size="14" />{{ isEditing(`${section.title}-${block.subtitle}`) ? '完成' : '编辑' }}</button></div>
-                <div class="disclosure-block-content"><h4>{{ block.subtitle }}</h4><template v-for="(_, index) in block.paragraphs" :key="index"><textarea v-if="isEditing(`${section.title}-${block.subtitle}`)" v-model="block.paragraphs[index]" /><p v-else>{{ block.paragraphs[index] }}<span v-for="reference in refsFor(section.title, block.subtitle, index)" :key="reference" class="disclosure-ref">{{ reference }}</span></p></template></div>
+                <div class="disclosure-block-content"><h4>{{ block.subtitle }}</h4><template v-for="(_, index) in block.paragraphs" :key="index"><textarea v-if="isEditing(`${section.title}-${block.subtitle}`)" v-model="block.paragraphs[index]" /><p v-else>{{ block.paragraphs[index] }}<button v-for="reference in refsFor(section.title, block.subtitle, index)" :key="reference" type="button" class="disclosure-ref" :title="`查看引用资料 [${reference}]`" @click="openReference(reference)">[{{ reference }}]</button></p></template></div>
               </section>
             </template>
-            <section id="disclosure-section-references" class="disclosure-references"><header><h3>引用资料</h3><span>15 项参考资料</span></header><div class="disclosure-reference-grid"><section v-for="group in referenceGroups" :key="group.title" class="disclosure-reference-group"><header><span><FileText :size="14" />{{ group.title }}</span><b>{{ group.items.length }}</b></header><article v-for="item in group.items" :key="item[0]"><b>{{ item[0] }}</b><p>{{ item[1] }}</p></article></section></div></section>
+            <section v-if="isGenerating && generatingSection" class="disclosure-stream-block" aria-live="polite"><div class="disclosure-stream-block__meta"><span><i></i>AI 正在撰写</span><b>{{ generationMessage }}</b></div><h3>{{ generatingSection.title }}</h3><p>{{ streamedText }}<em class="disclosure-stream-cursor"></em></p></section>
+            <section v-if="referencesRevealed" id="disclosure-section-references" class="disclosure-references" :class="{ 'is-generated': isGenerating }"><header><h3>引用资料</h3><span>15 项参考资料</span></header><nav class="disclosure-reference-tabs" aria-label="资料分类"><button v-for="group in referenceGroups" :key="group.title" type="button" :class="{ active: activeReferenceTitle === group.title }" @click="activeReferenceTitle = group.title"><FileText :size="15" /><span>{{ group.title }}</span><b>{{ group.items.length }}</b></button></nav><section class="disclosure-reference-list" :key="activeReferenceGroup.title"><article v-for="item in activeReferenceGroup.items" :key="item.number"><span class="disclosure-reference-number">[{{ item.number }}]</span><b>{{ item.source }}</b><p>{{ item.title }}</p></article></section></section>
           </article>
           </div>
         </main>
         <aside class="disclosure-assistant">
           <header><div><i>AI</i><h2>AI 助手</h2></div><button type="button" @click="assistantCollapsed = true"><PanelRightClose :size="17" />折叠</button></header>
-          <div class="disclosure-assistant__scroll"><section class="disclosure-extract-card" :class="{ adjusting }"><header><div><h3>重点内容提取</h3><p>调整关键信息后，可重新组织正文。</p></div><button v-if="!adjusting" type="button" @click="beginAdjusting"><Pencil :size="15" />调整内容</button><button v-else type="button" @click="finishAdjusting"><Check :size="15" />完成调整</button></header><dl><template v-for="item in extracts" :key="item.label"><dt>{{ item.label }}</dt><dd><textarea v-if="adjusting" v-model="item.value" /><span v-else>{{ item.value }}</span></dd></template></dl><button v-if="regenerateReady && !adjusting" type="button" class="disclosure-regenerate" @click="regenerateDocument"><RefreshCw :size="16" />重新生成左栏正文</button><footer v-if="adjusting"><Lightbulb :size="17" /><span>完成调整后，将以这里的内容重新组织左栏正文。</span></footer></section></div>
+          <div class="disclosure-assistant__scroll"><section class="disclosure-extract-card" :class="{ adjusting, 'is-generating': isGenerating }"><header><div><h3>重点内容提取</h3><p>{{ isGenerating ? '正在识别技术主题、技术手段与预期效果。' : '调整关键信息后，可重新组织正文。' }}</p></div><span v-if="isGenerating" class="disclosure-assistant-generation"><i></i>提取中</span><button v-else-if="!adjusting" type="button" @click="beginAdjusting"><Pencil :size="15" />调整内容</button><button v-else type="button" @click="finishAdjusting"><Check :size="15" />完成调整</button></header><dl><template v-for="item in visibleExtracts" :key="item.label"><dt>{{ item.label }}</dt><dd><textarea v-if="adjusting" v-model="item.value" /><span v-else>{{ item.value }}</span></dd></template><template v-if="isGenerating"><div v-for="index in extracts.length - visibleExtracts.length" :key="`extract-skeleton-${index}`" class="disclosure-extract-skeleton"><i></i><b></b></div></template></dl><button v-if="regenerateReady && !adjusting && !isGenerating" type="button" class="disclosure-regenerate" @click="regenerateDocument"><RefreshCw :size="16" />重新生成左栏正文</button><footer v-if="isGenerating"><Lightbulb :size="17" /><span>{{ generationMessage }}</span></footer><footer v-else-if="adjusting"><Lightbulb :size="17" /><span>完成调整后，将以这里的内容重新组织左栏正文。</span></footer></section></div>
         </aside>
         <button class="assistant-restore" type="button" title="展开 AI 助手" @click="assistantCollapsed = false"><PanelRightOpen :size="19" /></button>
       </section>
@@ -225,6 +380,16 @@ watch(stage, value => { if (value === 'workbench') nextTick(syncToc) })
 @media(max-width:720px){.disclosure-document-shell>.disclosure-toc{top:0;margin-bottom:20px;border:0;border-radius:0;padding:10px 19px 9px;background:#fffffff5;box-shadow:0 5px 14px #244d6010}.disclosure-toc button{border:0;background:#f3f8fa}.disclosure-toc button.active{border:0;background:#e0f3f9;box-shadow:inset 0 -2px 0 #198ac0}}
 
 /* 正文与导航贴齐工作台表头，不再保留大段顶部空白。 */
-.disclosure-document-shell{grid-template-columns:144px minmax(0,830px);gap:30px;padding-top:0}.disclosure-document-shell>.disclosure-toc{top:0}.disclosure-toc>header{justify-content:flex-start}.disclosure-toc>header b{font-size:15px}.disclosure-toc button{padding-right:8px;padding-left:8px;font-size:15px}@media(max-width:1480px){.disclosure-document-shell{grid-template-columns:136px minmax(0,1fr);gap:18px;padding-top:0}}@media(max-width:1280px){.disclosure-document-shell{grid-template-columns:128px minmax(0,1fr);gap:14px;padding-top:0}.disclosure-toc button{font-size:15px}}@media(max-width:980px){.disclosure-document-shell{padding-top:0}}@media(min-width:901px){.disclosure-assistant>header{height:78px}.disclosure-assistant__scroll{height:calc(100% - 78px)}}
+.disclosure-document-shell{grid-template-columns:144px minmax(0,830px);gap:30px;padding-top:0}.disclosure-document-shell>.disclosure-toc{top:0}.disclosure-toc>header{justify-content:flex-start}.disclosure-toc>header b{font-size:15px}.disclosure-toc button{padding-right:8px;padding-left:8px;font-size:15px}@media(max-width:1480px){.disclosure-document-shell{grid-template-columns:136px minmax(0,1fr);gap:18px;padding-top:0}}@media(max-width:1280px){.disclosure-document-shell{grid-template-columns:128px minmax(0,1fr);gap:14px;padding-top:0}.disclosure-toc button{font-size:15px}}@media(max-width:980px){.disclosure-document-shell{padding-top:0}}@media(min-width:901px){.disclosure-assistant>header{height:54px;padding:0 18px}.disclosure-assistant__scroll{height:calc(100% - 54px);padding-top:16px}}
 .disclosure-document-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin:0 0 54px}.disclosure-document-title-row h2{margin:0;border-left:5px solid #1778ba;padding-left:17px;color:#102c42;font-size:27px;line-height:1.4}.disclosure-document-title-row button{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;border:1px solid #d2e3eb;border-radius:8px;margin-top:3px;padding:8px 10px;color:#176f9f;background:#fff;font:700 13px "Microsoft YaHei",sans-serif;cursor:pointer;transition:.16s ease}.disclosure-document-title-row button:hover{border-color:#71b8d6;color:#0b6eaa;background:#eff8fb;box-shadow:0 5px 12px #24627a12}@media(max-width:720px){.disclosure-document-title-row{gap:10px;margin-bottom:38px}.disclosure-document-title-row h2{font-size:22px}.disclosure-document-title-row button{padding:7px 8px;font-size:12px}}
+/* 启动页标题区下移，缩短与输入框之间的视觉距离。 */
+.disclosure-launch__inner{margin:0 auto}
+.disclosure-launch__title{transform:translateY(18px)}
+@media(max-width:900px){.disclosure-launch__title{transform:translateY(10px)}}
+/* 引用资料按类别切换展示。 */
+.disclosure-reference-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0 0 15px}.disclosure-reference-tabs button{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;border:1px solid #d7e7ee;border-radius:9px;padding:9px 10px;color:#5a7789;background:#fff;font:700 14px "Microsoft YaHei",sans-serif;cursor:pointer;transition:.16s ease}.disclosure-reference-tabs button svg{flex:0 0 auto;color:#1a88bd}.disclosure-reference-tabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.disclosure-reference-tabs button b{display:grid;place-items:center;flex:0 0 auto;min-width:19px;height:19px;border-radius:10px;padding:0 4px;color:#4a768d;background:#e8f3f8;font:800 11px/1 Arial,sans-serif}.disclosure-reference-tabs button:hover{border-color:#a9d5e6;color:#0c72ac;background:#f2fafc}.disclosure-reference-tabs button.active{border-color:#9ed2e4;color:#0870aa;background:#e2f4fa;box-shadow:inset 0 -2px 0 #1e9fbd}.disclosure-reference-tabs button.active b{color:#fff;background:#1b91bc}.disclosure-reference-list{overflow:hidden;border-top:1px solid #dce8ee}.disclosure-reference-list article{display:grid;grid-template-columns:156px minmax(0,1fr);gap:18px;align-items:start;border-bottom:1px solid #e5eef2;padding:14px 12px;transition:background .16s ease}.disclosure-reference-list article:hover{background:#f6fbfd}.disclosure-reference-list article>b{color:#1978aa;font:800 13px/1.5 Arial,sans-serif}.disclosure-reference-list article p{margin:0;color:#47697e;font-size:14px;line-height:1.6;text-align:left}.disclosure-reference-list article:last-child{border-bottom:0}@media(max-width:720px){.disclosure-reference-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.disclosure-reference-tabs button{padding:8px;font-size:13px}.disclosure-reference-list article{grid-template-columns:1fr;gap:4px;padding:12px 5px}.disclosure-reference-list article p{font-size:13px}}
+/* 流式生成：正文逐章节出现，右侧要点同步提取。 */
+.disclosure-document-title-row__actions{display:flex;align-items:center;gap:12px;flex:0 0 auto}.disclosure-generation-progress,.disclosure-assistant-generation{display:inline-flex;align-items:center;gap:6px;color:#1980b2;font-size:12px;font-weight:700;white-space:nowrap}.disclosure-generation-progress i,.disclosure-assistant-generation i,.disclosure-stream-block__meta span i{width:7px;height:7px;border-radius:50%;background:#18a6bb;box-shadow:0 0 0 4px #d8f1f4;animation:disclosure-pulse 1.25s ease-in-out infinite}.disclosure-document-title-row button:disabled{border-color:#e0e9ee;color:#9aabb6;background:#f5f8fa;box-shadow:none;cursor:wait}.disclosure-toc button:disabled{color:#a8bac4;background:transparent;cursor:wait}.disclosure-toc button.active:disabled{color:#1680b2;background:linear-gradient(90deg,#e5f4f8,#f7fbfc);opacity:1}.disclosure-stream-block{position:relative;overflow:hidden;margin:0 -15px 28px;border:1px solid #a8d8e8;border-radius:12px;padding:19px 20px 6px;background:linear-gradient(125deg,#f3fbfd,#fff 52%,#f3fafc);box-shadow:0 10px 26px #1e7fa516;animation:disclosure-reveal .34s ease both}.disclosure-stream-block:after{position:absolute;top:0;left:-38%;width:35%;height:100%;background:linear-gradient(90deg,transparent,#fff9,transparent);content:'';animation:disclosure-sheen 1.8s linear infinite}.disclosure-stream-block__meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.disclosure-stream-block__meta span{display:inline-flex;align-items:center;gap:7px;color:#1682b7;font-size:12px;font-weight:800}.disclosure-stream-block__meta b{overflow:hidden;color:#7893a2;font-size:12px;font-weight:600;white-space:nowrap;text-overflow:ellipsis}.disclosure-stream-block h3{position:relative;z-index:1;margin-bottom:15px}.disclosure-stream-block p{position:relative;z-index:1;min-height:31px}.disclosure-stream-cursor{display:inline-block;width:2px;height:1.12em;margin-left:3px;background:#0f8bbd;vertical-align:-.15em;animation:disclosure-cursor .82s steps(1) infinite}.disclosure-edit-block.is-generated,.disclosure-references.is-generated{animation:disclosure-reveal .4s ease both}.disclosure-extract-card.is-generating{border-color:#b4dce9}.disclosure-extract-card.is-generating dd{animation:disclosure-reveal .32s ease both}.disclosure-extract-skeleton{display:grid;gap:7px;margin-top:3px}.disclosure-extract-skeleton i,.disclosure-extract-skeleton b{display:block;overflow:hidden;border-radius:5px;background:linear-gradient(90deg,#eff4f6 20%,#f9fcfd 40%,#eff4f6 60%);background-size:200% 100%;animation:disclosure-loading 1.25s linear infinite}.disclosure-extract-skeleton i{width:68px;height:15px}.disclosure-extract-skeleton b{height:48px;border:1px solid #edf2f4}.disclosure-extract-card.is-generating footer{border-color:#dcebf0;color:#598196}.disclosure-extract-card.is-generating footer svg{animation:disclosure-light 1.25s ease-in-out infinite}.disclosure-assistant-generation{margin-top:4px;padding:6px 8px;border-radius:999px;background:#eaf7fa;font-size:11px}.disclosure-assistant-generation i{width:6px;height:6px;box-shadow:0 0 0 3px #d8f1f4}@keyframes disclosure-pulse{50%{opacity:.55;box-shadow:0 0 0 7px #d8f1f400}}@keyframes disclosure-cursor{50%{opacity:0}}@keyframes disclosure-reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes disclosure-sheen{to{left:110%}}@keyframes disclosure-loading{to{background-position:-200% 0}}@keyframes disclosure-light{50%{color:#0b9ac0;transform:translateY(-2px)}}@media(max-width:720px){.disclosure-document-title-row__actions{gap:7px}.disclosure-generation-progress{font-size:11px}.disclosure-generation-progress i{width:6px;height:6px}.disclosure-stream-block{margin-right:-8px;margin-left:-8px;padding:16px 13px 4px}.disclosure-stream-block__meta{align-items:flex-start;flex-direction:column;gap:4px}.disclosure-stream-block__meta b{max-width:100%}.disclosure-document-title-row button:disabled{display:none}}
+/* 正文引用与资料列表共用 [1]–[15] 的连续编号。 */
+.disclosure-ref{box-sizing:border-box;border:0;padding:0;cursor:pointer;transition:background .16s,color .16s,transform .16s}.disclosure-ref:hover{color:#fff;background:#1685b8;transform:translateY(-1px)}.disclosure-ref:focus-visible{outline:2px solid #78c4dc;outline-offset:2px}.disclosure-reference-list article{grid-template-columns:38px minmax(128px,156px) minmax(0,1fr);gap:12px}.disclosure-reference-number{display:grid;place-items:center;min-width:32px;height:22px;margin-top:1px;border-radius:6px;color:#1680b4;background:#e4f4f9;font:800 11px/1 Arial,sans-serif}.disclosure-reference-list article>b{padding-top:2px}@media(max-width:720px){.disclosure-reference-list article{grid-template-columns:34px minmax(0,1fr);gap:4px 9px}.disclosure-reference-list article p{grid-column:2}.disclosure-reference-number{min-width:30px;height:20px;font-size:10px}}
 </style>
