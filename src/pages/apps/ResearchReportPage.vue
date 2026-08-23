@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { FileText } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
-import sourceDemo from '../../../../demo副本/中煤科创平台-Demo-单文件版.html?raw'
+import researchReportSource from '../../data/researchReportSource.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,9 +42,7 @@ const outline = ref([
   '实时数据处理潜在创新方向', '煤矿防爆认证与安全法规', '井下恶劣环境适应性技术', '引用资料',
 ])
 const reportSections = (() => {
-  const match = sourceDemo.match(/window\.__CM_RESEARCH_REPORT_SOURCE__=(\[[\s\S]*?\]);\s*<\/script>/)
-  if (!match) return []
-  const sections = JSON.parse(match[1])
+  const sections = researchReportSource
   const references = sections.find((section) => section.number === 7)
   const regularSections = sections
     .filter((section) => section.number !== 7)
