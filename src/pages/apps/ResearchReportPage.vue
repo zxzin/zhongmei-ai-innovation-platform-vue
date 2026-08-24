@@ -429,6 +429,9 @@ html:has(.research-clarify),body:has(.research-clarify),#app:has(.research-clari
 /* 大纲阶段的右栏与左侧流程同高，避免卡片下方露出未使用的页面底色。 */
 .research-progress.research-outline-progress{height:100dvh;max-height:100dvh;box-sizing:border-box}
 
+/* 启动页铺满视口，避免旧高度计算在底部露出应用容器的白底。 */
+html:has(.research-launch),body:has(.research-launch),#app:has(.research-launch),.app-shell:has(.research-launch),.app-content:has(.research-launch),.research-page:has(.research-launch){background:#f7fafc}.research-launch{min-height:100dvh}
+
 /* 前序步骤同样采用逐段写入的反馈节奏。 */
 .research-flow-stream-status{display:flex;align-items:center;gap:10px;align-self:flex-start;border:1px solid #d4e8f1;border-radius:9px;background:#f2f9fc;padding:10px 13px;color:#39708e;font-size:13px;font-weight:700}.research-flow-stream-status i,.research-outline-notice.is-streaming>i{width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:#168cc0;box-shadow:0 0 0 4px #dff2f9;animation:research-stream-pulse 1.25s ease-in-out infinite}.research-stream-reveal{animation:research-stream-enter .3s ease both}.research-outline-notice.is-streaming{display:flex;align-items:center;gap:10px;border-color:#cce5ef;background:#f2f9fc;color:#267198}.research-outline-stream-caption{margin:-2px 0 10px!important;color:#5f8ca4!important;font-size:12px!important}.research-followup textarea:disabled{cursor:wait;color:#9aaeba}.research-followup button:disabled,.research-followup-example:disabled{cursor:wait!important;opacity:.55}
 
@@ -437,4 +440,58 @@ html:has(.research-clarify),body:has(.research-clarify),#app:has(.research-clari
 
 /* 原 Demo 的报告阅读字体与字距。 */
 .research-report-page,.research-report-page button{font-family:"Microsoft YaHei",Arial,sans-serif}
+
+/* 大屏：让启动、澄清、大纲和报告阅读使用完整工作区，同时保留报告的舒适阅读宽度。 */
+@media (min-width:1280px){
+  .research-launch{padding:clamp(48px,7vh,88px) clamp(48px,5vw,112px)}
+  .research-launch-inner{width:min(1360px,100%)}
+  .research-launch-title{margin-bottom:28px}
+  .research-composer textarea{height:clamp(180px,24vh,240px)}
+  .research-examples{grid-template-columns:84px minmax(0,1fr);margin-top:20px}
+
+  .research-clarify-layout{
+    width:100%;
+    max-width:none;
+    grid-template-columns:minmax(0,1fr) clamp(380px,27vw,560px);
+    gap:clamp(24px,2vw,40px)
+  }
+  .research-dialogue{padding-right:clamp(8px,1vw,20px)}
+  .research-clarify-detail .research-dialogue,.research-outline-dialogue{padding-right:clamp(8px,1vw,20px)}
+  .research-progress{width:100%}
+
+  .research-report-header{padding:clamp(36px,3vw,60px) clamp(48px,5vw,96px) 30px}
+  .research-report-name h1{max-width:1240px}
+  .research-report-main{width:min(1640px,calc(100% - clamp(64px,8vw,160px)));max-width:none;padding:10px 0 76px}
+  .research-report-section{padding:clamp(48px,3vw,64px) clamp(54px,4vw,76px)}
+  .research-report-section>header{margin-bottom:34px}
+  .research-report-copy{padding-top:30px}
+}
+
+@media (min-width:1800px){
+  .research-launch-inner{width:min(1440px,100%)}
+  .research-clarify-layout{grid-template-columns:minmax(0,1fr) clamp(500px,27vw,600px)}
+  .research-report-main{width:min(1700px,calc(100% - 180px))}
+}
+
+/* 桌面端中间流程统一字号，避免从补充信息切到大纲时出现文字突然缩小。 */
+@media (min-width:761px){
+  .research-assistant-card h2{font-size:20px}
+  .research-assistant-card>strong{font-size:17px;line-height:1.7}
+  .research-assistant-question p{font-size:15px;line-height:1.7}
+  .research-assistant-question b{font-size:17px;line-height:1.75}
+  .research-assistant-note{font-size:15px}
+  .research-topic-bubble b,.research-detail-bubble b{font-size:17px;line-height:1.65}
+  .research-flow-stream-status{font-size:14px}
+
+  .research-outline-dialogue .research-assistant-card>strong,
+  .research-outline-dialogue .research-assistant-question b{font-size:17px}
+  .research-outline-dialogue .research-assistant-question p,
+  .research-outline-dialogue .research-outline-notice{font-size:15px}
+
+  .research-progress h2{font-size:20px}
+  .research-progress p{font-size:15px;line-height:1.75}
+  .research-outline-static span,
+  .research-outline-editable input{font-size:16px;line-height:1.5}
+  .research-outline-confirm{font-size:15px}
+}
 </style>

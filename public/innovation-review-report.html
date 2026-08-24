@@ -1495,7 +1495,13 @@ h5{font-size:15px;margin:20px 0 9px}
   .toc-collapse{position:fixed;z-index:40;top:18px;left:196px;display:inline-flex;align-items:center;justify-content:center;min-height:26px;border:1px solid #d4e3ea;border-radius:6px;background:#f7fbfd;padding:0 8px;color:#3f6f8b;font:700 11px/1 "Microsoft YaHei",sans-serif;cursor:pointer;transition:left .2s ease,background .16s ease,color .16s ease}
   .toc-collapse:hover{border-color:#92c7db;background:#edf7fb;color:#0d729f}
   body.toc-collapsed .toc{transform:translateX(-100%)}
-  body.toc-collapsed .wrap{margin-left:0}
+  body.toc-collapsed .wrap{
+    width:calc(100% - 40px);
+    max-width:1360px;
+    margin:0 auto;
+    padding-right:20px;
+    box-sizing:border-box;
+  }
   body.toc-collapsed .toc-collapse{left:8px}
 }
 </style>

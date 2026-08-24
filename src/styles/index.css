@@ -780,6 +780,23 @@ tbody tr:hover { background: #f7fbfe; }
 .semantic-quick-sample button { min-width: 0; min-height: 38px; display: flex; align-items: center; padding: 9px 13px; color: #24698f; border: 0; border-radius: 8px; background: #e9f3f9; font-size: 14px; text-align: left; transition: color .16s ease, background-color .16s ease; }
 .semantic-quick-sample button:hover { color: #0f6faa; background: #dceef7; }
 .semantic-quick-sample button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 1600px) {
+  .semantic-workspace > .semantic-launch { width: calc(100% - 48px); max-width: none; }
+  .semantic-launch { padding: clamp(42px, 6vh, 92px) clamp(56px, 7vw, 152px); }
+  .semantic-launch__inner { width: min(1280px, 100%); margin: -3vh auto 0; }
+  .semantic-launch__title { margin-bottom: 25px; }
+  .semantic-composer { border-radius: 18px; }
+  .semantic-composer textarea { min-height: 178px; padding: 24px 26px; font-size: 17px; line-height: 1.85; }
+  .semantic-composer__footer { min-height: 64px; padding: 11px 16px 11px 24px; }
+  .semantic-composer__footer .semantic-composer__clear { font-size: 14px; }
+  .semantic-composer__footer button { min-height: 41px; padding: 0 18px; font-size: 15px; }
+  .semantic-quick-sample { grid-template-columns: 82px minmax(0,1fr); gap: 12px; margin-top: 19px; }
+  .semantic-quick-sample > span, .semantic-quick-sample button { font-size: 15px; }
+  .semantic-quick-sample button { min-height: 44px; padding: 10px 15px; }
+}
+@media (min-width: 2200px) {
+  .semantic-launch__inner { width: min(1440px, 100%); }
+}
 .semantic-results-page { min-height: 100vh; }
 
 /* Semantic search result workbench */

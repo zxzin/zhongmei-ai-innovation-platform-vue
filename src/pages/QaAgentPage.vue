@@ -1322,6 +1322,256 @@ summary:focus-visible {
   background: #0d73b1;
 }
 
+@media (min-width: 1280px) {
+  .qa-chat {
+    padding: 24px clamp(36px, 4.5vw, 88px) 34px;
+  }
+
+  .qa-chat__shell {
+    width: min(1080px, 100%);
+  }
+
+  .qa-chat__topbar {
+    min-height: 56px;
+  }
+
+  .qa-chat__topbar > div {
+    gap: 10px;
+    font-size: 20px;
+  }
+
+  .qa-chat__topbar i {
+    width: 29px;
+    height: 29px;
+    border-radius: 8px;
+  }
+
+  .qa-chat__thread {
+    gap: 34px;
+    padding: 32px 0 154px;
+  }
+
+  .qa-message__user {
+    max-width: min(78%, 840px);
+    padding: 15px 18px;
+  }
+
+  .qa-message__user p {
+    font-size: 17px;
+    line-height: 1.84;
+  }
+
+  .qa-message__assistant {
+    max-width: 1080px;
+  }
+
+  .qa-assistant__identity {
+    gap: 10px;
+    margin-bottom: 12px;
+    font-size: 17px;
+  }
+
+  .qa-assistant__identity i {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+
+  .qa-assistant__thinking {
+    border-radius: 14px;
+  }
+
+  .qa-assistant__thinking summary {
+    min-height: 52px;
+    padding: 0 16px;
+    font-size: 16px;
+  }
+
+  .qa-assistant__thinking summary small {
+    font-size: 13px;
+  }
+
+  .qa-assistant__thinking ol {
+    gap: 11px;
+    padding: 15px 16px 17px;
+  }
+
+  .qa-assistant__thinking li {
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 12px;
+    padding: 4px 5px;
+    font-size: 15px;
+  }
+
+  .qa-assistant__thinking li b {
+    font-size: 15px;
+  }
+
+  .qa-assistant__thinking li small {
+    font-size: 13px;
+  }
+
+  .qa-assistant__thinking li i {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .qa-assistant__sources {
+    margin-top: 16px;
+  }
+
+  .qa-assistant__sources > summary {
+    min-height: 54px;
+    font-size: 15px;
+  }
+
+  .qa-assistant__sources > summary small {
+    font-size: 12px;
+  }
+
+  .qa-assistant__source-tabs button {
+    gap: 5px;
+    padding: 11px 13px 10px;
+  }
+
+  .qa-assistant__source-tabs span {
+    font-size: 14px;
+  }
+
+  .qa-assistant__source-tabs small {
+    font-size: 12px;
+  }
+
+  .qa-assistant__sources li {
+    grid-template-columns: 66px minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 16px 3px;
+  }
+
+  .qa-assistant__sources li > i {
+    min-height: 38px;
+  }
+
+  .qa-assistant__sources li > i small {
+    font-size: 11px;
+  }
+
+  .qa-assistant__sources li > i b {
+    font-size: 16px;
+  }
+
+  .qa-assistant__sources li > div {
+    gap: 4px;
+  }
+
+  .qa-assistant__sources li > div > span {
+    font-size: 13px;
+  }
+
+  .qa-assistant__sources li > div > b {
+    font-size: 15px;
+  }
+
+  .qa-assistant__sources li p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .qa-assistant__sources aside {
+    gap: 4px;
+  }
+
+  .qa-assistant__sources aside b,
+  .qa-assistant__sources aside small {
+    font-size: 12px;
+  }
+
+  .qa-source-owner {
+    padding: 3px 7px;
+    font-size: 11px;
+  }
+
+  .qa-assistant__answer {
+    margin-top: 30px;
+  }
+
+  .qa-assistant__answer > section + section {
+    margin-top: 36px;
+  }
+
+  .qa-assistant__answer h2 {
+    margin-bottom: 11px;
+    font-size: 22px;
+  }
+
+  .qa-assistant__answer p,
+  .qa-assistant__answer li {
+    font-size: 17px;
+    line-height: 1.92;
+  }
+
+  .qa-assistant__answer p + p {
+    margin-top: 11px;
+  }
+
+  .qa-assistant__answer ul {
+    gap: 11px;
+  }
+
+  .qa-inline-citation {
+    font-size: 12px;
+  }
+
+  .qa-chat__composer {
+    border-radius: 14px;
+  }
+
+  .qa-chat__composer textarea {
+    min-height: 84px;
+    height: 84px;
+    padding: 15px 17px 8px;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  .qa-chat__composer > div {
+    min-height: 48px;
+    padding: 7px 11px 8px 16px;
+  }
+
+  .qa-chat__composer > div > span {
+    font-size: 13px;
+  }
+
+  .qa-chat__composer button {
+    min-width: 86px;
+    border-radius: 9px;
+    padding: 9px 15px;
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .qa-chat__shell {
+    width: min(1140px, 100%);
+  }
+
+  .qa-message__user p,
+  .qa-assistant__answer p,
+  .qa-assistant__answer li {
+    font-size: 18px;
+  }
+
+  .qa-assistant__answer h2 {
+    font-size: 24px;
+  }
+
+  .qa-assistant__sources li > div > b {
+    font-size: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .qa-assistant__thinking summary small.is-streaming::before,
   .qa-assistant__thinking li i.qa-thinking-state--active,
