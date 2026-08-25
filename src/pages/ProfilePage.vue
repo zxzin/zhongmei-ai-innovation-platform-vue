@@ -1,41 +1,99 @@
 <script setup>
-import { onBeforeUnmount, reactive, ref } from 'vue'
-import { UserRound, KeyRound, Camera } from '@lucide/vue'
+import { reactive, ref } from 'vue'
+import { KeyRound, X } from '@lucide/vue'
 import PageHeader from '../components/PageHeader.vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useUiStore } from '../stores/ui.js'
 
 const auth = useAuthStore()
 const ui = useUiStore()
-const tab = ref('profile')
-const avatarInput = ref(null)
-const avatarPreview = ref('')
-const form = reactive({ name: auth.profile.name, phone: '138****2816', email: 'xu.bo@chinacoal.com', title: '高级工程师' })
-function save() { auth.updateProfile({ name: form.name }); ui.notify('个人资料已保存', 'success') }
-function chooseAvatar(event) {
-  const file = event.target.files?.[0]
-  if (!file) return
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarPreview.value = URL.createObjectURL(file)
-  ui.notify('头像已更新，保存资料后生效', 'success')
+const passwordDialogOpen = ref(false)
+const passwordSubmitting = ref(false)
+const passwordError = ref('')
+const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+
+function resetPasswordForm() {
+  passwordForm.currentPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
+  passwordError.value = ''
 }
-onBeforeUnmount(() => { if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value) })
+
+function openPasswordDialog() {
+  resetPasswordForm()
+  passwordDialogOpen.value = true
+}
+
+function closePasswordDialog() {
+  if (passwordSubmitting.value) return
+  passwordDialogOpen.value = false
+  resetPasswordForm()
+}
+
+async function submitPasswordChange() {
+  if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+    passwordError.value = '请完整填写密码信息'
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    passwordError.value = '两次输入的新密码不一致'
+    return
+  }
+
+  passwordSubmitting.value = true
+  const result = await auth.changePassword({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword })
+  passwordSubmitting.value = false
+  const messages = {
+    PASSWORD_TOO_SHORT: '新密码至少需要 8 位字符',
+    PASSWORD_UNCHANGED: '新密码不能与当前密码相同',
+    CURRENT_PASSWORD_INVALID: '当前密码不正确',
+  }
+  if (!result.ok) {
+    passwordError.value = messages[result.code] || '密码修改未完成，请稍后重试'
+    return
+  }
+
+  closePasswordDialog()
+  ui.notify('密码已修改，下次登录请使用新密码', 'success')
+}
 </script>
 
 <template>
   <section class="page-container">
     <PageHeader title="个人中心" />
     <div class="profile-shell">
-      <nav class="profile-tabs"><button :class="{ active: tab === 'profile' }" @click="tab = 'profile'"><UserRound :size="18" />个人资料</button><button :class="{ active: tab === 'account' }" @click="tab = 'account'"><KeyRound :size="18" />账号信息</button></nav>
-      <main v-if="tab === 'profile'" class="profile-panel">
-        <header><div class="avatar-large"><img v-if="avatarPreview" :src="avatarPreview" alt="个人头像预览" /><span v-else>{{ auth.profile.avatar }}</span><button type="button" aria-label="上传头像" @click="avatarInput?.click()"><Camera :size="17" /></button><input ref="avatarInput" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" @change="chooseAvatar" /></div><div><h2>{{ form.name }}</h2><p>{{ auth.profile.label }} · {{ auth.profile.department }}</p></div></header>
-        <div class="form-grid"><label>昵称<input v-model="form.name" /></label><label>职务<input v-model="form.title" /></label><label>手机<input v-model="form.phone" /></label><label>工作邮箱<input v-model="form.email" type="email" /></label></div>
-        <footer><button class="button primary" type="button" @click="save">保存资料</button></footer>
-      </main>
-      <main v-else class="profile-panel">
-        <header><div><h2>账号信息</h2><p>以下信息由管理员统一分配，个人不能修改。</p></div></header>
-        <dl class="account-details"><div><dt>登录账号</dt><dd>{{ auth.profile.account }}</dd></div><div><dt>所属公司</dt><dd>{{ auth.profile.company }}</dd></div><div><dt>所属部门</dt><dd>{{ auth.profile.department }}</dd></div><div><dt>平台角色</dt><dd>{{ auth.profile.label }}</dd></div></dl>
+      <main class="profile-panel">
+        <header><div class="avatar-large"><span>{{ auth.profile.avatar }}</span></div><div><h2>{{ auth.profile.name }}</h2><p>个人信息由管理员统一创建与维护</p></div></header>
+        <dl class="account-details">
+          <div><dt>用户名</dt><dd>{{ auth.profile.name }}</dd></div>
+          <div><dt>登录账号</dt><dd>{{ auth.profile.account }}</dd></div>
+          <div><dt>工号</dt><dd>{{ auth.profile.employeeId }}</dd></div>
+          <div><dt>邮箱</dt><dd>{{ auth.profile.email }}</dd></div>
+          <div><dt>手机号</dt><dd>138****2816</dd></div>
+          <div><dt>部门</dt><dd>{{ auth.profile.company }} · {{ auth.profile.department }}</dd></div>
+          <div><dt>职务</dt><dd>高级工程师</dd></div>
+          <div><dt>平台角色</dt><dd>{{ auth.profile.label }}</dd></div>
+        </dl>
+        <section class="profile-security" aria-labelledby="profile-security-title">
+          <header><div><h3 id="profile-security-title">账号安全</h3><p>登录密码可由本人修改。</p></div><button class="button secondary" type="button" @click="openPasswordDialog"><KeyRound :size="17" />修改密码</button></header>
+        </section>
       </main>
     </div>
+    <Transition name="profile-password-fade">
+      <section v-if="passwordDialogOpen" class="profile-password-layer" role="dialog" aria-modal="true" aria-labelledby="profile-password-title" @click.self="closePasswordDialog">
+        <form class="profile-password-dialog" @submit.prevent="submitPasswordChange">
+          <header><div><span>账号安全</span><h2 id="profile-password-title">修改登录密码</h2></div><button type="button" aria-label="关闭修改密码窗口" @click="closePasswordDialog"><X :size="18" /></button></header>
+          <div class="profile-password-dialog-body">
+            <p>请输入当前密码，并设置新的登录密码。</p>
+            <label>当前密码<input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" autofocus /></label>
+            <label>新密码<input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" /></label>
+            <label>确认新密码<input v-model="passwordForm.confirmPassword" type="password" autocomplete="new-password" /></label>
+            <small>新密码至少包含 8 位字符。</small>
+            <p v-if="passwordError" class="form-error">{{ passwordError }}</p>
+          </div>
+          <footer><button class="button secondary" type="button" :disabled="passwordSubmitting" @click="closePasswordDialog">取消</button><button class="button primary" type="submit" :disabled="passwordSubmitting">{{ passwordSubmitting ? '修改中…' : '确认修改' }}</button></footer>
+        </form>
+      </section>
+    </Transition>
   </section>
 </template>

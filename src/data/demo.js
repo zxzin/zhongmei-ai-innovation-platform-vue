@@ -1,24 +1,36 @@
 export const historyRecords = [
-  { id: 'TASK-260818-021', agent: 'innovation', title: '复杂煤矿环境下智能巡检机器人关键技术研究', user: '徐博', org: '中煤深圳研究院', date: '2026-08-18 16:08', status: '已完成', result: '创新性分析报告' },
-  { id: 'TASK-260818-020', agent: 'qa', title: '高矿化度矿井水资源化利用关键约束', user: '王工', org: '技术研发部', date: '2026-08-18 15:36', status: '已完成', result: '技术回答' },
-  { id: 'TASK-260818-019', agent: 'semantic', title: '煤岩识别技术路线专利与论文检索', user: '陈研', org: '科技发展部', date: '2026-08-18 14:52', status: '已完成', result: '126 条证据' },
-  { id: 'TASK-260817-018', agent: 'research', title: '矿井水资源化利用技术路线预研', user: '王工', org: '技术研发部', date: '2026-08-17 17:20', status: '已完成', result: '预研报告' },
-  { id: 'TASK-260817-017', agent: 'feasibility', title: '井下多模态巡检方案工程可行性', user: '李专家', org: '专家委员会', date: '2026-08-17 15:11', status: '已完成', result: '可行性报告' },
-  { id: 'TASK-260816-014', agent: 'disclosure', title: '断网协同控制方法技术交底材料', user: '陈研', org: '科技发展部', date: '2026-08-16 10:05', status: '已完成', result: '交底书初稿' },
+  {
+    id: 'TASK-260818-021', ownerAccount: 'Admin', agent: 'innovation', title: '复杂煤矿环境下智能巡检机器人关键技术研究', user: '张三', org: '中煤深圳研究院', date: '2026-08-18 16:08', status: '已完成', result: '创新性分析报告', resumePath: '/innovation/admin/report',
+  },
+  {
+    id: 'TASK-260818-019', ownerAccount: 'Admin', agent: 'semantic', title: '煤岩识别技术路线专利与论文检索', user: '张三', org: '中煤深圳研究院', date: '2026-08-18 14:52', status: '已完成', result: '126 条证据', resumePath: '/agent/semantic/results',
+  },
+  {
+    id: 'TASK-260817-017', ownerAccount: 'Admin', agent: 'feasibility', title: '井下多模态巡检方案工程可行性', user: '张三', org: '中煤深圳研究院', date: '2026-08-17 15:11', status: '已完成', result: '可行性报告', resumePath: '/agent/feasibility/report',
+  },
+  {
+    id: 'TASK-260816-014', ownerAccount: 'Admin', agent: 'disclosure', title: '断网协同控制方法技术交底材料', user: '张三', org: '中煤深圳研究院', date: '2026-08-16 10:05', status: '已完成', result: '交底书初稿', resumePath: '/agent/disclosure/scope',
+  },
+  {
+    id: 'TASK-260818-020', ownerAccount: 'User', agent: 'qa', title: '高矿化度矿井水资源化利用关键约束', user: '徐博', org: '中煤深圳研究院', date: '2026-08-18 15:36', status: '已完成', result: '技术回答', resumePath: '/agent/qa/chat',
+  },
+  {
+    id: 'TASK-260817-018', ownerAccount: 'User', agent: 'research', title: '矿井水资源化利用技术路线预研', user: '徐博', org: '中煤深圳研究院', date: '2026-08-17 17:20', status: '已完成', result: '预研报告', resumePath: '/agent/research/brief',
+  },
 ]
 
 export const users = [
-  { id: 'Admin', name: '平台管理员', company: '中煤集团', department: '科研管理部', role: '平台管理员', status: '启用', lastLogin: '今天 09:12' },
-  { id: 'CM-01027', name: '徐博', company: '中煤深圳研究院', department: '科研管理部', role: '科研人员', status: '启用', lastLogin: '今天 08:44' },
-  { id: 'CM-01142', name: '王工', company: '中煤深圳研究院', department: '技术研发部', role: '科研人员', status: '启用', lastLogin: '昨天 18:26' },
-  { id: 'CM-00831', name: '李专家', company: '中煤深圳研究院', department: '专家委员会', role: '复核专家', status: '启用', lastLogin: '昨天 16:40' },
-  { id: 'CM-01309', name: '陈研', company: '中煤深圳研究院', department: '科技发展部', role: '科研人员', status: '停用', lastLogin: '08-16 14:18' },
+  { account: 'Admin', id: 'CM-SZ-0001', name: '张三', position: '科研管理部负责人', company: '中煤深圳研究院', department: '科研管理部', role: '管理员', status: '启用', joinedAt: '2026-02-18', lastLogin: '今天 09:12', lastLoginAt: '2026-08-21 09:12:00' },
+  { account: 'User', id: 'CM-SZ-0002', name: '徐博', position: '智能应用研发工程师', company: '中煤深圳研究院', department: '技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-04', lastLogin: '今天 08:44', lastLoginAt: '2026-08-21 08:44:00' },
+  { id: 'CM-01142', name: '王工', position: '高级研发工程师', company: '中煤深圳研究院', department: '技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-08', lastLogin: '昨天 18:26', lastLoginAt: '2026-08-20 18:26:00' },
+  { id: 'CM-00831', name: '李专家', position: '技术评审顾问', company: '中煤深圳研究院', department: '专家委员会', role: '普通用户', status: '启用', joinedAt: '2026-04-18', lastLogin: '昨天 16:40', lastLoginAt: '2026-08-20 16:40:00' },
+  { id: 'CM-01309', name: '陈研', position: '技术情报研究员', company: '中煤深圳研究院', department: '科技发展部', role: '普通用户', status: '停用', joinedAt: '2026-05-09', lastLogin: '08-16 14:18', lastLoginAt: '2026-08-16 14:18:00' },
 ]
 
 export const templates = [
-  { id: 'TPL-01', name: '创新性分析评价模板', version: 'V2.3', scope: '创新性分析', owner: '科研管理部', status: '已发布' },
-  { id: 'TPL-02', name: '技术预研报告模板', version: 'V1.8', scope: '技术预研报告', owner: '技术研发部', status: '已发布' },
-  { id: 'TPL-03', name: '技术交底书结构模板', version: 'V1.5', scope: '技术交底书撰写', owner: '知识产权组', status: '草稿' },
+  { id: 'TPL-01', name: '创新性分析评价模板', version: 'V1', scope: '创新性分析', owner: '科研管理部', status: '已发布' },
+  { id: 'TPL-02', name: '创新性分析评价模板', version: 'V2', scope: '创新性分析', owner: '科研管理部', status: '已发布' },
+  { id: 'TPL-03', name: '创新性分析评价模板', version: 'V3', scope: '创新性分析', owner: '科研管理部', status: '已发布' },
 ]
 
 export const cockpitTrend = [

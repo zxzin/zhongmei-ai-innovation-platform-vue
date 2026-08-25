@@ -12,14 +12,19 @@ const account = ref('Admin')
 const password = ref('demo123')
 const remember = ref(true)
 const error = ref('')
+const submitting = ref(false)
 const accountOptions = [
   { value: 'Admin', label: 'Admin' },
   { value: 'User', label: 'User' },
 ]
 
-function submit() {
+async function submit() {
   if (!password.value) { error.value = '请输入密码'; return }
-  auth.login(account.value)
+  error.value = ''
+  submitting.value = true
+  const authenticated = await auth.login(account.value, password.value)
+  submitting.value = false
+  if (!authenticated) { error.value = '账号或密码错误'; return }
   router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/agents')
 }
 
@@ -45,7 +50,7 @@ function submit() {
           <label class="login-field"><span class="login-field-label">密码</span><input v-model="password" type="password" autocomplete="current-password" /></label>
           <div class="login-options"><label><input v-model="remember" type="checkbox" />记住密码</label></div>
           <p v-if="error" class="form-error">{{ error }}</p>
-          <button class="button primary wide" type="submit"><span>登录</span><i><LogIn :size="17" /></i></button>
+          <button class="button primary wide" type="submit" :disabled="submitting"><span>{{ submitting ? '验证中…' : '登录' }}</span><i><LogIn :size="17" /></i></button>
         </form>
       </section>
     </div>

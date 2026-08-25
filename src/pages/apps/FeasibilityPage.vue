@@ -122,6 +122,13 @@ function clearStreamTimers() {
   streamTimers.forEach((timer) => window.clearTimeout(timer))
   streamTimers = []
 }
+function showCompletedDemoResult() {
+  clearStreamTimers()
+  streamedStepCount.value = steps.length
+  streamedReportSectionCount.value = 12
+  activeStreamStep.value = -1
+  isStreaming.value = false
+}
 function startStreaming() {
   clearStreamTimers()
   streamedStepCount.value = 0
@@ -178,7 +185,8 @@ watch(() => route.params.stage, (value) => {
   if (!started.value) {
     selectedDetail.value = null
     clearStreamTimers()
-  } else startStreaming()
+  } else if (value === 'report' && !activeProposal.value) showCompletedDemoResult()
+  else startStreaming()
 }, { immediate: true })
 onBeforeUnmount(clearStreamTimers)
 </script>

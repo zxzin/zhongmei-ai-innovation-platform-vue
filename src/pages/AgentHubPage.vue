@@ -23,7 +23,7 @@ function applicationHref(id) {
     <header class="hub-heading">
       <h1>
         <span class="hub-title-task">选择一个 <em>智能应用</em>，</span>
-        <span class="hub-title-welcome">开始愉快的工作吧。</span>
+        <span class="hub-title-welcome">开始愉快的工作吧</span>
       </h1>
       <RouterLink v-if="auth.isAdmin" class="hub-cockpit-link" to="/cockpit">
         <Gauge :size="18" /><span>驾驶舱</span>

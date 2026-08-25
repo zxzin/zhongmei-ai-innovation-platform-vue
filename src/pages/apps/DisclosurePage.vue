@@ -299,7 +299,10 @@ function syncToc() {
 }
 function newTask() { generationRun += 1; isGenerating.value = false; stage.value = 'launch'; input.value = ''; editingBlock.value = null; adjusting.value = false; regenerateReady.value = false; setRoute('brief', true) }
 function exportDocument() { ui.notify('技术交底书已准备导出；正式环境将生成 Word 文档。', 'success') }
-watch(() => route.params.stage, (value) => { stage.value = value === 'scope' ? 'workbench' : 'launch' }, { immediate: true })
+watch(() => route.params.stage, (value) => {
+  stage.value = value === 'scope' ? 'workbench' : 'launch'
+  if (value === 'scope' && !input.value.trim()) input.value = example
+}, { immediate: true })
 watch(stage, value => { if (value === 'workbench') nextTick(syncToc) })
 onMounted(() => window.addEventListener('scroll', syncToc, true))
 onBeforeUnmount(() => { generationRun += 1; window.removeEventListener('scroll', syncToc, true) })

@@ -10,6 +10,7 @@ import AdminPage from '../pages/AdminPage.vue'
 import AgentPage from '../pages/AgentPage.vue'
 import QaAgentPage from '../pages/QaAgentPage.vue'
 import InnovationPage from '../pages/InnovationPage.vue'
+import { users } from '../data/demo.js'
 
 function pathFromLegacyRoute(route = '') {
   const [kind, id, stage] = route.split('/')
@@ -37,6 +38,11 @@ function readSession() {
   }
 }
 
+function sessionIsAdmin(session) {
+  const user = users.find((item) => item.account === session?.account)
+  return user?.status === '启用' && user.role === '管理员'
+}
+
 const routes = [
   { path: '/login', name: 'login', component: LoginPage, meta: { public: true } },
   {
@@ -45,15 +51,16 @@ const routes = [
       { path: '', redirect: () => legacyRoute ? pathFromLegacyRoute(legacyRoute) : '/agents' },
       { path: 'agents', name: 'agents', component: AgentHubPage },
       { path: 'history', name: 'history', component: HistoryPage },
+      { path: 'history/:recordId', redirect: { name: 'history' } },
       { path: 'cockpit', name: 'cockpit', component: CockpitPage, meta: { cockpit: true } },
       { path: 'profile', name: 'profile', component: ProfilePage },
       { path: 'knowledge', name: 'knowledge', component: KnowledgeBasePage },
-      { path: 'admin/:section?', name: 'admin', component: AdminPage, meta: { admin: true } },
       { path: 'agent/qa/:stage?', name: 'qa-agent', component: QaAgentPage, meta: { focus: true } },
       { path: 'agent/:id/:stage?', name: 'agent', component: AgentPage, meta: { focus: true } },
       { path: 'innovation/:mode/:stage?', name: 'innovation', component: InnovationPage, meta: { focus: true } },
     ],
   },
+  { path: '/admin/:section?', name: 'admin', component: AdminPage, meta: { admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/agents' },
 ]
 
@@ -67,8 +74,7 @@ router.beforeEach((to) => {
   const session = readSession()
   if (!to.meta.public && !session) return { name: 'login', query: { redirect: to.fullPath } }
   if (to.name === 'login' && session) return { name: 'agents' }
-  if (to.meta.admin && session?.account !== 'Admin') return { name: 'agents' }
-  if (to.meta.cockpit && session?.account !== 'Admin') return { name: 'agents' }
+  if ((to.meta.admin || to.meta.cockpit) && !sessionIsAdmin(session)) return { name: 'agents' }
   return true
 })
 

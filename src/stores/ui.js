@@ -15,6 +15,7 @@ export const useUiStore = defineStore('ui', () => {
   const layout = ref(saved.layout || 'top')
   const theme = ref(saved.theme || 'clear')
   const sidebarCollapsed = ref(Boolean(saved.sidebarCollapsed))
+  const cockpitFullscreen = ref(false)
   const toast = ref(null)
   let toastTimer
 
@@ -28,5 +29,9 @@ export const useUiStore = defineStore('ui', () => {
     toastTimer = setTimeout(() => { toast.value = null }, 2400)
   }
 
-  return { layout, theme, sidebarCollapsed, toast, notify }
+  function setCockpitFullscreen(value) {
+    cockpitFullscreen.value = Boolean(value)
+  }
+
+  return { layout, theme, sidebarCollapsed, cockpitFullscreen, toast, notify, setCockpitFullscreen }
 })

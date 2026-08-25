@@ -162,6 +162,7 @@ function scheduleHoverPreviewClose() {
 
 watch(() => route.params.stage, (stage) => {
   searched.value = stage === 'results'
+  if (stage === 'results' && !query.value.trim()) query.value = semanticDemoInput
   if (stage !== 'results') { resultPage.value = 1; hoverPreview.value = null; generating.value = false; clearGenerationTimers() }
 }, { immediate: true })
 onBeforeUnmount(() => {
