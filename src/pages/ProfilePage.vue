@@ -75,7 +75,7 @@ async function submitPasswordChange() {
           <div><dt>平台角色</dt><dd>{{ auth.profile.label }}</dd></div>
         </dl>
         <section class="profile-security" aria-labelledby="profile-security-title">
-          <header><div><h3 id="profile-security-title">账号安全</h3><p>登录密码可由本人修改。</p></div><button class="button secondary" type="button" @click="openPasswordDialog"><KeyRound :size="17" />修改密码</button></header>
+          <header><div><h3 id="profile-security-title">账号安全</h3></div><button class="button secondary" type="button" @click="openPasswordDialog"><KeyRound :size="17" />修改密码</button></header>
         </section>
       </main>
     </div>

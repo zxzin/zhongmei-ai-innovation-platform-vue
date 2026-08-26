@@ -1,7 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { users } from '../data/demo.js'
+import { findDirectoryUser } from './adminWorkspace.js'
 import { changeCredentialPassword, resetCredentialPassword, verifyCredentials } from '../services/authGateway.js'
+import { isManagementAdmin, normalizeRole } from '../services/accessPolicy.js'
 
 const profileDetails = {
   Admin: { email: 'zhangsan@chinacoal.com' },
@@ -9,18 +10,19 @@ const profileDetails = {
 }
 
 function resolveDirectoryProfile(account) {
-  const user = users.find((item) => item.account === account)
-  const details = profileDetails[account]
-  if (!user || !details || user.status !== '启用') return null
+  const user = findDirectoryUser(account)
+  const details = profileDetails[account] || {}
+  if (!user || user.status !== '启用') return null
   return {
     account,
     name: user.name,
     label: user.role,
-    role: user.role === '管理员' ? 'admin' : 'user',
+    role: normalizeRole(user.role),
     avatar: user.name?.slice(0, 1) || '用',
     employeeId: user.id,
-    email: details.email,
+    email: details.email || user.email || '未设置',
     department: user.department,
+    departmentId: user.departmentId || '',
     company: user.company,
   }
 }
@@ -39,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
   const profile = ref(saved ? resolveDirectoryProfile(saved.account) : null)
   if (saved && !profile.value) localStorage.removeItem('cm-vue-session')
   const authenticated = computed(() => Boolean(profile.value))
-  const isAdmin = computed(() => profile.value?.role === 'admin')
+  const isAdmin = computed(() => isManagementAdmin(profile.value))
 
   async function login(account = 'Admin', password = '') {
     const nextProfile = resolveDirectoryProfile(account)
@@ -62,7 +64,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   function syncDirectoryUser(user) {
     if (!user?.account || profile.value?.account !== user.account) return
-    const nextProfile = resolveDirectoryProfile(user.account)
+    const nextProfile = user.status === '启用' ? {
+      account: user.account,
+      name: user.name,
+      label: user.role,
+      role: normalizeRole(user.role),
+      avatar: user.name?.slice(0, 1) || '用',
+      employeeId: user.id,
+      email: profileDetails[user.account]?.email || user.email || '未设置',
+      department: user.department,
+      departmentId: user.departmentId || '',
+      company: user.company,
+    } : null
     if (!nextProfile) {
       logout()
       return

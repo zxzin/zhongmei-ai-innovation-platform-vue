@@ -86,3 +86,12 @@ export async function resetCredentialPassword({ account, newPassword }) {
   writeRecords(records)
   return { ok: true }
 }
+
+export async function provisionCredential({ account, password = DEFAULT_PASSWORD }) {
+  if (!account) return { ok: false, code: 'ACCOUNT_REQUIRED' }
+  const records = await getRecords()
+  if (records[account]) return { ok: true, created: false }
+  records[account] = await passwordRecord(password)
+  writeRecords(records)
+  return { ok: true, created: true }
+}

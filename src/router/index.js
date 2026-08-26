@@ -10,7 +10,8 @@ import AdminPage from '../pages/AdminPage.vue'
 import AgentPage from '../pages/AgentPage.vue'
 import QaAgentPage from '../pages/QaAgentPage.vue'
 import InnovationPage from '../pages/InnovationPage.vue'
-import { users } from '../data/demo.js'
+import { findDirectoryUser } from '../stores/adminWorkspace.js'
+import { isManagementAdmin } from '../services/accessPolicy.js'
 
 function pathFromLegacyRoute(route = '') {
   const [kind, id, stage] = route.split('/')
@@ -39,8 +40,8 @@ function readSession() {
 }
 
 function sessionIsAdmin(session) {
-  const user = users.find((item) => item.account === session?.account)
-  return user?.status === '启用' && user.role === '管理员'
+  const user = findDirectoryUser(session?.account)
+  return user?.status === '启用' && isManagementAdmin(user)
 }
 
 const routes = [

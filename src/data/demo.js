@@ -20,11 +20,11 @@ export const historyRecords = [
 ]
 
 export const users = [
-  { account: 'Admin', id: 'CM-SZ-0001', name: '张三', position: '科研管理部负责人', company: '中煤深圳研究院', department: '科研管理部', role: '管理员', status: '启用', joinedAt: '2026-02-18', lastLogin: '今天 09:12', lastLoginAt: '2026-08-21 09:12:00' },
-  { account: 'User', id: 'CM-SZ-0002', name: '徐博', position: '智能应用研发工程师', company: '中煤深圳研究院', department: '技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-04', lastLogin: '今天 08:44', lastLoginAt: '2026-08-21 08:44:00' },
-  { id: 'CM-01142', name: '王工', position: '高级研发工程师', company: '中煤深圳研究院', department: '技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-08', lastLogin: '昨天 18:26', lastLoginAt: '2026-08-20 18:26:00' },
-  { id: 'CM-00831', name: '李专家', position: '技术评审顾问', company: '中煤深圳研究院', department: '专家委员会', role: '普通用户', status: '启用', joinedAt: '2026-04-18', lastLogin: '昨天 16:40', lastLoginAt: '2026-08-20 16:40:00' },
-  { id: 'CM-01309', name: '陈研', position: '技术情报研究员', company: '中煤深圳研究院', department: '科技发展部', role: '普通用户', status: '停用', joinedAt: '2026-05-09', lastLogin: '08-16 14:18', lastLoginAt: '2026-08-16 14:18:00' },
+  { account: 'Admin', id: 'CM-SZ-0001', name: '张三', position: '科研管理部负责人', company: '中煤深圳研究院', department: '科研管理部', departmentId: 'dept-科研管理部', role: '管理员', status: '启用', joinedAt: '2026-02-18', lastLogin: '今天 09:12', lastLoginAt: '2026-08-21 09:12:00' },
+  { account: 'User', id: 'CM-SZ-0002', name: '徐博', position: '智能应用研发工程师', company: '中煤深圳研究院', department: '技术研发部', departmentId: 'dept-技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-04', lastLogin: '今天 08:44', lastLoginAt: '2026-08-21 08:44:00' },
+  { id: 'CM-01142', name: '王工', position: '高级研发工程师', company: '中煤深圳研究院', department: '技术研发部', departmentId: 'dept-技术研发部', role: '普通用户', status: '启用', joinedAt: '2026-03-08', lastLogin: '昨天 18:26', lastLoginAt: '2026-08-20 18:26:00' },
+  { id: 'CM-00831', name: '李专家', position: '技术评审顾问', company: '中煤深圳研究院', department: '专家委员会', departmentId: 'dept-专家委员会', role: '普通用户', status: '启用', joinedAt: '2026-04-18', lastLogin: '昨天 16:40', lastLoginAt: '2026-08-20 16:40:00' },
+  { id: 'CM-01309', name: '陈研', position: '技术情报研究员', company: '中煤深圳研究院', department: '科技发展部', departmentId: 'dept-科技发展部', role: '普通用户', status: '停用', joinedAt: '2026-05-09', lastLogin: '08-16 14:18', lastLoginAt: '2026-08-16 14:18:00' },
 ]
 
 export const templates = [

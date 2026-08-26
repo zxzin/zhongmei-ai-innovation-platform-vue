@@ -26,9 +26,20 @@ export const personalLibraries = [
 ]
 
 export const companyLibraries = [
-  { id: 'CKB-01', name: '集团技术标准库', description: '集团级技术标准、制度与统一模板', files: 386, updated: '今天 08:30', access: '全集团' },
-  { id: 'CKB-02', name: '深圳院项目成果库', description: '项目报告、验收材料与成果归档', files: 214, updated: '昨天 18:02', access: '深圳院及子部门' },
-  { id: 'CKB-03', name: '智能矿山案例库', description: '已验证方案、现场案例与复盘记录', files: 128, updated: '08-18 15:44', access: '授权项目组' },
+  { id: 'CKB-01', name: '集团技术标准库', description: '集团级技术标准、制度与统一模板', updated: '2026-08-25 08:30' },
+  { id: 'CKB-02', name: '深圳院项目成果库', description: '项目报告、验收材料与成果归档', updated: '2026-08-24 18:02' },
+  { id: 'CKB-03', name: '智能矿山案例库', description: '已验证方案、现场案例与复盘记录', updated: '2026-08-18 15:44' },
+]
+
+// 公司知识库本地演示文件：用于呈现文件列表、上传和权限管理流程，不代表已接入企业文档服务。
+export const companyLibraryFiles = [
+  { id: 'CKB-DOC-001', libraryId: 'CKB-01', name: '集团技术标准编制与管理办法（2026版）.pdf', type: 'PDF', size: '2.6 MB', source: '制度文件', updated: '2026-08-25 08:30', status: '可检索' },
+  { id: 'CKB-DOC-002', libraryId: 'CKB-01', name: '科研项目技术报告统一模板.docx', type: 'Word', size: '1.2 MB', source: '模板文件', updated: '2026-08-23 15:46', status: '可检索' },
+  { id: 'CKB-DOC-003', libraryId: 'CKB-01', name: '技术标准执行检查清单.xlsx', type: 'Excel', size: '680 KB', source: '管理资料', updated: '2026-08-20 10:12', status: '解析完成' },
+  { id: 'CKB-DOC-004', libraryId: 'CKB-02', name: '井下智能巡检机器人项目验收报告.pdf', type: 'PDF', size: '8.4 MB', source: '项目归档', updated: '2026-08-24 18:02', status: '可检索' },
+  { id: 'CKB-DOC-005', libraryId: 'CKB-02', name: '矿井水资源化阶段成果汇编.docx', type: 'Word', size: '4.7 MB', source: '项目归档', updated: '2026-08-19 16:28', status: '可检索' },
+  { id: 'CKB-DOC-006', libraryId: 'CKB-03', name: '智能矿山边缘巡检方案复盘.pdf', type: 'PDF', size: '5.1 MB', source: '现场案例', updated: '2026-08-18 15:44', status: '可检索' },
+  { id: 'CKB-DOC-007', libraryId: 'CKB-03', name: '皮带机智能巡检故障处置记录.xlsx', type: 'Excel', size: '920 KB', source: '现场案例', updated: '2026-08-16 14:06', status: '解析完成' },
 ]
 
 export const libraryFiles = [
@@ -52,8 +63,8 @@ export const recycledPersonalLibraries = [
 ]
 
 export const departmentTree = [
-  { name: '中煤集团', count: 156, children: [
-    { name: '中煤深圳研究院', count: 62, children: [{ name: '科研管理部', count: 14 }, { name: '技术研发部', count: 31 }, { name: '专家委员会', count: 17 }] },
+  { name: '中煤集团', count: 157, children: [
+    { name: '中煤深圳研究院', count: 63, children: [{ name: '科研管理部', count: 14 }, { name: '技术研发部', count: 31 }, { name: '专家委员会', count: 17 }, { name: '科技发展部', count: 1 }] },
     { name: '煤矿智能化公司', count: 48, children: [{ name: '产品研发部', count: 28 }, { name: '工程验证部', count: 20 }] },
     { name: '装备技术公司', count: 46, children: [{ name: '智能装备部', count: 26 }, { name: '安全技术部', count: 20 }] },
   ] },
@@ -88,12 +99,12 @@ export const operationsLoginTrend = [
 
 // 运营演示数据口径：calls 为用户发起的智能应用调用总量，包含成功、失败、超时和中止的调用；outputs 仅统计成功形成的结果。
 export const appPerformance = [
-  { name: '语义检索', calls: 204, outputs: 199, duration: '42 秒', completion: 97.9, success: 98.4, online: 1, processing: 3, historicSuccess: 528, historicFailure: 9 },
-  { name: '技术问答', calls: 159, outputs: 157, duration: '18 秒', completion: 98.5, success: 99.0, online: 1, processing: 2, historicSuccess: 412, historicFailure: 4 },
-  { name: '技术预研报告', calls: 86, outputs: 81, duration: '8 分 12 秒', completion: 94.7, success: 95.4, online: 1, processing: 4, historicSuccess: 214, historicFailure: 10 },
-  { name: '创新性分析', calls: 80, outputs: 73, duration: '11 分 34 秒', completion: 93.2, success: 94.1, online: 1, processing: 3, historicSuccess: 195, historicFailure: 11 },
-  { name: '可行性分析', calls: 73, outputs: 69, duration: '6 分 08 秒', completion: 95.6, success: 96.7, online: 1, processing: 2, historicSuccess: 180, historicFailure: 6 },
-  { name: '技术交底书撰写', calls: 60, outputs: 51, duration: '7 分 21 秒', completion: 92.4, success: 93.4, online: 1, processing: 3, historicSuccess: 153, historicFailure: 10 },
+  { name: '语义检索', calls: 204, outputs: 199, duration: '42 秒', firstResponseSeconds: 1.2, completion: 97.9, success: 98.4, online: 1, processing: 3, historicSuccess: 528, historicFailure: 9 },
+  { name: '技术问答', calls: 159, outputs: 157, duration: '18 秒', firstResponseSeconds: 0.9, completion: 98.5, success: 99.0, online: 1, processing: 2, historicSuccess: 412, historicFailure: 4 },
+  { name: '技术预研报告', calls: 86, outputs: 81, duration: '8 分 12 秒', firstResponseSeconds: 3.4, completion: 94.7, success: 95.4, online: 1, processing: 4, historicSuccess: 214, historicFailure: 10 },
+  { name: '创新性分析', calls: 80, outputs: 73, duration: '11 分 34 秒', firstResponseSeconds: 4.6, completion: 93.2, success: 94.1, online: 1, processing: 3, historicSuccess: 195, historicFailure: 11 },
+  { name: '可行性分析', calls: 73, outputs: 69, duration: '6 分 08 秒', firstResponseSeconds: 3.7, completion: 95.6, success: 96.7, online: 1, processing: 2, historicSuccess: 180, historicFailure: 6 },
+  { name: '技术交底书撰写', calls: 60, outputs: 51, duration: '7 分 21 秒', firstResponseSeconds: 4.1, completion: 92.4, success: 93.4, online: 1, processing: 3, historicSuccess: 153, historicFailure: 10 },
 ]
 
 // 驾驶舱本地演示的组织视图参数：仅用于让不同组织范围呈现可解释的应用结构差异，不代表实时性能接口。
@@ -189,27 +200,189 @@ export const cockpitScopes = [
     id: 'shenzhen', name: '中煤深圳研究院', calls: 249, successfulCalls: 241, starts: 263, tasks: 244, completedTasks: 237,
     reports: 114, reviews: 24, activeUsers: 47, registeredUsers: 66, historicalLogins: 374, firstResponseSeconds: 2.7, responseSeconds: 176,
     children: [
-      { name: '深圳科创服务公司', calls: 79, tasks: 77, reports: 35, users: 13 },
-      { name: '深圳数字技术公司', calls: 112, tasks: 110, reports: 49, users: 22 },
-      { name: '深圳工程技术公司', calls: 58, tasks: 57, reports: 30, users: 12 },
+      { name: '深圳科创服务公司', calls: 79, tasks: 77, completedTasks: 75, reports: 35, users: 13, registeredUsers: 20 },
+      { name: '深圳数字技术公司', calls: 112, tasks: 110, completedTasks: 107, reports: 49, users: 22, registeredUsers: 28 },
+      { name: '深圳工程技术公司', calls: 58, tasks: 57, completedTasks: 55, reports: 30, users: 12, registeredUsers: 18 },
     ],
   },
   {
     id: 'intelligent-mine', name: '煤矿智能化公司', calls: 222, successfulCalls: 215, starts: 235, tasks: 217, completedTasks: 210,
     reports: 98, reviews: 15, activeUsers: 42, registeredUsers: 61, historicalLogins: 336, firstResponseSeconds: 2.4, responseSeconds: 148,
     children: [
-      { name: '煤矿智能装备公司', calls: 84, tasks: 82, reports: 37, users: 16 },
-      { name: '煤矿智能软件公司', calls: 78, tasks: 76, reports: 34, users: 15 },
-      { name: '煤矿智能运维公司', calls: 60, tasks: 59, reports: 27, users: 11 },
+      { name: '煤矿智能装备公司', calls: 84, tasks: 82, completedTasks: 79, reports: 37, users: 16, registeredUsers: 20 },
+      { name: '煤矿智能软件公司', calls: 78, tasks: 76, completedTasks: 74, reports: 34, users: 15, registeredUsers: 22 },
+      { name: '煤矿智能运维公司', calls: 60, tasks: 59, completedTasks: 57, reports: 27, users: 11, registeredUsers: 19 },
     ],
   },
   {
     id: 'equipment', name: '装备技术公司', calls: 191, successfulCalls: 185, starts: 202, tasks: 188, completedTasks: 182,
     reports: 83, reviews: 20, activeUsers: 37, registeredUsers: 56, historicalLogins: 301, firstResponseSeconds: 2.9, responseSeconds: 203,
     children: [
-      { name: '装备制造公司', calls: 72, tasks: 71, reports: 31, users: 14 },
-      { name: '装备服务公司', calls: 65, tasks: 64, reports: 28, users: 13 },
-      { name: '装备检测公司', calls: 54, tasks: 53, reports: 24, users: 10 },
+      { name: '装备制造公司', calls: 72, tasks: 71, completedTasks: 69, reports: 31, users: 14, registeredUsers: 20 },
+      { name: '装备服务公司', calls: 65, tasks: 64, completedTasks: 63, reports: 28, users: 13, registeredUsers: 18 },
+      { name: '装备检测公司', calls: 54, tasks: 53, completedTasks: 50, reports: 24, users: 10, registeredUsers: 18 },
     ],
   },
 ]
+
+const cockpitComparisonPalette = ['#45c9f0', '#55d9b8', '#8ea9f4', '#eab666', '#bf93eb', '#ea7f9a', '#70b8f0', '#79c68c', '#d18dce', '#e89158']
+
+const cockpitComparisonScopeSeeds = [
+  {
+    id: 'comparison-shenzhen',
+    name: '中煤深圳研究院',
+    children: [
+      ['深圳科创服务公司', 54, 50, 47, 16, 22],
+      ['深圳数字技术公司', 68, 62, 58, 14, 19],
+      ['深圳工程技术公司', 37, 34, 31, 8, 11],
+      ['深圳智能控制公司', 48, 45, 43, 12, 16],
+      ['深圳材料技术公司', 31, 28, 25, 7, 10],
+      ['深圳信息服务公司', 42, 38, 36, 10, 13],
+      ['深圳成果转化公司', 26, 24, 22, 6, 8],
+      ['深圳数据服务公司', 38, 34, 31, 9, 13],
+      ['深圳实验验证公司', 29, 27, 26, 8, 10],
+      ['深圳项目管理公司', 23, 21, 20, 9, 13],
+    ],
+  },
+  {
+    id: 'comparison-intelligent-mine',
+    name: '煤矿智能化公司',
+    children: [
+      ['煤矿智能装备公司', 48, 45, 41, 8, 16],
+      ['煤矿智能软件公司', 44, 40, 36, 7, 15],
+      ['煤矿智能运维公司', 39, 35, 32, 6, 13],
+      ['煤矿智能感知公司', 32, 29, 26, 5, 12],
+      ['煤矿智能控制公司', 36, 32, 29, 10, 20],
+      ['煤矿智能通信公司', 28, 25, 23, 7, 17],
+      ['煤矿智能数据公司', 27, 24, 21, 8, 16],
+      ['煤矿智能安全公司', 35, 31, 27, 6, 14],
+      ['煤矿智能机器人公司', 25, 22, 19, 5, 14],
+      ['煤矿智能服务公司', 24, 21, 18, 6, 16],
+    ],
+  },
+  {
+    id: 'comparison-equipment',
+    name: '装备技术公司',
+    children: [
+      ['装备制造公司', 40, 35, 34, 12, 18],
+      ['装备服务公司', 34, 30, 28, 8, 15],
+      ['装备检测公司', 29, 27, 26, 10, 16],
+      ['装备研发公司', 28, 24, 23, 9, 13],
+      ['装备运维公司', 31, 27, 26, 7, 12],
+      ['装备质量公司', 23, 20, 19, 11, 14],
+      ['装备数控公司', 25, 22, 21, 8, 13],
+      ['装备工程公司', 21, 18, 17, 9, 11],
+      ['装备供应链公司', 24, 21, 20, 10, 14],
+      ['装备试验公司', 21, 19, 18, 7, 11],
+    ],
+  },
+  {
+    id: 'comparison-coal-service',
+    name: '煤炭技术服务公司',
+    children: [
+      ['煤炭技术咨询公司', 46, 42, 40, 8, 19],
+      ['煤炭工程服务公司', 42, 39, 37, 7, 17],
+      ['煤炭信息服务公司', 37, 33, 32, 6, 15],
+      ['煤炭检测服务公司', 35, 32, 30, 5, 14],
+      ['煤炭项目服务公司', 34, 30, 27, 9, 22],
+      ['煤炭培训服务公司', 32, 29, 27, 8, 19],
+      ['煤炭成果服务公司', 31, 28, 25, 7, 17],
+      ['煤炭运维服务公司', 28, 25, 23, 5, 14],
+      ['煤炭数据服务公司', 24, 23, 22, 6, 16],
+      ['煤炭标准服务公司', 22, 21, 20, 5, 13],
+    ],
+  },
+  {
+    id: 'comparison-safety',
+    name: '安全工程技术公司',
+    children: [
+      ['安全评价公司', 31, 28, 28, 7, 11],
+      ['安全监测公司', 27, 25, 24, 5, 12],
+      ['安全设计公司', 24, 21, 21, 8, 11],
+      ['安全检测公司', 23, 21, 20, 6, 13],
+      ['安全培训公司', 22, 20, 19, 7, 15],
+      ['安全应急公司', 20, 18, 17, 8, 11],
+      ['安全技术咨询公司', 19, 18, 18, 6, 14],
+      ['安全数据服务公司', 18, 17, 17, 7, 12],
+      ['安全工程服务公司', 25, 22, 21, 8, 16],
+      ['安全运维公司', 20, 19, 18, 6, 16],
+    ],
+  },
+  {
+    id: 'comparison-green',
+    name: '绿色低碳技术公司',
+    children: [
+      ['绿色低碳研究公司', 35, 31, 28, 4, 17],
+      ['生态修复公司', 32, 29, 27, 5, 18],
+      ['碳资产管理公司', 28, 25, 23, 6, 16],
+      ['清洁能源公司', 27, 25, 24, 4, 19],
+      ['节能技术公司', 25, 22, 20, 5, 20],
+      ['环保装备公司', 24, 21, 19, 6, 18],
+      ['绿色材料公司', 23, 20, 18, 5, 17],
+      ['碳监测公司', 22, 20, 18, 4, 20],
+      ['资源循环公司', 20, 19, 18, 6, 19],
+      ['环境数据公司', 19, 18, 17, 5, 21],
+    ],
+  },
+]
+
+const cockpitComparisonScopeTargets = [
+  { calls: 156, acceptedTasks: 155, completedTasks: 154, activeUsers: 34, registeredUsers: 38 },
+  { calls: 132, acceptedTasks: 128, completedTasks: 118, activeUsers: 12, registeredUsers: 33 },
+  { calls: 112, acceptedTasks: 112, completedTasks: 110, activeUsers: 28, registeredUsers: 29 },
+  { calls: 104, acceptedTasks: 104, completedTasks: 101, activeUsers: 11, registeredUsers: 25 },
+  { calls: 85, acceptedTasks: 82, completedTasks: 81, activeUsers: 24, registeredUsers: 34 },
+  { calls: 73, acceptedTasks: 68, completedTasks: 65, activeUsers: 17, registeredUsers: 24 },
+]
+
+function distributeCockpitComparisonTotal(total, weights) {
+  const weightTotal = Math.max(weights.reduce((sum, weight) => sum + Math.max(weight, 0), 0), 1)
+  const rawValues = weights.map((weight) => total * Math.max(weight, 0) / weightTotal)
+  const values = rawValues.map((value) => Math.floor(value))
+  const remainder = total - values.reduce((sum, value) => sum + value, 0)
+
+  rawValues
+    .map((value, index) => ({ index, fraction: value - values[index] }))
+    .sort((first, second) => second.fraction - first.fraction || first.index - second.index)
+    .slice(0, remainder)
+    .forEach(({ index }) => { values[index] += 1 })
+
+  return values
+}
+
+function buildCockpitComparisonScope(seed, scopeIndex) {
+  const target = cockpitComparisonScopeTargets[scopeIndex]
+  const callWeights = seed.children.map(([, calls]) => calls)
+  const registeredUserWeights = seed.children.map(([, , , , , registeredUsers]) => registeredUsers)
+  const calls = distributeCockpitComparisonTotal(target.calls, callWeights)
+  const acceptedTasks = distributeCockpitComparisonTotal(target.acceptedTasks, callWeights)
+  const failedTasks = distributeCockpitComparisonTotal(target.acceptedTasks - target.completedTasks, callWeights)
+  const registeredUsers = distributeCockpitComparisonTotal(target.registeredUsers, registeredUserWeights)
+  const activeUsers = distributeCockpitComparisonTotal(target.activeUsers, registeredUserWeights)
+  const children = seed.children.map(([name], index) => ({
+    id: `${seed.id}-${String(index + 1).padStart(2, '0')}`,
+    name,
+    calls: calls[index],
+    acceptedTasks: acceptedTasks[index],
+    completedTasks: acceptedTasks[index] - failedTasks[index],
+    activeUsers: activeUsers[index],
+    registeredUsers: registeredUsers[index],
+    color: cockpitComparisonPalette[index],
+  }))
+  const total = (field) => children.reduce((sum, child) => sum + child[field], 0)
+
+  return {
+    id: seed.id,
+    name: seed.name,
+    color: cockpitComparisonPalette[scopeIndex],
+    calls: total('calls'),
+    acceptedTasks: total('acceptedTasks'),
+    completedTasks: total('completedTasks'),
+    activeUsers: total('activeUsers'),
+    registeredUsers: total('registeredUsers'),
+    children,
+  }
+}
+
+export const cockpitComparisonScopes = cockpitComparisonScopeSeeds
+  .map((scope, index) => buildCockpitComparisonScope(scope, index))
