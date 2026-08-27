@@ -411,6 +411,22 @@ tbody tr:hover { background: #f7fbfe; }
 .operations-comparison-trigger { min-height: 39px; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; color: var(--brand-strong); border: 1px solid #c8dfec; border-radius: 10px; background: #f7fcff; font-size: 12px; font-weight: 800; white-space: nowrap; transition: color .16s ease, border-color .16s ease, background .16s ease; }
 .operations-comparison-trigger:hover { color: #fff; border-color: var(--brand); background: var(--brand); }
 .operations-comparison-trigger:focus-visible { outline: 2px solid rgba(0,134,209,.3); outline-offset: 2px; }
+.operations-definition-trigger { color: #536c7d; background: #fff; }
+.operations-definition { display: grid; gap: 18px; }
+.operations-definition > header { display: grid; gap: 7px; padding: 14px 16px; border: 1px solid #d9e8f0; border-radius: 12px; background: #f7fbfd; }
+.operations-definition > header > div { display: flex; align-items: center; gap: 10px; }
+.operations-definition > header span { color: var(--muted); font-size: 12px; }
+.operations-definition > header b { color: var(--ink); font-size: 14px; }
+.operations-definition > header p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.operations-definition-groups { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.operations-definition-groups > section { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.operations-definition-groups h3 { margin-bottom: 8px; color: var(--brand-deep); font-size: 14px; }
+.operations-definition-groups dl { margin: 0; }
+.operations-definition-groups dl > div { display: grid; grid-template-columns: 122px minmax(0,1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.operations-definition-groups dt { color: var(--ink-2); font-size: 12px; font-weight: 800; }
+.operations-definition-groups dd { min-width: 0; display: grid; gap: 3px; margin: 0; }
+.operations-definition-groups dd b { color: var(--ink); font-size: 12px; font-weight: 650; line-height: 1.55; }
+.operations-definition-groups dd small { color: var(--muted); font-size: 11px; line-height: 1.55; }
 .operations-view-tabs { display: inline-flex; flex: 0 0 auto; gap: 18px; border-bottom: 1px solid var(--line); }
 .operations-view-tabs button { min-height: 35px; position: relative; padding: 0 1px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 750; }
 .operations-view-tabs button::after { width: 100%; height: 2px; position: absolute; right: 0; bottom: -1px; left: 0; content: ''; border-radius: 2px 2px 0 0; background: transparent; }
@@ -598,6 +614,7 @@ tbody tr:hover { background: #f7fbfe; }
 }
 
 @media (max-width: 900px) {
+  .operations-definition-groups { grid-template-columns: minmax(0,1fr); }
   .operations-toolbar { align-items: flex-start; flex-direction: column; gap: 10px; }
   .operations-filter-bar { justify-content: flex-start; }
   .operations-overview { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -617,6 +634,7 @@ tbody tr:hover { background: #f7fbfe; }
   .operations-organization-control { grid-column: 1; }
   .operations-organization-control .app-select { width: 100%; }
   .operations-comparison-trigger { padding: 0 8px; font-size: 11px; }
+  .operations-definition-groups dl > div { grid-template-columns: minmax(0,1fr); gap: 4px; }
   .operations-overview { grid-template-columns: 1fr; }
   .operations-view-tabs { max-width: 100%; gap: 15px; overflow-x: auto; }
   .operations-view-tabs button { flex: 0 0 auto; }
@@ -3206,10 +3224,13 @@ tbody tr:hover { background: #f7fbfe; }
 .cockpit-kpi-card > header { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #a5beca; }
 .cockpit-kpi-card > header span { overflow: hidden; color: #a9c1cc; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .cockpit-kpi-card > header svg { flex: 0 0 auto; width: 30px; height: 30px; padding: 7px; color: var(--metric-tone); border: 1px solid color-mix(in srgb,var(--metric-tone) 43%,transparent); border-radius: 8px; }
-.cockpit-kpi-card > b { align-self: center; min-width: 0; overflow: hidden; color: #f1fbff; font-family: "DIN Alternate","Avenir Next Condensed","PingFang SC",sans-serif; font-size: 34px; line-height: 1; letter-spacing: -.055em; text-overflow: ellipsis; white-space: nowrap; }
+.cockpit-kpi-card > b { align-self: center; min-width: 0; max-width: 62%; overflow: hidden; color: #f1fbff; font-family: "DIN Alternate","Avenir Next Condensed","PingFang SC",sans-serif; font-size: 34px; line-height: 1; letter-spacing: -.055em; text-overflow: ellipsis; white-space: nowrap; }
 .cockpit-kpi-card > b small { margin-left: 4px; color: #a8c1cc; font-family: "PingFang SC",sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0; }
 .cockpit-kpi-card > p { display: flex; align-items: center; justify-content: flex-end; gap: 7px; min-width: 0; margin: 0; color: #6e8d9d; font-size: 9px; }
 .cockpit-kpi-card > p strong { display: inline-flex; align-items: center; gap: 2px; color: #55d8ba; font-family: "DIN Alternate","PingFang SC",sans-serif; font-size: 13px; letter-spacing: .01em; white-space: nowrap; }
+.cockpit-kpi-sparkline { position: absolute; top: 45px; right: 18px; width: 34%; height: 34px; overflow: visible; pointer-events: none; }
+.cockpit-kpi-sparkline-area { fill: color-mix(in srgb,var(--metric-tone) 10%,transparent); stroke: none; }
+.cockpit-kpi-sparkline-line { fill: none; stroke: color-mix(in srgb,var(--metric-tone) 82%,#dff8ff); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cockpit-kpi-card:hover { border-color: color-mix(in srgb,var(--metric-tone) 45%,var(--cockpit-line)); background: #082438; }
 .cockpit-panel { min-width: 0; min-height: 0; display: grid; grid-template-rows: 54px minmax(0,1fr); overflow: hidden; border: 1px solid var(--cockpit-line); border-radius: 14px; background: var(--cockpit-surface); box-shadow: inset 0 1px rgba(157,221,243,.025); }
 .cockpit-panel-heading { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--cockpit-line-soft); }
@@ -3349,7 +3370,6 @@ tbody tr:hover { background: #f7fbfe; }
 .app-select-menu.cockpit-comparison-select-menu .app-select-options .app-select-detail { color: #86a6b8; font-size: 10px; white-space: nowrap; }
 .cockpit-comparison-content { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(202px,1fr); }
 .cockpit-comparison-legend { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr); align-items: center; gap: 8px 16px; padding: 9px 16px; border-bottom: 1px solid var(--cockpit-line-soft); background: linear-gradient(90deg,rgba(73,205,243,.045),transparent 68%); }
-.cockpit-comparison-legend.has-hover-readout { grid-template-columns: minmax(0,1fr) minmax(180px,.56fr); }
 .cockpit-comparison-encoding { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 13px; color: #88a7b5; font-size: 8px; font-weight: 700; line-height: 1.35; }
 .cockpit-comparison-encoding > span { display: inline-flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
 .cockpit-comparison-encoding > span > b { color: #d3eaf2; font-size: 8px; font-weight: 800; }
@@ -3358,9 +3378,6 @@ tbody tr:hover { background: #f7fbfe; }
 .cockpit-comparison-encoding .axis-y { background: #66d6bf; box-shadow: 0 0 8px rgba(102,214,191,.28); }
 .cockpit-comparison-encoding .axis-size { width: 9px; height: 9px; border: 1px solid rgba(139,168,237,.78); background: radial-gradient(circle,#8ba8ed 0 2px,transparent 2.5px); box-shadow: 0 0 7px rgba(139,168,237,.22); }
 .cockpit-comparison-encoding .axis-color { background: conic-gradient(#4fb9d8,#dfa04f,#9b78d9,#50b99a,#d4776d,#648ddd,#a7b95d,#c96fad,#4fb9d8); box-shadow: none; }
-.cockpit-comparison-hover-readout { min-width: 0; min-height: 17px; display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: baseline; align-content: center; gap: 3px 8px; margin: 0; color: #87a6b3; font-size: 8px; font-weight: 650; line-height: 1.3; text-align: right; }
-.cockpit-comparison-hover-readout b { color: #e5f7fb; font-size: 9px; font-weight: 800; }
-.cockpit-comparison-hover-readout span + span { padding-left: 8px; border-left: 1px solid rgba(113,183,211,.2); }
 .cockpit-comparison-chart { position: relative; isolation: isolate; min-width: 0; min-height: 202px; display: grid; overflow: hidden; padding: 9px 14px 12px; background: radial-gradient(ellipse at 50% 42%,rgba(42,183,225,.075),transparent 58%),linear-gradient(180deg,rgba(6,34,51,.34),rgba(4,27,42,.12)); }
 .cockpit-comparison-chart::before { position: absolute; z-index: -1; inset: 10px 14px 14px; pointer-events: none; content: ""; background: linear-gradient(90deg,rgba(73,205,243,.018),transparent 36%,rgba(139,168,237,.014)); }
 .cockpit-comparison-chart svg { position: relative; z-index: 1; display: block; width: 100%; height: 100%; min-height: 190px; overflow: visible; }
@@ -3371,40 +3388,41 @@ tbody tr:hover { background: #f7fbfe; }
 .cockpit-comparison-axis-title.y-axis { fill: #77b7a9; }
 .cockpit-comparison-axis-title.x-axis { fill: #82b7cc; }
 .cockpit-comparison-bubble { cursor: default; outline: none; }
-.cockpit-comparison-bubble-halo { fill: var(--bubble-tone); stroke: none; pointer-events: none; transform-box: fill-box; transform-origin: center; transition: opacity .18s ease,transform .18s ease; }
-.cockpit-comparison-bubble-halo.is-outer { opacity: .07; filter: blur(8px); }
-.cockpit-comparison-bubble-halo.is-inner { opacity: .14; filter: blur(4px); }
-.cockpit-comparison-bubble-point { fill: color-mix(in srgb,var(--bubble-tone) 95%,#17384a); stroke: none; opacity: .99; filter: drop-shadow(0 0 7px color-mix(in srgb,var(--bubble-tone) 40%,transparent)); transition: filter .18s ease,opacity .18s ease,transform .18s ease; transform-box: fill-box; transform-origin: center; }
-.cockpit-comparison-bubble.hovered .cockpit-comparison-bubble-halo,.cockpit-comparison-bubble:focus .cockpit-comparison-bubble-halo { opacity: .28; transform: scale(1.08); }
-.cockpit-comparison-bubble.hovered .cockpit-comparison-bubble-point,.cockpit-comparison-bubble:focus .cockpit-comparison-bubble-point { opacity: 1; filter: drop-shadow(0 0 12px color-mix(in srgb,var(--bubble-tone) 82%,transparent)); transform: scale(1.06); }
+.cockpit-comparison-bubble-point { fill: var(--bubble-tone); stroke: none; opacity: 1; filter: drop-shadow(0 0 5px color-mix(in srgb,var(--bubble-tone) 20%,transparent)); transition: fill .18s ease,filter .18s ease,opacity .18s ease; }
+.cockpit-comparison-bubble.hovered .cockpit-comparison-bubble-point,.cockpit-comparison-bubble:focus .cockpit-comparison-bubble-point { fill: color-mix(in srgb,var(--bubble-tone) 88%,#eefafa); filter: drop-shadow(0 0 8px color-mix(in srgb,var(--bubble-tone) 36%,transparent)); opacity: 1; }
 .cockpit-comparison-label-layer { pointer-events: none; }
-.cockpit-comparison-bubble-label text { fill: color-mix(in srgb,var(--bubble-tone) 88%,#eef7fa); stroke: rgba(3,20,31,.86); stroke-width: 1.8px; paint-order: stroke fill; filter: drop-shadow(0 0 3px color-mix(in srgb,var(--bubble-tone) 36%,transparent)) drop-shadow(0 1px 2px rgba(0,12,21,.92)); font-family: "Microsoft YaHei","PingFang SC",sans-serif; font-size: var(--bubble-label-size,8.4px); font-weight: 790; letter-spacing: .01em; pointer-events: none; transition: fill .18s ease,filter .18s ease,stroke .18s ease; }
-.cockpit-comparison-bubble-label.hovered text { fill: color-mix(in srgb,var(--bubble-tone) 48%,#fff); stroke: rgba(2,17,27,.96); filter: drop-shadow(0 0 5px color-mix(in srgb,var(--bubble-tone) 92%,transparent)) drop-shadow(0 0 10px color-mix(in srgb,var(--bubble-tone) 56%,transparent)) drop-shadow(0 1px 2px rgba(0,10,18,.95)); }
+.cockpit-comparison-bubble-label text { fill: color-mix(in srgb,var(--bubble-tone) 82%,#eef7fa); stroke: rgba(3,20,31,.94); stroke-width: 2.2px; stroke-linejoin: round; paint-order: stroke fill; font-family: "Microsoft YaHei","PingFang SC",sans-serif; font-size: var(--bubble-label-size,8.4px); font-weight: 790; letter-spacing: .01em; pointer-events: none; transition: fill .18s ease,stroke .18s ease,stroke-width .18s ease; }
+.cockpit-comparison-bubble-label.hovered text { fill: color-mix(in srgb,var(--bubble-tone) 68%,#fff); stroke: rgba(2,17,27,.98); stroke-width: 2.4px; }
+.cockpit-comparison-tooltip { pointer-events: none; }
+.cockpit-comparison-tooltip-card { fill: rgba(5,28,42,.97); stroke: rgba(122,193,216,.34); stroke-width: 1px; filter: drop-shadow(0 8px 14px rgba(0,10,18,.34)); }
+.cockpit-comparison-tooltip-accent { fill: var(--bubble-tone); }
+.cockpit-comparison-tooltip-divider { stroke: rgba(112,180,204,.18); stroke-width: 1px; }
+.cockpit-comparison-tooltip-name { fill: color-mix(in srgb,var(--bubble-tone) 68%,#fff); font-family: "Microsoft YaHei","PingFang SC",sans-serif; font-size: 10px; font-weight: 800; }
+.cockpit-comparison-tooltip-metric { fill: #7899a8; font-family: "Microsoft YaHei","PingFang SC",sans-serif; font-size: 8px; font-weight: 650; }
+.cockpit-comparison-tooltip-metric tspan { fill: #e1f2f7; font-weight: 800; }
 
 .cockpit-definition-layer { position: fixed; z-index: 180; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(1,15,26,.74); backdrop-filter: blur(9px); }
-.cockpit-definition-panel { width: min(940px,calc(100vw - 48px)); max-height: calc(100dvh - 48px); display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden; color: #e8f6fb; border: 1px solid rgba(100,197,230,.35); border-radius: 16px; outline: 0; background: linear-gradient(145deg,#0b2a3e,#061d2e 72%); box-shadow: 0 26px 90px rgba(0,8,16,.52),inset 0 1px rgba(174,232,250,.08); }
-.cockpit-definition-panel > header { min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 22px; border-bottom: 1px solid rgba(84,169,207,.15); background: linear-gradient(90deg,rgba(73,205,243,.08),transparent 48%); }
-.cockpit-definition-panel > header > div { min-width: 0; display: grid; gap: 3px; }
-.cockpit-definition-panel > header span { color: #53cdef; font-family: "DIN Alternate","PingFang SC",sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
-.cockpit-definition-panel > header h2 { min-width: 0; overflow: hidden; color: #effaff; font-size: 20px; font-weight: 800; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.cockpit-definition-panel { width: min(760px,calc(100vw - 48px)); max-height: calc(100dvh - 48px); display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden; color: #e8f6fb; border: 1px solid rgba(100,197,230,.35); border-radius: 16px; outline: 0; background: linear-gradient(145deg,#0b2a3e,#061d2e 72%); box-shadow: 0 26px 90px rgba(0,8,16,.52),inset 0 1px rgba(174,232,250,.08); }
+.cockpit-definition-panel > header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 22px; border-bottom: 1px solid rgba(84,169,207,.15); background: rgba(73,205,243,.035); }
+.cockpit-definition-panel > header h2 { min-width: 0; overflow: hidden; color: #effaff; font-size: 19px; font-weight: 800; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
 .cockpit-definition-panel > header button { width: 34px; height: 34px; display: grid; flex: 0 0 auto; place-items: center; color: #9ec1d0; border: 1px solid rgba(111,190,221,.28); border-radius: 9px; background: rgba(4,30,46,.62); transition: color .16s ease, border-color .16s ease, background .16s ease; }
 .cockpit-definition-panel > header button:hover { color: #e8f8fc; border-color: rgba(103,211,245,.62); background: rgba(73,205,243,.14); }
-.cockpit-definition-body { min-width: 0; overflow: auto; padding: 16px 22px 20px; overscroll-behavior: contain; }
-.cockpit-definition-context { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-height: 40px; margin-bottom: 16px; padding: 0 12px; color: #a9c4d0; border: 1px solid rgba(102,183,215,.22); border-radius: 9px; background: rgba(4,31,48,.5); font-size: 10px; }
+.cockpit-definition-body { min-width: 0; overflow: auto; padding: 14px 22px 20px; overscroll-behavior: contain; }
+.cockpit-definition-context { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-height: 36px; margin-bottom: 12px; padding: 0 2px; color: #a9c4d0; border-bottom: 1px solid rgba(102,183,215,.16); font-size: 10px; }
 .cockpit-definition-context > span { color: #7295a6; }
 .cockpit-definition-context > b { color: #d8eff6; font-size: 11px; }
 .cockpit-definition-context > i { width: 3px; height: 3px; border-radius: 50%; background: #55d8ba; }
 .cockpit-definition-context > small { margin-left: auto; color: #7194a6; font-size: 9px; }
-.cockpit-definition-group + .cockpit-definition-group { margin-top: 13px; }
-.cockpit-definition-group > header { display: flex; align-items: center; gap: 8px; min-height: 28px; }
-.cockpit-definition-group > header span { color: #53cdef; font-family: "DIN Alternate","PingFang SC",sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
-.cockpit-definition-group > header h3 { color: #d9eff7; font-size: 13px; font-weight: 800; }
-.cockpit-definition-group dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 0; }
-.cockpit-definition-group dl > div { min-width: 0; display: grid; grid-template-columns: 94px minmax(0,1fr); column-gap: 10px; row-gap: 3px; padding: 10px 11px; border: 1px solid rgba(100,177,207,.17); border-radius: 9px; background: rgba(3,26,41,.43); }
-.cockpit-definition-group dt { min-width: 0; color: #8eafbe; font-size: 10px; font-weight: 800; }
-.cockpit-definition-group dd { min-width: 0; margin: 0; color: #d4e8ef; font-size: 10px; line-height: 1.5; }
-.cockpit-definition-group dl small { grid-column: 2; color: #6f91a2; font-size: 8px; line-height: 1.45; }
-.cockpit-definition-note { margin: 15px 0 0; padding: 9px 11px; color: #7698a9; border-left: 2px solid #54d6ba; background: rgba(84,214,186,.055); font-size: 9px; line-height: 1.55; }
+.cockpit-definition-group + .cockpit-definition-group { margin-top: 11px; }
+.cockpit-definition-group > header { display: flex; align-items: center; min-height: 27px; }
+.cockpit-definition-group > header h3 { color: #73d4ee; font-size: 12px; font-weight: 800; }
+.cockpit-definition-group dl { margin: 0; border-top: 1px solid rgba(100,177,207,.14); }
+.cockpit-definition-group dl > div { min-width: 0; display: grid; grid-template-columns: 138px minmax(0,1fr); gap: 14px; padding: 9px 2px; border-bottom: 1px solid rgba(100,177,207,.12); }
+.cockpit-definition-group dt { min-width: 0; color: #a6c4d1; font-size: 10px; font-weight: 800; }
+.cockpit-definition-group dd { min-width: 0; margin: 0; color: #ccdee6; font-size: 10px; line-height: 1.55; }
+.cockpit-definition-group dd b,.cockpit-definition-group dd small { display: block; }
+.cockpit-definition-group dd b { color: #dcecf2; font-size: 10px; font-weight: 700; }
+.cockpit-definition-group dd small { margin-top: 2px; color: #84a5b3; font-size: 9px; line-height: 1.55; }
 .cockpit-definition-enter-active,.cockpit-definition-leave-active { transition: opacity .18s ease; }
 .cockpit-definition-enter-active .cockpit-definition-panel,.cockpit-definition-leave-active .cockpit-definition-panel { transition: transform .18s ease,opacity .18s ease; }
 .cockpit-definition-enter-from,.cockpit-definition-leave-to { opacity: 0; }
@@ -3429,6 +3447,7 @@ tbody tr:hover { background: #f7fbfe; }
   .app-shell.cockpit-fullscreen .cockpit-overview-content .cockpit-kpi-card { min-height: 76px; gap: 4px; padding: 8px 10px 7px; }
   .app-shell.cockpit-fullscreen .cockpit-overview-content .cockpit-kpi-card > header svg { width: 23px; height: 23px; padding: 5px; }
   .app-shell.cockpit-fullscreen .cockpit-overview-content .cockpit-kpi-card > b { font-size: 27px; }
+  .app-shell.cockpit-fullscreen .cockpit-overview-content .cockpit-kpi-sparkline { top: 51px; right: 18px; height: 24px; }
   .app-shell.cockpit-fullscreen .cockpit-overview-visuals > section { min-height: 0; }
   .app-shell.cockpit-fullscreen .cockpit-call-overview,
   .app-shell.cockpit-fullscreen .cockpit-call-overview > section { min-height: 0; height: 100%; }
@@ -3536,8 +3555,7 @@ tbody tr:hover { background: #f7fbfe; }
 @container cockpit-comparison (max-width: 700px) {
   .cockpit-comparison-heading { align-items: flex-start; padding-top: 7px; padding-bottom: 7px; }
   .cockpit-comparison-controls { width: min(252px,50%); flex-basis: min(252px,50%); }
-  .cockpit-comparison-legend,.cockpit-comparison-legend.has-hover-readout { grid-template-columns: minmax(0,1fr); align-items: start; gap: 6px; padding: 8px 12px; }
-  .cockpit-comparison-hover-readout { justify-content: flex-start; text-align: left; }
+  .cockpit-comparison-legend { grid-template-columns: minmax(0,1fr); align-items: start; gap: 6px; padding: 8px 12px; }
 }
 @container cockpit-comparison (max-width: 620px) {
   .cockpit-comparison-content { grid-template-rows: auto minmax(344px,1fr); }
@@ -3545,8 +3563,6 @@ tbody tr:hover { background: #f7fbfe; }
   .cockpit-comparison-chart { min-height: 344px; padding: 8px 10px 14px; }
   .cockpit-comparison-chart::before { inset: 10px 10px 16px; }
   .cockpit-comparison-chart svg { min-height: 322px; }
-  .cockpit-comparison-hover-readout { gap: 3px 7px; font-size: 8px; }
-  .cockpit-comparison-hover-readout b { font-size: 9px; }
 }
 @container cockpit-comparison (max-width: 470px) {
   .cockpit-comparison-heading { align-items: stretch; flex-wrap: wrap; gap: 6px; }
@@ -3562,13 +3578,12 @@ tbody tr:hover { background: #f7fbfe; }
   .cockpit-view { width: calc(100% - 16px); gap: 10px; margin: 0 8px; padding-bottom: 20px; }
   .cockpit-definition-layer { padding: 12px; }
   .cockpit-definition-panel { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border-radius: 13px; }
-  .cockpit-definition-panel > header { min-height: 64px; padding: 0 16px; }
+  .cockpit-definition-panel > header { min-height: 58px; padding: 0 16px; }
   .cockpit-definition-panel > header h2 { font-size: 17px; }
   .cockpit-definition-body { padding: 13px 14px 16px; }
-  .cockpit-definition-context { min-height: 0; padding: 9px 10px; }
+  .cockpit-definition-context { min-height: 0; padding: 7px 0; }
   .cockpit-definition-context > small { width: 100%; margin-left: 0; }
-  .cockpit-definition-group dl { grid-template-columns: minmax(0,1fr); }
-  .cockpit-definition-group dl > div { grid-template-columns: 82px minmax(0,1fr); padding: 9px; }
+  .cockpit-definition-group dl > div { grid-template-columns: 104px minmax(0,1fr); gap: 10px; padding: 9px 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cockpit-view *, .cockpit-view *::before, .cockpit-view *::after { transition: none !important; }

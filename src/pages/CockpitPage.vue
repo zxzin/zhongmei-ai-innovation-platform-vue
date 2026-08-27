@@ -6,6 +6,14 @@ import { useUiStore } from '../stores/ui.js'
 import { agentUsage } from '../data/demo.js'
 import { agentMap } from '../data/agents.js'
 import { appPerformance, cockpitAppScopeProfiles, cockpitComparisonScopes, cockpitPeriods, cockpitScopes } from '../data/platform.js'
+import {
+  buildApplicationMetricRows,
+  buildComparisonMetricUnit,
+  buildScopeMetricSnapshot,
+  comparisonTertiarySources as selectComparisonTertiarySources,
+  distributeMetricTotal,
+  operationMetricDefinitionGroups,
+} from '../data/operationMetrics.js'
 
 const ui = useUiStore()
 const activePeriod = ref('month')
@@ -22,9 +30,20 @@ const activeUserTrendChartSize = ref({ width: 300, height: 184 })
 const isDataDefinitionOpen = ref(false)
 const dataDefinitionPanel = ref(null)
 const appTones = ['#52c9ef', '#66d6bf', '#8ba8ed', '#ddb46a', '#b99ae9', '#e78296']
-const comparisonTones = ['#4fb9d8', '#dfa04f', '#9b78d9', '#50b99a', '#d4776d', '#648ddd', '#a7b95d', '#c96fad', '#589fc2', '#d28752', '#5bb9ad', '#aa6da5', '#6aa7d8', '#d36f91', '#767ccc', '#43aa90']
+const comparisonTones = [
+  ...appTones,
+  '#78c9a1',
+  '#67bfc9',
+  '#76b4dc',
+  '#9199d4',
+  '#c392d1',
+  '#d58eaf',
+  '#dc927e',
+  '#d3a474',
+  '#b9bf75',
+  '#8abd82',
+]
 const cockpitAppOrder = ['技术问答', '语义检索', '技术预研报告', '创新性分析', '可行性分析', '技术交底书撰写']
-const cockpitVolumeMultiplier = 30
 let comparisonChartObserver
 let lineChartObserver
 const periodTabs = [
@@ -43,60 +62,7 @@ const comparisonPeriodOptions = [
   { value: 'quarter', label: '按季度比', detail: '近 90 天' },
   { value: 'year', label: '按年比', detail: '本年度' },
 ]
-const comparisonPeriodProfiles = {
-  month: { label: '近 30 天', countScale: .26, activeScale: .68, completionShift: -1.1, variance: 1.1 },
-  quarter: { label: '近 90 天', countScale: .69, activeScale: .86, completionShift: -.35, variance: .75 },
-  year: { label: '本年度', countScale: 1, activeScale: 1, completionShift: .4, variance: .45 },
-}
-
-const dataDefinitionGroups = [
-  {
-    id: 'scope',
-    title: '统计范围',
-    items: [
-      { label: '统计周期', formula: '按“今日、近 30 天、近 90 天、本年度”筛选事件发生时间。', detail: '页面内所有趋势、数量和对比均使用同一周期。' },
-      { label: '组织范围', formula: '按所选组织及其下级单位汇总；全集团视图覆盖全部二级、三级单位。', detail: '组织对比图保留层级关系，不将上下级重复作为同一排名。' },
-    ],
-  },
-  {
-    id: 'overview',
-    title: '运营概览',
-    items: [
-      { label: '智能应用调用量', formula: '用户每发起一次智能应用调用计 1 次。', detail: '成功、失败、超时和中止的调用均计入。' },
-      { label: '平均首次响应', formula: '首次系统响应耗时之和 ÷ 已获得首次响应的调用数。', detail: '不包含人工处理或人工停留时长。' },
-      { label: '活跃用户数', formula: '每个趋势时间桶内至少发生 1 次有效行为的活跃用户数。', detail: '有效行为包括登录、发起任务、查询或查看历史记录；近 30 天按日、近 90 天按周、本年度按半月统计，同一用户在单个时间桶内计 1 人。' },
-      { label: '用户活跃率', formula: '周期活跃用户数 ÷ 当前组织范围的总注册用户数 × 100%。', detail: '例如：月活跃率 = 当月活跃用户数 ÷ 总注册用户数。' },
-      { label: '用户均调用频次', formula: '智能应用调用总次数 ÷ 注册用户数。', detail: '调用总次数包含成功、失败、超时和中止的发起。' },
-      { label: '调用成功率', formula: '成功调用次数 ÷ 智能应用调用总次数 × 100%。', detail: '失败率 = 未成功调用次数 ÷ 调用总次数；两者仅统计当前筛选范围。' },
-      { label: '调用次数趋势', formula: '按所选周期拆分时间桶，分别汇总六项智能应用在每个时间桶内的调用次数。', detail: '今日按时段；近 30 天按自然日形成 30 个节点，横轴每 5 日标注；近 90 天按自然周形成 13 个节点，横轴仅标月份边界；本年度按上、下半月形成每月 2 个节点，横轴仅标月份。折线连接各时间桶汇总值，不采用跨月平均点。' },
-    ],
-  },
-  {
-    id: 'tasks',
-    title: '智能应用运行与任务',
-    items: [
-      { label: '智能应用运行状态', formula: '当前服务可正常接受调用显示为“正常”，停用的服务显示为“停用”。', detail: '运行状态是当前时点快照，不按统计周期累计，也不参与调用总量计算。' },
-      { label: '任务完成率', formula: '产生最终输出的完整任务数 ÷ Agent 已启动任务数 × 100%。', detail: '用户提交输入且 Agent 开始执行后，必须走完全部流程并产生最终输出才计为完整；中断、暂停、退出或没有最终输出均计为未完成。尚未启动 Agent 的草稿不进入分母。' },
-    ],
-  },
-  {
-    id: 'performance',
-    title: '性能看板',
-    items: [
-      { label: '单应用调用量', formula: '当前筛选范围内该智能应用被发起调用的总次数。', detail: '六项智能应用分别统计，成功与未成功调用均计入。' },
-      { label: '单应用任务完成率', formula: '该智能应用产生最终输出的完整任务数 ÷ 该智能应用 Agent 已启动任务数 × 100%。', detail: '每项智能应用独立计算；中断、暂停或无最终输出的任务均计为未完成。' },
-      { label: '单应用平均首次响应', formula: '该智能应用首次响应耗时之和 ÷ 已获得首次响应的调用数。', detail: '越短表示首次响应越快；不等同于任务完整处理时长。' },
-      { label: '单应用调用成功率', formula: '该智能应用成功调用次数 ÷ 该智能应用调用总次数 × 100%。', detail: '每项智能应用独立计算。' },
-    ],
-  },
-  {
-    id: 'comparison',
-    title: '横向对比',
-    items: [
-      { label: '各级单位使用对比', formula: '横轴为智能应用调用量，纵轴为任务完成率，气泡面积表示活跃用户占比，颜色区分单位。', detail: '可按全集团、二级公司、三级公司切换比较维度，并独立选择按月、按季度或按年统计。' },
-    ],
-  },
-]
+const dataDefinitionGroups = operationMetricDefinitionGroups
 
 const cockpitScopeOptions = computed(() => cockpitScopes.flatMap((scope) => [
   {
@@ -123,22 +89,6 @@ function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
-function distributeInteger(total, weights) {
-  const normalizedWeights = weights.map((weight) => Math.max(0, weight))
-  const weightTotal = Math.max(normalizedWeights.reduce((sum, weight) => sum + weight, 0), 1)
-  const raw = normalizedWeights.map((weight) => total * weight / weightTotal)
-  const values = raw.map((value) => Math.floor(value))
-  const remainder = Math.max(0, total - values.reduce((sum, value) => sum + value, 0))
-
-  raw
-    .map((value, index) => ({ index, fraction: value - values[index] }))
-    .sort((first, second) => second.fraction - first.fraction || first.index - second.index)
-    .slice(0, remainder)
-    .forEach(({ index }) => { values[index] += 1 })
-
-  return values
-}
-
 function resolveScope(id) {
   const direct = cockpitScopes.find((scope) => scope.id === id)
   if (direct) {
@@ -160,7 +110,7 @@ function resolveScope(id) {
     parentName: parent.name,
     calls: child.calls,
     successfulCalls: Math.round(child.calls * 0.97),
-    starts: Math.round(child.calls * 1.06),
+    starts: child.startedTasks ?? child.tasks,
     tasks: child.tasks,
     completedTasks: child.completedTasks ?? Math.round(child.tasks * 0.97),
     reports: child.reports,
@@ -176,24 +126,19 @@ function resolveScope(id) {
 const selectedPeriod = computed(() => cockpitPeriods.find((item) => item.id === activePeriod.value) || cockpitPeriods[2])
 const selectedScope = computed(() => resolveScope(activeScope.value))
 const groupScope = computed(() => cockpitScopes[0])
-const periodScale = computed(() => selectedPeriod.value.scale)
 const scopeShare = computed(() => selectedScope.value.calls / groupScope.value.calls)
-const scaleCount = (value) => Math.round(value * periodScale.value * cockpitVolumeMultiplier)
-const scaleUser = (value) => Math.max(1, Math.round(value * selectedPeriod.value.userScale))
-const currentCalls = computed(() => scaleCount(selectedScope.value.calls))
-const startedTasks = computed(() => scaleCount(selectedScope.value.starts))
-const completedTasks = computed(() => scaleCount(selectedScope.value.completedTasks))
-const activeUsers = computed(() => scaleUser(selectedScope.value.activeUsers))
-const registeredUsers = computed(() => selectedScope.value.registeredUsers)
-const completionRate = computed(() => completedTasks.value / Math.max(startedTasks.value, 1) * 100)
-const activeRate = computed(() => activeUsers.value / Math.max(registeredUsers.value, 1) * 100)
-const successfulCalls = computed(() => Math.min(currentCalls.value, scaleCount(selectedScope.value.successfulCalls)))
-const failedCalls = computed(() => Math.max(0, currentCalls.value - successfulCalls.value))
-const callSuccessRate = computed(() => successfulCalls.value / Math.max(currentCalls.value, 1) * 100)
-const perUserCallFrequency = computed(() => {
-  if (registeredUsers.value <= 0) return null
-  return currentCalls.value / registeredUsers.value
-})
+const scopeMetrics = computed(() => buildScopeMetricSnapshot(selectedScope.value, selectedPeriod.value))
+const currentCalls = computed(() => scopeMetrics.value.calls)
+const startedTasks = computed(() => scopeMetrics.value.startedTasks)
+const completionRate = computed(() => scopeMetrics.value.completionRate)
+const completedTasks = computed(() => scopeMetrics.value.completedTasks)
+const activeUsers = computed(() => scopeMetrics.value.activeUsers)
+const registeredUsers = computed(() => scopeMetrics.value.registeredUsers)
+const activeRate = computed(() => scopeMetrics.value.activeRate ?? 0)
+const successfulCalls = computed(() => scopeMetrics.value.successfulCalls)
+const failedCalls = computed(() => scopeMetrics.value.failedCalls)
+const callSuccessRate = computed(() => scopeMetrics.value.callSuccessRate ?? 0)
+const perUserCallFrequency = computed(() => scopeMetrics.value.perUserCallFrequency)
 
 function selectPeriod(period) {
   activePeriod.value = period
@@ -316,8 +261,8 @@ onBeforeUnmount(() => {
 
 const trendData = computed(() => {
   const source = selectedPeriod.value.trend
-  const calls = distributeInteger(currentCalls.value, source.map((item) => item.calls))
-  const results = distributeInteger(successfulCalls.value, source.map((item) => item.results))
+  const calls = distributeMetricTotal(currentCalls.value, source.map((item) => item.calls))
+  const results = distributeMetricTotal(successfulCalls.value, source.map((item) => item.results))
 
   return source.map((item, index) => ({ ...item, calls: calls[index], results: results[index] }))
 })
@@ -406,29 +351,24 @@ const activeUserTrendCaption = computed(() => ({
 const scopeProfileKey = computed(() => activeScope.value.split('__')[0])
 const scopeAppProfile = computed(() => cockpitAppScopeProfiles[scopeProfileKey.value] || cockpitAppScopeProfiles.group)
 const appRows = computed(() => {
-  const profile = scopeAppProfile.value
-  const callWeights = appPerformance.map((app, index) => app.calls * profile.callMix[index])
-  const callsByApp = distributeInteger(currentCalls.value, callWeights)
-  const completedByApp = distributeInteger(completedTasks.value, callWeights)
+  const rows = buildApplicationMetricRows({
+    apps: appPerformance,
+    snapshot: scopeMetrics.value,
+    profile: scopeAppProfile.value,
+    scopeShare: scopeShare.value,
+  })
 
-  return appPerformance.map((app, index) => {
-    const callMix = profile.callMix[index]
-    const completion = Math.min(99.9, Math.max(0, Math.round((app.completion + profile.completionDelta[index]) * 10) / 10))
+  return rows.map((app, index) => {
     const agentId = agentUsage[index]?.id || `app-${index}`
 
     return {
+      ...app,
       id: agentId,
       name: app.name,
       icon: agentMap[agentId]?.icon || Activity,
-      calls: callsByApp[index],
-      completion,
-      firstResponseSeconds: Math.round(app.firstResponseSeconds * profile.durationScale[index] * 10) / 10,
-      success: clamp(Math.round((app.success + profile.completionDelta[index] * .45) * 10) / 10, 0, 100),
-      online: app.online,
-      processing: Math.max(0, Math.round(app.processing * scopeShare.value * callMix)),
-      completed: completedByApp[index],
-      historicSuccess: Math.round(app.historicSuccess * scopeShare.value * callMix),
-      historicFailure: Math.round(app.historicFailure * scopeShare.value * callMix),
+      completion: app.completionRate ?? 0,
+      success: app.successRate ?? 0,
+      completed: app.completedTasks,
       tone: appTones[index],
     }
   }).sort((first, second) => cockpitAppOrder.indexOf(first.name) - cockpitAppOrder.indexOf(second.name))
@@ -442,10 +382,10 @@ const appTrendRows = computed(() => {
 
   return apps.map((app, appIndex) => ({
     ...app,
-    values: distributeInteger(app.calls, periodWeights.map((weight, pointIndex) => {
-      const stagger = Math.sin((pointIndex + 1) * 1.45 + appIndex * .86) * .14
-      const cadence = ((pointIndex + appIndex) % 3 - 1) * .035
-      return Math.max(.2, weight * (1 + stagger + cadence))
+    values: distributeMetricTotal(app.calls, periodWeights.map((weight, pointIndex) => {
+      const primaryWave = Math.sin((pointIndex + 1) * .62 + appIndex * .91) * .12
+      const secondaryWave = Math.sin((pointIndex + 1) * 1.08 + appIndex * .47) * .045
+      return Math.max(.2, weight * (1 + primaryWave + secondaryWave))
     })),
   }))
 })
@@ -457,64 +397,29 @@ const callTrendPeriodLabel = computed(() => ({
   year: '按半月 · 本年度',
 }[activePeriod.value]))
 const activeTrendPeriodLabel = computed(() => callTrendPeriodLabel.value)
-const appCallTrendChart = computed(() => multiLineGeometry(
-  appTrendRows.value.map((app) => ({ id: app.id, name: app.name, tone: app.tone, values: app.values })),
-  callTrendChartSize.value.width,
-  callTrendChartSize.value.height,
-  12,
-  12,
-  15,
-  28,
-  appTrendLabels.value,
-))
-const selectedComparisonPeriod = computed(() => comparisonPeriodProfiles[comparisonPeriod.value] || comparisonPeriodProfiles.month)
-const comparisonTertiarySources = computed(() => {
-  const rows = []
-  const childCount = Math.max(...cockpitComparisonScopes.map((scope) => scope.children.length), 0)
+const appCallTrendChart = computed(() => {
+  const series = appTrendRows.value.map((app) => ({ id: app.id, name: app.name, tone: app.tone, values: app.values }))
+  const dataMax = Math.max(...series.flatMap((item) => item.values), 1)
+  const axisStep = niceAxisStep(dataMax / 4)
+  const axisMax = Math.ceil(dataMax / axisStep) * axisStep
 
-  for (let childIndex = 0; childIndex < childCount && rows.length < 10; childIndex += 1) {
-    cockpitComparisonScopes.forEach((scope) => {
-      const child = scope.children[childIndex]
-      if (child && rows.length < 10) rows.push({ ...child, parentName: scope.name })
-    })
-  }
-
-  return rows
+  return multiLineGeometry(
+    series,
+    callTrendChartSize.value.width,
+    callTrendChartSize.value.height,
+    38,
+    12,
+    15,
+    28,
+    appTrendLabels.value,
+    { min: 0, max: axisMax },
+  )
 })
+const selectedComparisonPeriod = computed(() => cockpitPeriods.find((period) => period.id === comparisonPeriod.value) || cockpitPeriods.find((period) => period.id === 'month'))
+const comparisonTertiarySources = computed(() => selectComparisonTertiarySources(cockpitComparisonScopes, 10))
 
-function comparisonVariance(id, salt = 0) {
-  const hash = Array.from(String(id)).reduce((sum, character) => sum + character.codePointAt(0), 0)
-  return ((hash + salt * 19) % 17 - 8) / 8
-}
-
-function makeComparisonUnit({ id, name, level, calls, startedTasks, completedTasks, activeUsers, registeredUsers, tone }) {
-  const profile = selectedComparisonPeriod.value
-  const periodSalt = comparisonPeriod.value === 'month' ? 1 : comparisonPeriod.value === 'quarter' ? 2 : 3
-  const variance = comparisonVariance(id, periodSalt)
-  const countFactor = profile.countScale * (1 + variance * .28 * profile.variance)
-  const scaledCalls = Math.max(1, Math.round(calls * countFactor))
-  const scaledStartedTasks = Math.max(1, Math.round(startedTasks * countFactor * (1 - variance * .025)))
-  const baseCompletionRate = completedTasks / Math.max(startedTasks, 1) * 100
-  const targetCompletionRate = clamp(baseCompletionRate + profile.completionShift + variance * 6.2 * profile.variance, 76, 99.5)
-  const scaledCompletedTasks = Math.min(scaledStartedTasks, Math.max(0, Math.round(scaledStartedTasks * targetCompletionRate / 100)))
-  const safeRegisteredUsers = Math.max(registeredUsers, 1)
-  const baseActiveRate = activeUsers / safeRegisteredUsers
-  const targetActiveRate = clamp(baseActiveRate * profile.activeScale * (1 + variance * .16 * profile.variance), .12, .98)
-  const scaledActiveUsers = Math.min(safeRegisteredUsers, Math.max(1, Math.round(safeRegisteredUsers * targetActiveRate)))
-
-  return {
-    id,
-    name,
-    level,
-    calls: scaledCalls,
-    startedTasks: scaledStartedTasks,
-    completedTasks: scaledCompletedTasks,
-    completionRate: scaledCompletedTasks / Math.max(scaledStartedTasks, 1) * 100,
-    activeUsers: scaledActiveUsers,
-    registeredUsers: safeRegisteredUsers,
-    activeRate: scaledActiveUsers / safeRegisteredUsers * 100,
-    tone,
-  }
+function makeComparisonUnit(unit) {
+  return buildComparisonMetricUnit(unit, selectedComparisonPeriod.value)
 }
 
 const comparisonUnits = computed(() => {
@@ -548,8 +453,6 @@ const comparisonUnits = computed(() => {
 const comparisonUnitCount = computed(() => comparisonUnits.value.length)
 const comparisonIsDense = computed(() => comparisonUnitCount.value > 6)
 const comparisonTitle = computed(() => '各级单位使用对比')
-const comparisonHoverBubble = computed(() => comparisonUnits.value.find((item) => item.id === comparisonHover.value) || null)
-
 function selectComparisonFilter() {
   comparisonHover.value = null
 }
@@ -594,7 +497,7 @@ const comparisonPlot = computed(() => {
   const height = Math.max(220, comparisonChartSize.value.height)
   const isCompact = width < 540
   const units = comparisonUnits.value
-  const labelMaximum = clamp(width * (isCompact ? .36 : .25), 82, 142)
+  const labelMaximum = clamp(width * (isCompact ? .46 : .3), 108, isCompact ? 176 : 206)
   const frame = {
     left: isCompact ? 42 : 52,
     right: isCompact ? 18 : 28,
@@ -632,14 +535,15 @@ const comparisonPlot = computed(() => {
     targetY: height - frame.bottom - (item.completionRate - completionAxis.min) / Math.max(completionAxis.max - completionAxis.min, 1) * innerHeight,
     radius: Math.sqrt(minBubbleArea + item.activeRate / 100 * (maxBubbleArea - minBubbleArea)),
   }))
-  const minimumLabelFontSize = isCompact ? 7.1 : 7.4
-  const maximumLabelFontSize = isCompact ? 9.4 : 10.6
+  const minimumLabelFontSize = isCompact ? 7.4 : 8
+  const maximumLabelFontSize = isCompact ? 14.2 : 17.6
   const radiusSpan = Math.max(maxRadius - minRadius, 1)
   bubbles.forEach((bubble) => {
     bubble.x = bubble.targetX
     bubble.y = bubble.targetY
     const radiusRatio = clamp((bubble.radius - minRadius) / radiusSpan, 0, 1)
-    bubble.labelFontSize = Math.round((minimumLabelFontSize + radiusRatio * (maximumLabelFontSize - minimumLabelFontSize)) * 10) / 10
+    const labelScale = radiusRatio ** .52
+    bubble.labelFontSize = Math.round((minimumLabelFontSize + labelScale * (maximumLabelFontSize - minimumLabelFontSize)) * 10) / 10
   })
   const labelWidths = new Map(bubbles.map((bubble) => [
     bubble.id,
@@ -685,92 +589,31 @@ const comparisonPlot = computed(() => {
     })
   }
 
-  const labelHeight = Math.ceil(maximumLabelFontSize + 6)
-  const attachLabel = (bubble, rect, side) => {
-    bubble.label = {
-      x: side === 'left' ? rect.x : side === 'right' ? rect.x + rect.width : rect.x + rect.width / 2,
-      y: rect.y + rect.height / 2 + bubble.labelFontSize * .34,
-      anchor: side === 'left' ? 'start' : side === 'right' ? 'end' : 'middle',
-      fontSize: bubble.labelFontSize,
-    }
-  }
-
-  const labelRow = labelHeight + 4
   const chartBounds = {
     left: 3,
     right: width - 3,
     top: 3,
     bottom: height - 22,
   }
-  const overlaps = (first, second, gap = 4) => first.x < second.x + second.width + gap
+  const overlaps = (first, second, gap = 3) => first.x < second.x + second.width + gap
     && first.x + first.width + gap > second.x
     && first.y < second.y + second.height + gap
     && first.y + first.height + gap > second.y
-  const rowY = (value) => clamp(
-    Math.round((value - chartBounds.top) / labelRow) * labelRow + chartBounds.top,
-    chartBounds.top,
-    chartBounds.bottom - labelHeight,
-  )
-  const candidatesByBubble = new Map()
-  bubbles.forEach((bubble) => {
+  const labelHeightFor = (bubble) => Math.ceil(bubble.labelFontSize + 6)
+  const labelRectFor = (bubble, side) => {
     const labelWidth = labelWidths.get(bubble.id)
-    const labelOverlap = clamp(Math.min(labelWidth * .42, bubble.radius * 1.3) + 6, 20, 40)
-    const candidates = []
-    const addCandidate = (x, y, side, priority = 0, snapToRow = true) => {
-      const candidateY = snapToRow ? rowY(y) : clamp(y, chartBounds.top, chartBounds.bottom - labelHeight)
-      const rect = {
-        x: clamp(x, chartBounds.left, chartBounds.right - labelWidth),
-        y: candidateY,
-        width: labelWidth,
-        height: labelHeight,
-      }
-      const endX = side === 'left' ? rect.x + rect.width : rect.x
-      const endY = rect.y + rect.height / 2
-      const distance = Math.hypot(endX - bubble.x, endY - bubble.y)
-      const clampedDistance = Math.abs(rect.x - x) + Math.abs(rect.y - candidateY)
-      const distanceCost = distance + Math.max(distance - 52, 0) * 6
-      candidates.push({ rect, side, distance, score: distanceCost + clampedDistance * 2 + priority })
+    const labelHeight = labelHeightFor(bubble)
+    return {
+      x: side === 'right' ? bubble.x : bubble.x - labelWidth,
+      y: bubble.y - labelHeight / 2,
+      width: labelWidth,
+      height: labelHeight,
     }
-
-    const preferredSide = bubble.x < frame.left + innerWidth / 2 ? 'right' : 'left'
-    const sideOrder = preferredSide === 'right' ? ['right', 'left'] : ['left', 'right']
-    ;[0, -.38, .38, -.68, .68, -.94, .94].forEach((verticalRatio, slotIndex) => {
-      const y = bubble.y + bubble.radius * verticalRatio - labelHeight / 2
-      sideOrder.forEach((side, sideIndex) => {
-        const x = side === 'right'
-          ? bubble.x + bubble.radius - labelOverlap
-          : bubble.x - bubble.radius - labelWidth + labelOverlap
-        addCandidate(x, y, side, slotIndex * 12 + sideIndex * 2, false)
-      })
-    })
-
-    ;[10, 22, 34, 46, 58].forEach((extra, ringIndex) => {
-      const priority = 96 + ringIndex * 12
-      ;[-1, 1].forEach((direction, verticalIndex) => {
-        const y = bubble.y + direction * (bubble.radius + extra) - labelHeight / 2
-        sideOrder.forEach((side, sideIndex) => {
-          const x = side === 'right'
-            ? bubble.x + bubble.radius - labelOverlap
-            : bubble.x - bubble.radius - labelWidth + labelOverlap
-          addCandidate(x, y, side, priority + verticalIndex * 4 + sideIndex * 2)
-        })
-      })
-    })
-
-    // Local row alternatives keep every name on the bubble's left or right pressure edge.
-    const localTop = Math.max(chartBounds.top, bubble.y - 82)
-    const localBottom = Math.min(chartBounds.bottom - labelHeight, bubble.y + 82)
-    for (let y = localTop; y <= localBottom; y += labelRow) {
-      sideOrder.forEach((side, sideIndex) => {
-        const x = side === 'right'
-          ? bubble.x + bubble.radius - labelOverlap
-          : bubble.x - bubble.radius - labelWidth + labelOverlap
-        addCandidate(x, y, side, 180 + sideIndex * 2)
-      })
-    }
-    candidatesByBubble.set(bubble.id, candidates)
-  })
-
+  }
+  const boundaryOverflow = (rect) => Math.max(0, chartBounds.left - rect.x)
+    + Math.max(0, rect.x + rect.width - chartBounds.right)
+    + Math.max(0, chartBounds.top - rect.y)
+    + Math.max(0, rect.y + rect.height - chartBounds.bottom)
   const crowding = new Map(bubbles.map((bubble) => [
     bubble.id,
     bubbles.filter((item) => item.id !== bubble.id && Math.hypot(item.x - bubble.x, item.y - bubble.y) < 96).length,
@@ -783,38 +626,127 @@ const comparisonPlot = computed(() => {
     ordered.forEach((_, offset) => orders.push([...ordered.slice(offset), ...ordered.slice(0, offset)]))
   })
 
-  const trials = orders.map((ordered) => {
+  const selectLabelSides = () => orders.map((ordered) => {
     const placed = []
     const selections = new Map()
     let labelCollisions = 0
-    let totalDistance = 0
-    let maximumDistance = 0
-    let totalCandidateScore = 0
+    let overlapArea = 0
+    let totalOverflow = 0
+    let preferenceCost = 0
 
     ordered.forEach((bubble) => {
-      const selected = candidatesByBubble.get(bubble.id)
-        .map((candidate) => {
-          const collisions = placed.filter((rect) => overlaps(candidate.rect, rect)).length
-          return { ...candidate, collisions, placementScore: candidate.score + collisions * 100000 }
+      const preferredSide = bubble.x < frame.left + innerWidth / 2 ? 'right' : 'left'
+      const selected = ['left', 'right']
+        .map((side) => {
+          const rect = labelRectFor(bubble, side)
+          const collisions = placed.filter((item) => overlaps(rect, item.rect))
+          const candidateOverlapArea = collisions.reduce((sum, item) => {
+            const overlapWidth = Math.max(0, Math.min(rect.x + rect.width, item.rect.x + item.rect.width) - Math.max(rect.x, item.rect.x))
+            const overlapHeight = Math.max(0, Math.min(rect.y + rect.height, item.rect.y + item.rect.height) - Math.max(rect.y, item.rect.y))
+            return sum + overlapWidth * overlapHeight
+          }, 0)
+          const overflow = boundaryOverflow(rect)
+          const sideCost = side === preferredSide ? 0 : 1
+          return {
+            rect,
+            side,
+            collisions: collisions.length,
+            overlapArea: candidateOverlapArea,
+            overflow,
+            sideCost,
+            placementScore: overflow * 1000000 + collisions.length * 100000 + candidateOverlapArea * 100 + sideCost,
+          }
         })
         .sort((first, second) => first.placementScore - second.placementScore)[0]
-      placed.push(selected.rect)
+      placed.push({ id: bubble.id, rect: selected.rect })
       selections.set(bubble.id, selected)
       labelCollisions += selected.collisions
-      totalDistance += selected.distance
-      maximumDistance = Math.max(maximumDistance, selected.distance)
-      totalCandidateScore += selected.score
+      overlapArea += selected.overlapArea
+      totalOverflow += selected.overflow
+      preferenceCost += selected.sideCost
     })
 
     return {
       selections,
-      score: labelCollisions * 10000000 + maximumDistance * 22 + totalDistance + totalCandidateScore,
+      score: totalOverflow * 100000000 + labelCollisions * 10000000 + overlapArea * 100 + preferenceCost,
     }
-  })
-  const bestTrial = trials.sort((first, second) => first.score - second.score)[0]
+  }).sort((first, second) => first.score - second.score)[0].selections
+
+  // Labels stay fixed to their own bubble centre. When names compete for space,
+  // move the bubbles together with their labels instead of detaching the text.
+  let labelSides = selectLabelSides()
+  const labelLayoutIterations = comparisonIsDense.value ? 180 : 110
+  for (let iteration = 0; iteration < labelLayoutIterations; iteration += 1) {
+    if (iteration > 0 && iteration % 12 === 0) labelSides = selectLabelSides()
+
+    for (let firstIndex = 0; firstIndex < bubbles.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < bubbles.length; secondIndex += 1) {
+        const first = bubbles[firstIndex]
+        const second = bubbles[secondIndex]
+        const firstRect = labelRectFor(first, labelSides.get(first.id).side)
+        const secondRect = labelRectFor(second, labelSides.get(second.id).side)
+        if (!overlaps(firstRect, secondRect)) continue
+
+        const requiredSeparation = Math.min(firstRect.y + firstRect.height, secondRect.y + secondRect.height)
+          - Math.max(firstRect.y, secondRect.y) + 3
+        const firstGoesUp = first.y < second.y || (Math.abs(first.y - second.y) < .1 && first.targetX < second.targetX)
+        const upper = firstGoesUp ? first : second
+        const lower = firstGoesUp ? second : first
+        const upperMinimum = Math.max(frame.top + upper.radius, chartBounds.top + labelHeightFor(upper) / 2)
+        const lowerMaximum = Math.min(height - frame.bottom - lower.radius, chartBounds.bottom - labelHeightFor(lower) / 2)
+        const upperRoom = Math.max(0, upper.y - upperMinimum)
+        const lowerRoom = Math.max(0, lowerMaximum - lower.y)
+        const upperPush = Math.min(requiredSeparation / 2, upperRoom)
+        const lowerPush = Math.min(requiredSeparation - upperPush, lowerRoom)
+        const remainingPush = Math.max(0, requiredSeparation - upperPush - lowerPush)
+
+        upper.y -= upperPush + Math.min(remainingPush, Math.max(0, upperRoom - upperPush))
+        lower.y += lowerPush + Math.min(remainingPush, Math.max(0, lowerRoom - lowerPush))
+      }
+    }
+
+    for (let firstIndex = 0; firstIndex < bubbles.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < bubbles.length; secondIndex += 1) {
+        const first = bubbles[firstIndex]
+        const second = bubbles[secondIndex]
+        let deltaX = second.x - first.x
+        let deltaY = second.y - first.y
+        let distance = Math.hypot(deltaX, deltaY)
+        if (distance < .01) {
+          deltaX = firstIndex % 2 ? -1 : 1
+          deltaY = secondIndex % 2 ? -1 : 1
+          distance = Math.SQRT2
+        }
+        const minimumDistance = first.radius + second.radius + bubbleGap
+        if (distance >= minimumDistance) continue
+        const push = (minimumDistance - distance) * .42
+        first.x -= deltaX / distance * push
+        first.y -= deltaY / distance * push
+        second.x += deltaX / distance * push
+        second.y += deltaY / distance * push
+      }
+    }
+
+    bubbles.forEach((bubble) => {
+      const labelHalfHeight = labelHeightFor(bubble) / 2
+      bubble.x = clamp(bubble.x, frame.left + bubble.radius, width - frame.right - bubble.radius)
+      bubble.y = clamp(
+        bubble.y,
+        Math.max(frame.top + bubble.radius, chartBounds.top + labelHalfHeight),
+        Math.min(height - frame.bottom - bubble.radius, chartBounds.bottom - labelHalfHeight),
+      )
+    })
+  }
+
+  labelSides = selectLabelSides()
   bubbles.forEach((bubble) => {
-    const selected = bestTrial.selections.get(bubble.id)
-    attachLabel(bubble, selected.rect, selected.side)
+    const side = labelSides.get(bubble.id).side
+    bubble.label = {
+      x: bubble.x,
+      y: bubble.y + bubble.labelFontSize * .34,
+      anchor: side === 'right' ? 'start' : 'end',
+      fontSize: bubble.labelFontSize,
+    }
   })
 
   return {
@@ -828,6 +760,46 @@ const comparisonPlot = computed(() => {
   }
 })
 
+const comparisonTooltip = computed(() => {
+  const plot = comparisonPlot.value
+  const bubble = plot.bubbles.find((item) => item.id === comparisonHover.value)
+  if (!bubble) return null
+
+  const compact = plot.width < 540
+  const width = compact ? 174 : 214
+  const height = compact ? 72 : 60
+  const gap = 10
+  const edge = 6
+  const rightX = bubble.x + bubble.radius + gap
+  const leftX = bubble.x - bubble.radius - gap - width
+  const aboveY = bubble.y - bubble.radius - gap - height
+  const belowY = bubble.y + bubble.radius + gap
+  const preferredHorizontalSide = bubble.label?.anchor === 'start' ? 'left' : 'right'
+  const horizontalCandidates = preferredHorizontalSide === 'right'
+    ? [{ x: rightX, fits: rightX + width <= plot.width - edge }, { x: leftX, fits: leftX >= edge }]
+    : [{ x: leftX, fits: leftX >= edge }, { x: rightX, fits: rightX + width <= plot.width - edge }]
+  const horizontalPlacement = horizontalCandidates.find((candidate) => candidate.fits)
+  let x
+  let y
+
+  if (horizontalPlacement) {
+    x = horizontalPlacement.x
+    y = bubble.y - height / 2
+  } else {
+    x = bubble.x - width / 2
+    y = aboveY >= edge ? aboveY : belowY
+  }
+
+  return {
+    bubble,
+    compact,
+    width,
+    height,
+    x: clamp(x, edge, plot.width - width - edge),
+    y: clamp(y, edge, plot.height - height - edge),
+  }
+})
+
 function setComparisonHover(id) {
   comparisonHover.value = id
 }
@@ -836,26 +808,77 @@ function clearComparisonHover(id) {
   if (comparisonHover.value === id) comparisonHover.value = null
 }
 
+function sparklineGeometry(values, width = 112, height = 36, padding = 3) {
+  const safeValues = values.map((value) => Number(value)).filter(Number.isFinite)
+  const series = safeValues.length ? safeValues : [0]
+  const minimum = Math.min(...series)
+  const maximum = Math.max(...series)
+  const span = Math.max(maximum - minimum, Math.max(Math.abs(maximum), 1) * .08)
+  const plotWidth = width - padding * 2
+  const plotHeight = height - padding * 2
+  const points = series.map((value, index) => {
+    const x = series.length === 1 ? width / 2 : padding + index / (series.length - 1) * plotWidth
+    const y = padding + (1 - (value - minimum) / span) * plotHeight
+    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) }
+  })
+  const line = points.map((point, index) => `${index ? 'L' : 'M'}${point.x} ${point.y}`).join(' ')
+  const baseline = height - padding
+
+  return {
+    width,
+    height,
+    line,
+    area: `M${points[0].x} ${baseline} ${points.map((point) => `L${point.x} ${point.y}`).join(' ')} L${points.at(-1).x} ${baseline} Z`,
+  }
+}
+
+const overviewMetricTrends = computed(() => {
+  const calls = trendData.value.map((point) => point.calls)
+  const averageCalls = calls.reduce((sum, value) => sum + value, 0) / Math.max(calls.length, 1)
+  const lastIndex = Math.max(calls.length - 1, 1)
+  const completion = calls.map((value, index) => {
+    const demandShift = (value / Math.max(averageCalls, 1) - 1) * .8
+    const periodProgress = (index / lastIndex - .5) * 1.8
+    const naturalChange = Math.sin((index + 1) * .72 + .4) * .45
+    return clamp(completionRate.value + demandShift + periodProgress + naturalChange, 0, 100)
+  })
+  const rawResponse = calls.map((value, index) => {
+    const demandShift = (value / Math.max(averageCalls, 1) - 1) * .14
+    const periodProgress = (index / lastIndex - .5) * -.08
+    const naturalChange = Math.sin((index + 1) * .58 + 1.1) * .035
+    return Math.max(.1, selectedScope.value.firstResponseSeconds * (1 + demandShift + periodProgress + naturalChange))
+  })
+  const responseAverage = rawResponse.reduce((sum, value) => sum + value, 0) / Math.max(rawResponse.length, 1)
+  const response = rawResponse.map((value) => value / Math.max(responseAverage, .1) * selectedScope.value.firstResponseSeconds)
+  const perUserCalls = calls.map((value) => value / Math.max(registeredUsers.value, 1))
+
+  return { calls, completion, response, perUserCalls }
+})
+
 const metricCards = computed(() => [
   {
     id: 'calls', label: '调用总量', value: number(currentCalls.value), unit: '次',
     tone: '#52c9ef', icon: Activity,
     comparison: selectedPeriod.value.comparison.calls, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true,
+    sparkline: sparklineGeometry(overviewMetricTrends.value.calls),
   },
   {
     id: 'completion', label: '任务完成率', value: percent(completionRate.value), unit: '',
     tone: '#54d6ba', icon: FileText,
     comparison: selectedPeriod.value.comparison.completion, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true,
+    sparkline: sparklineGeometry(overviewMetricTrends.value.completion),
   },
   {
     id: 'response', label: '平均首次响应', value: selectedScope.value.firstResponseSeconds.toFixed(1), unit: '秒',
     tone: '#e5b867', icon: Clock3,
     comparison: selectedPeriod.value.comparison.response, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true, lowerIsBetter: true,
+    sparkline: sparklineGeometry(overviewMetricTrends.value.response),
   },
   {
     id: 'per-user-calls', label: '用户均调用频次', value: perUserCallFrequency.value === null ? '—' : perUserCallFrequency.value.toFixed(1), unit: '次 / 人',
     tone: '#b99ae9', icon: UsersRound,
     context: `${number(currentCalls.value)} 次 ÷ ${number(registeredUsers.value)} 人`,
+    sparkline: sparklineGeometry(overviewMetricTrends.value.perUserCalls),
   },
 ])
 </script>
@@ -894,6 +917,10 @@ const metricCards = computed(() => [
           <article v-for="card in metricCards" :key="card.id" class="cockpit-kpi-card" :style="{ '--metric-tone': card.tone }">
             <header><span>{{ card.label }}</span><component :is="card.icon" :size="17" /></header>
             <b>{{ card.value }}<small>{{ card.unit }}</small></b>
+            <svg class="cockpit-kpi-sparkline" :viewBox="`0 0 ${card.sparkline.width} ${card.sparkline.height}`" preserveAspectRatio="none" role="img" :aria-label="`${card.label}${selectedPeriod.name}变化趋势`">
+              <path class="cockpit-kpi-sparkline-area" :d="card.sparkline.area" />
+              <path class="cockpit-kpi-sparkline-line" :d="card.sparkline.line" />
+            </svg>
             <p v-if="card.comparison" class="cockpit-kpi-comparison" :aria-label="`${card.label}${card.comparisonLabel}变化${card.comparison}`">
               <small>{{ card.comparisonLabel }}</small>
               <strong><ArrowDownRight v-if="card.lowerIsBetter" :size="13" /><ArrowUpRight v-else :size="13" />{{ card.comparison }}</strong>
@@ -912,6 +939,10 @@ const metricCards = computed(() => [
               <div ref="callTrendChartContainer" class="cockpit-call-trend-chart">
                 <svg :viewBox="`0 0 ${appCallTrendChart.width} ${appCallTrendChart.height}`" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="`六项智能应用在${selectedPeriod.name}内的调用次数折线趋势`">
                   <g class="cockpit-chart-grid"><line v-for="grid in appCallTrendChart.grid" :key="grid.y" :x1="appCallTrendChart.left" :x2="appCallTrendChart.width - appCallTrendChart.right" :y1="grid.y" :y2="grid.y" /></g>
+                  <g class="cockpit-call-trend-y-axis">
+                    <text :x="appCallTrendChart.left - 7" y="10" text-anchor="end">次</text>
+                    <text v-for="grid in appCallTrendChart.grid" :key="grid.y" :x="appCallTrendChart.left - 7" :y="grid.y + 3" text-anchor="end">{{ number(Math.round(grid.value)) }}</text>
+                  </g>
                   <g v-for="series in appCallTrendChart.series" :key="series.id" :style="{ '--app-tone': series.tone }" class="cockpit-call-trend-series">
                     <path :d="series.path" />
                   </g>
@@ -934,8 +965,8 @@ const metricCards = computed(() => [
 
           <section class="cockpit-active-user-trend" aria-label="活跃用户数趋势">
             <header><span>活跃用户数趋势</span><small>{{ activeTrendPeriodLabel }}</small></header>
-            <div class="cockpit-active-user-summary" :aria-label="`${selectedPeriod.name}活跃用户 ${number(activeUsers)} 人`">
-              <span>{{ selectedPeriod.name }}活跃用户</span>
+            <div class="cockpit-active-user-summary" :aria-label="`${selectedPeriod.name}内活跃用户总数 ${number(activeUsers)} 人`">
+              <span>{{ selectedPeriod.name }}内活跃用户总数</span>
               <b>{{ number(activeUsers) }}<small>人</small></b>
             </div>
             <div ref="activeUserTrendChartContainer" class="cockpit-active-user-chart">
@@ -964,19 +995,13 @@ const metricCards = computed(() => [
           </div>
         </header>
         <div class="cockpit-comparison-content">
-          <div class="cockpit-comparison-legend" :class="{ 'has-hover-readout': comparisonHoverBubble }" aria-label="图表统计口径">
+          <div class="cockpit-comparison-legend" aria-label="图表统计口径">
             <div class="cockpit-comparison-encoding">
               <span><i class="axis-x" /><b>横轴</b>智能应用调用量 <em>越右越高</em></span>
               <span><i class="axis-y" /><b>纵轴</b>任务完成率 <em>越上越高</em></span>
               <span><i class="axis-size" /><b>大小</b>活跃用户占比 <em>越大越高</em></span>
               <span><i class="axis-color" /><b>颜色</b>不同单位</span>
             </div>
-            <p v-if="comparisonHoverBubble" class="cockpit-comparison-hover-readout" aria-live="polite">
-              <b>{{ comparisonHoverBubble.name }}</b>
-              <span>调用 {{ number(comparisonHoverBubble.calls) }} 次</span>
-              <span>完成率 {{ percent(comparisonHoverBubble.completionRate) }}</span>
-              <span>活跃 {{ percent(comparisonHoverBubble.activeRate) }}</span>
-            </p>
           </div>
           <div class="cockpit-comparison-chart">
             <svg ref="comparisonChartSvg" :viewBox="`0 0 ${comparisonPlot.width} ${comparisonPlot.height}`" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="`${comparisonTitle}。横轴为智能应用调用量，纵轴为任务完成率，气泡面积为活跃用户占比，颜色区分单位。`">
@@ -1004,6 +1029,7 @@ const metricCards = computed(() => [
                   :key="`bubble-${bubble.id}`"
                   class="cockpit-comparison-bubble"
                   :class="{ hovered: comparisonHover === bubble.id }"
+                  :data-bubble-id="bubble.id"
                   :style="{ '--bubble-tone': bubble.tone, '--bubble-label-size': `${bubble.label?.fontSize || 8.4}px` }"
                   role="img"
                   tabindex="0"
@@ -1013,9 +1039,7 @@ const metricCards = computed(() => [
                   @focus="setComparisonHover(bubble.id)"
                   @blur="clearComparisonHover(bubble.id)"
                 >
-                  <circle class="cockpit-comparison-bubble-halo is-outer" :cx="bubble.x" :cy="bubble.y" :r="bubble.radius + 11" />
-                  <circle class="cockpit-comparison-bubble-halo is-inner" :cx="bubble.x" :cy="bubble.y" :r="bubble.radius + 4" />
-                  <circle class="cockpit-comparison-bubble-point" :cx="bubble.x" :cy="bubble.y" :r="bubble.radius"><title>{{ `${bubble.name}｜调用量 ${number(bubble.calls)} 次｜任务完成率 ${percent(bubble.completionRate)}｜活跃用户占比 ${percent(bubble.activeRate)}` }}</title></circle>
+                  <circle class="cockpit-comparison-bubble-point" :cx="bubble.x" :cy="bubble.y" :r="bubble.radius" />
                 </g>
               </g>
               <g class="cockpit-comparison-label-layer" aria-hidden="true">
@@ -1025,10 +1049,33 @@ const metricCards = computed(() => [
                   :key="`label-${bubble.id}`"
                   class="cockpit-comparison-bubble-label"
                   :class="{ hovered: comparisonHover === bubble.id }"
+                  :data-label-for="bubble.id"
                   :style="{ '--bubble-tone': bubble.tone }"
                 >
                   <text :x="bubble.label?.x" :y="bubble.label?.y" :text-anchor="bubble.label?.anchor">{{ bubble.name }}</text>
                 </g>
+              </g>
+              <g
+                v-if="comparisonTooltip"
+                class="cockpit-comparison-tooltip"
+                :style="{ '--bubble-tone': comparisonTooltip.bubble.tone }"
+                :transform="`translate(${comparisonTooltip.x} ${comparisonTooltip.y})`"
+                aria-hidden="true"
+              >
+                <rect class="cockpit-comparison-tooltip-card" :width="comparisonTooltip.width" :height="comparisonTooltip.height" rx="8" />
+                <rect class="cockpit-comparison-tooltip-accent" width="3" :height="comparisonTooltip.height - 14" x="7" y="7" rx="1.5" />
+                <text class="cockpit-comparison-tooltip-name" x="17" y="18">{{ comparisonTooltip.bubble.name }}</text>
+                <line class="cockpit-comparison-tooltip-divider" x1="17" :x2="comparisonTooltip.width - 10" y1="27" y2="27" />
+                <template v-if="comparisonTooltip.compact">
+                  <text class="cockpit-comparison-tooltip-metric" x="17" y="44">调用量 <tspan>{{ number(comparisonTooltip.bubble.calls) }} 次</tspan></text>
+                  <text class="cockpit-comparison-tooltip-metric" x="17" y="62">完成率 <tspan>{{ percent(comparisonTooltip.bubble.completionRate) }}</tspan></text>
+                  <text class="cockpit-comparison-tooltip-metric" x="102" y="62">活跃 <tspan>{{ percent(comparisonTooltip.bubble.activeRate) }}</tspan></text>
+                </template>
+                <template v-else>
+                  <text class="cockpit-comparison-tooltip-metric" x="17" y="47">调用 <tspan>{{ number(comparisonTooltip.bubble.calls) }} 次</tspan></text>
+                  <text class="cockpit-comparison-tooltip-metric" x="82" y="47">完成率 <tspan>{{ percent(comparisonTooltip.bubble.completionRate) }}</tspan></text>
+                  <text class="cockpit-comparison-tooltip-metric" x="160" y="47">活跃 <tspan>{{ percent(comparisonTooltip.bubble.activeRate) }}</tspan></text>
+                </template>
               </g>
             </svg>
           </div>
@@ -1056,20 +1103,19 @@ const metricCards = computed(() => [
       <div v-if="isDataDefinitionOpen" class="cockpit-definition-layer" @click.self="closeDataDefinition">
         <section ref="dataDefinitionPanel" class="cockpit-definition-panel" role="dialog" aria-modal="true" aria-labelledby="cockpit-definition-title" tabindex="-1">
           <header>
-            <div><span>统计口径</span><h2 id="cockpit-definition-title">统计口径与计算方式</h2></div>
+            <h2 id="cockpit-definition-title">统计口径</h2>
             <button type="button" aria-label="关闭统计口径" @click="closeDataDefinition"><X :size="18" /></button>
           </header>
           <div class="cockpit-definition-body">
-            <div class="cockpit-definition-context"><span>当前统计范围</span><b>{{ selectedScope.name }}</b><i /> <b>{{ selectedPeriod.name }}</b><small>{{ selectedPeriod.label }}</small></div>
-            <section v-for="(group, groupIndex) in dataDefinitionGroups" :key="group.id" class="cockpit-definition-group">
-              <header><span>{{ String(groupIndex + 1).padStart(2, '0') }}</span><h3>{{ group.title }}</h3></header>
+            <div class="cockpit-definition-context"><span>当前范围</span><b>{{ selectedScope.name }}</b><i /> <b>{{ selectedPeriod.name }}</b><small>{{ selectedPeriod.label }}</small></div>
+            <section v-for="group in dataDefinitionGroups" :key="group.id" class="cockpit-definition-group">
+              <header><h3>{{ group.title }}</h3></header>
               <dl>
                 <div v-for="item in group.items" :key="item.label">
-                  <dt>{{ item.label }}</dt><dd>{{ item.formula }}</dd><small>{{ item.detail }}</small>
+                  <dt>{{ item.label }}</dt><dd><b>{{ item.formula }}</b><small>{{ item.detail }}</small></dd>
                 </div>
               </dl>
             </section>
-            <p class="cockpit-definition-note">所有指标均按以上口径汇总与呈现。</p>
           </div>
         </section>
       </div>

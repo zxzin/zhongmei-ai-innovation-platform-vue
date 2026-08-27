@@ -97,14 +97,14 @@ export const operationsLoginTrend = [
   { label: '08月', value: 253 },
 ]
 
-// 运营演示数据口径：calls 为用户发起的智能应用调用总量，包含成功、失败、超时和中止的调用；outputs 仅统计成功形成的结果。
+// 单应用演示数据：调用、任务和成功结果使用独立字段，避免用“成果数 ÷ 调用量”代替任务完成率。
 export const appPerformance = [
-  { name: '语义检索', calls: 204, outputs: 199, duration: '42 秒', firstResponseSeconds: 1.2, completion: 97.9, success: 98.4, online: 1, processing: 3, historicSuccess: 528, historicFailure: 9 },
-  { name: '技术问答', calls: 159, outputs: 157, duration: '18 秒', firstResponseSeconds: 0.9, completion: 98.5, success: 99.0, online: 1, processing: 2, historicSuccess: 412, historicFailure: 4 },
-  { name: '技术预研报告', calls: 86, outputs: 81, duration: '8 分 12 秒', firstResponseSeconds: 3.4, completion: 94.7, success: 95.4, online: 1, processing: 4, historicSuccess: 214, historicFailure: 10 },
-  { name: '创新性分析', calls: 80, outputs: 73, duration: '11 分 34 秒', firstResponseSeconds: 4.6, completion: 93.2, success: 94.1, online: 1, processing: 3, historicSuccess: 195, historicFailure: 11 },
-  { name: '可行性分析', calls: 73, outputs: 69, duration: '6 分 08 秒', firstResponseSeconds: 3.7, completion: 95.6, success: 96.7, online: 1, processing: 2, historicSuccess: 180, historicFailure: 6 },
-  { name: '技术交底书撰写', calls: 60, outputs: 51, duration: '7 分 21 秒', firstResponseSeconds: 4.1, completion: 92.4, success: 93.4, online: 1, processing: 3, historicSuccess: 153, historicFailure: 10 },
+  { name: '语义检索', calls: 204, successfulCalls: 200, startedTasks: 216, completedTasks: 202, duration: '42 秒', firstResponseSeconds: 1.2, online: 1, processing: 3, historicSuccess: 528, historicFailure: 9 },
+  { name: '技术问答', calls: 159, successfulCalls: 157, startedTasks: 168, completedTasks: 158, duration: '18 秒', firstResponseSeconds: 0.9, online: 1, processing: 2, historicSuccess: 412, historicFailure: 4 },
+  { name: '技术预研报告', calls: 86, successfulCalls: 82, startedTasks: 91, completedTasks: 78, duration: '8 分 12 秒', firstResponseSeconds: 3.4, online: 1, processing: 4, historicSuccess: 214, historicFailure: 10 },
+  { name: '创新性分析', calls: 80, successfulCalls: 75, startedTasks: 85, completedTasks: 68, duration: '11 分 34 秒', firstResponseSeconds: 4.6, online: 1, processing: 3, historicSuccess: 195, historicFailure: 11 },
+  { name: '可行性分析', calls: 73, successfulCalls: 71, startedTasks: 77, completedTasks: 65, duration: '6 分 08 秒', firstResponseSeconds: 3.7, online: 1, processing: 2, historicSuccess: 180, historicFailure: 6 },
+  { name: '技术交底书撰写', calls: 60, successfulCalls: 56, startedTasks: 63, completedTasks: 58, duration: '7 分 21 秒', firstResponseSeconds: 4.1, online: 1, processing: 3, historicSuccess: 153, historicFailure: 10 },
 ]
 
 // 驾驶舱本地演示的组织视图参数：仅用于让不同组织范围呈现可解释的应用结构差异，不代表实时性能接口。
@@ -177,7 +177,7 @@ const cockpitYearTrend = buildCockpitTrend(
 // 驾驶舱本地演示汇总：字段结构对应后续运营统计接口，不代表实时生产数据。trend.calls 为发起调用总量，包含成功、失败、超时和中止的调用；trend.results 仅统计成功形成的结果；activeUsers 为对应时间分段内发生有效行为的去重用户数；axisLabel 控制稀疏横轴标签，不改变实际统计节点数量。
 export const cockpitPeriods = [
   {
-    id: 'day', name: '今日', label: '2026年08月24日', scale: 15 / 662, userScale: 0.19, dayCount: 1,
+    id: 'day', name: '今日', label: '2026年08月24日', scale: 15 / 662, userScale: 0.19, completionShift: -1.2, dayCount: 1,
     comparisonLabel: '较昨日', comparison: { calls: '+6.4%', completion: '+0.7%', response: '-8.2%', logins: '+2.6%' },
     trend: [
       { label: '09时', calls: 2, results: 2, activeUsers: 6 }, { label: '11时', calls: 2, results: 2, activeUsers: 9 },
@@ -186,17 +186,17 @@ export const cockpitPeriods = [
     ],
   },
   {
-    id: 'year', name: '本年度', label: '2026年02月—08月', scale: 1, userScale: 1, activeDays: 8.6, dayCount: 205,
+    id: 'year', name: '本年度', label: '2026年02月—08月', scale: 1, userScale: 1, completionShift: 2.7, activeDays: 8.6, dayCount: 205,
     comparisonLabel: '较上年同期', comparison: { calls: '+24.7%', completion: '+2.6%', response: '-11.3%', logins: '+17.8%' },
     trend: cockpitYearTrend,
   },
   {
-    id: 'quarter', name: '近 90 天', label: '2026年06月—08月', scale: 417 / 662, userScale: 0.79, activeDays: 4.8, dayCount: 90,
+    id: 'quarter', name: '近 90 天', label: '2026年06月—08月', scale: 417 / 662, userScale: 0.79, completionShift: 1.4, activeDays: 4.8, dayCount: 90,
     comparisonLabel: '较上一季度', comparison: { calls: '+18.2%', completion: '+1.9%', response: '-9.4%', logins: '+12.1%' },
     trend: cockpitQuarterTrend,
   },
   {
-    id: 'month', name: '近 30 天', label: '2026年08月', scale: 160 / 662, userScale: 0.56, activeDays: 2.1, dayCount: 30,
+    id: 'month', name: '近 30 天', label: '2026年08月', scale: 160 / 662, userScale: 0.56, completionShift: 0, activeDays: 2.1, dayCount: 30,
     comparisonLabel: '较上月', comparison: { calls: '+12.6%', completion: '+1.4%', response: '-6.9%', logins: '+8.3%' },
     trend: cockpitMonthTrend,
   },
@@ -204,39 +204,39 @@ export const cockpitPeriods = [
 
 export const cockpitScopes = [
   {
-    id: 'group', name: '全集团', calls: 662, successfulCalls: 641, starts: 700, tasks: 649, completedTasks: 629,
+    id: 'group', name: '全集团', calls: 19860, successfulCalls: 19230, starts: 700, tasks: 649, completedTasks: 629,
     reports: 295, reviews: 59, activeUsers: 126, registeredUsers: 183, historicalLogins: 1011, firstResponseSeconds: 2.7, responseSeconds: 156,
     children: [
-      { name: '中煤深圳研究院', calls: 249, tasks: 244, reports: 114, users: 47 },
-      { name: '煤矿智能化公司', calls: 222, tasks: 217, reports: 98, users: 42 },
-      { name: '装备技术公司', calls: 191, tasks: 188, reports: 83, users: 37 },
+      { name: '中煤深圳研究院', calls: 7470, tasks: 244, reports: 114, users: 47 },
+      { name: '煤矿智能化公司', calls: 6660, tasks: 217, reports: 98, users: 42 },
+      { name: '装备技术公司', calls: 5730, tasks: 188, reports: 83, users: 37 },
     ],
   },
   {
-    id: 'shenzhen', name: '中煤深圳研究院', calls: 249, successfulCalls: 241, starts: 263, tasks: 244, completedTasks: 237,
+    id: 'shenzhen', name: '中煤深圳研究院', calls: 7470, successfulCalls: 7230, starts: 263, tasks: 244, completedTasks: 237,
     reports: 114, reviews: 24, activeUsers: 47, registeredUsers: 66, historicalLogins: 374, firstResponseSeconds: 2.7, responseSeconds: 176,
     children: [
-      { name: '深圳科创服务公司', calls: 79, tasks: 77, completedTasks: 75, reports: 35, users: 13, registeredUsers: 20 },
-      { name: '深圳数字技术公司', calls: 112, tasks: 110, completedTasks: 107, reports: 49, users: 22, registeredUsers: 28 },
-      { name: '深圳工程技术公司', calls: 58, tasks: 57, completedTasks: 55, reports: 30, users: 12, registeredUsers: 18 },
+      { name: '深圳科创服务公司', calls: 2370, tasks: 77, completedTasks: 75, reports: 35, users: 13, registeredUsers: 20 },
+      { name: '深圳数字技术公司', calls: 3360, tasks: 110, completedTasks: 107, reports: 49, users: 22, registeredUsers: 28 },
+      { name: '深圳工程技术公司', calls: 1740, tasks: 57, completedTasks: 55, reports: 30, users: 12, registeredUsers: 18 },
     ],
   },
   {
-    id: 'intelligent-mine', name: '煤矿智能化公司', calls: 222, successfulCalls: 215, starts: 235, tasks: 217, completedTasks: 210,
+    id: 'intelligent-mine', name: '煤矿智能化公司', calls: 6660, successfulCalls: 6450, starts: 235, tasks: 217, completedTasks: 210,
     reports: 98, reviews: 15, activeUsers: 42, registeredUsers: 61, historicalLogins: 336, firstResponseSeconds: 2.4, responseSeconds: 148,
     children: [
-      { name: '煤矿智能装备公司', calls: 84, tasks: 82, completedTasks: 79, reports: 37, users: 16, registeredUsers: 20 },
-      { name: '煤矿智能软件公司', calls: 78, tasks: 76, completedTasks: 74, reports: 34, users: 15, registeredUsers: 22 },
-      { name: '煤矿智能运维公司', calls: 60, tasks: 59, completedTasks: 57, reports: 27, users: 11, registeredUsers: 19 },
+      { name: '煤矿智能装备公司', calls: 2520, tasks: 82, completedTasks: 79, reports: 37, users: 16, registeredUsers: 20 },
+      { name: '煤矿智能软件公司', calls: 2340, tasks: 76, completedTasks: 74, reports: 34, users: 15, registeredUsers: 22 },
+      { name: '煤矿智能运维公司', calls: 1800, tasks: 59, completedTasks: 57, reports: 27, users: 11, registeredUsers: 19 },
     ],
   },
   {
-    id: 'equipment', name: '装备技术公司', calls: 191, successfulCalls: 185, starts: 202, tasks: 188, completedTasks: 182,
+    id: 'equipment', name: '装备技术公司', calls: 5730, successfulCalls: 5550, starts: 202, tasks: 188, completedTasks: 182,
     reports: 83, reviews: 20, activeUsers: 37, registeredUsers: 56, historicalLogins: 301, firstResponseSeconds: 2.9, responseSeconds: 203,
     children: [
-      { name: '装备制造公司', calls: 72, tasks: 71, completedTasks: 69, reports: 31, users: 14, registeredUsers: 20 },
-      { name: '装备服务公司', calls: 65, tasks: 64, completedTasks: 63, reports: 28, users: 13, registeredUsers: 18 },
-      { name: '装备检测公司', calls: 54, tasks: 53, completedTasks: 50, reports: 24, users: 10, registeredUsers: 18 },
+      { name: '装备制造公司', calls: 2160, tasks: 71, completedTasks: 69, reports: 31, users: 14, registeredUsers: 20 },
+      { name: '装备服务公司', calls: 1950, tasks: 64, completedTasks: 63, reports: 28, users: 13, registeredUsers: 18 },
+      { name: '装备检测公司', calls: 1620, tasks: 53, completedTasks: 50, reports: 24, users: 10, registeredUsers: 18 },
     ],
   },
 ]

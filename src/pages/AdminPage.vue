@@ -1,11 +1,19 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Users, FileStack, ChartNoAxesCombined, Upload, UserPlus, Search, Activity, Clock3, Network, BookOpenText, Settings2, ScrollText, Building2, ChevronRight, ChevronDown, Plus, Pencil, ServerCog, CheckCircle2, KeyRound, ArrowDown, ArrowUp, ChevronsUpDown, Trash2, ArrowLeft, Cloud, FileText, Download, CircleAlert } from '@lucide/vue'
+import { Users, FileStack, ChartNoAxesCombined, Upload, UserPlus, Search, Activity, Clock3, Network, BookOpenText, Settings2, ScrollText, Building2, ChevronRight, ChevronDown, Plus, Pencil, ServerCog, CheckCircle2, KeyRound, ArrowDown, ArrowUp, ChevronsUpDown, Trash2, ArrowLeft, Cloud, FileText, Download, CircleAlert, Info } from '@lucide/vue'
 import BaseModal from '../components/BaseModal.vue'
 import BaseSelect from '../components/BaseSelect.vue'
 import DateRangeFilter from '../components/DateRangeFilter.vue'
-import { departmentTree, systemLogs, operationRecords, appPerformance, cockpitPeriods, cockpitScopes } from '../data/platform.js'
+import { departmentTree, systemLogs, operationRecords, appPerformance, cockpitAppScopeProfiles, cockpitComparisonScopes, cockpitPeriods, cockpitScopes } from '../data/platform.js'
+import {
+  buildApplicationMetricRows,
+  buildComparisonMetricUnit,
+  buildScopeMetricSnapshot,
+  comparisonTertiarySources as selectComparisonTertiarySources,
+  distributeMetricTotal,
+  operationMetricDefinitionGroups,
+} from '../data/operationMetrics.js'
 import { innovationDefaultWeights, innovationGradeBands, innovationScoreDimensions, innovationScoreItems, innovationWeightTotal, normalizeInnovationWeights } from '../data/innovationTemplate.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useAdminWorkspaceStore } from '../stores/adminWorkspace.js'
@@ -75,8 +83,9 @@ const memberAssignment = ref(null)
 const departmentMembershipVersion = ref(0)
 const departmentWorkspace = ref(null)
 const operationsView = ref('overview')
-const operationsPeriod = ref('year')
+const operationsPeriod = ref('month')
 const operationsScope = ref('group')
+const operationsDefinitionOpen = ref(false)
 const activityUserSort = ref({ key: 'lastActivityAt', direction: 'desc' })
 const operationRecordSort = ref({ key: 'time', direction: 'desc' })
 const operationRecordQuery = ref('')
@@ -161,8 +170,8 @@ const operationViews = [
 ]
 const operationComparisonMetrics = [
   { id: 'calls', label: '调用量', tone: '#239dcc' },
-  { id: 'tasks', label: '任务数', tone: '#36ad8d' },
-  { id: 'users', label: '活跃用户', tone: '#7589d7' },
+  { id: 'completionRate', label: '任务完成率', tone: '#36ad8d', rate: true },
+  { id: 'activeRate', label: '活跃用户占比', tone: '#7589d7', rate: true },
 ]
 const operationsPeriodOptions = cockpitPeriods.map((item) => ({ value: item.id, label: item.name, detail: item.label }))
 const operationsScopeOptions = computed(() => cockpitScopes.flatMap((scope) => [
@@ -179,87 +188,69 @@ function resolveOperationsScope(id) {
   const registeredUsers = Math.max(child.users, Math.round(child.users / 0.7))
   return {
     id, name: child.name, level: '三级单位', parentName: parent.name,
-    calls: child.calls, successfulCalls: Math.round(child.calls * 0.97), starts: Math.round(child.calls * 1.06), tasks: child.tasks, completedTasks: Math.round(child.tasks * 0.97), reports: child.reports, reviews: Math.max(1, Math.round(child.tasks * 0.08)), activeUsers: child.users, registeredUsers, historicalLogins: Math.round(child.users * 8.8), firstResponseSeconds: parent.firstResponseSeconds, responseSeconds: parent.responseSeconds, comparisonSource: parent.children, comparisonTitle: '同级单位使用情况',
+    calls: child.calls, successfulCalls: Math.round(child.calls * 0.97), starts: child.startedTasks ?? child.tasks, tasks: child.tasks, completedTasks: child.completedTasks ?? Math.round(child.tasks * 0.97), reports: child.reports, reviews: Math.max(1, Math.round(child.tasks * 0.08)), activeUsers: child.users, registeredUsers, historicalLogins: Math.round(child.users * 8.8), firstResponseSeconds: parent.firstResponseSeconds, responseSeconds: parent.responseSeconds, comparisonSource: parent.children, comparisonTitle: '同级单位使用情况',
   }
 }
 const selectedOperationsPeriod = computed(() => cockpitPeriods.find((item) => item.id === operationsPeriod.value) || cockpitPeriods[1])
 const selectedOperationsScope = computed(() => resolveOperationsScope(operationsScope.value))
 const operationsGroupScope = computed(() => cockpitScopes[0])
 const operationsScopeShare = computed(() => selectedOperationsScope.value.calls / Math.max(operationsGroupScope.value.calls, 1))
-const scaleOperationsMetric = (value) => Math.round(value * selectedOperationsPeriod.value.scale)
-const scaleOperationsUsers = (value) => Math.max(1, Math.round(value * selectedOperationsPeriod.value.userScale))
-const operationCallTrend = computed(() => selectedOperationsPeriod.value.trend.map((item) => ({ ...item, calls: Math.round(item.calls * operationsScopeShare.value), results: Math.round(item.results * operationsScopeShare.value) })))
+const operationScopeMetrics = computed(() => buildScopeMetricSnapshot(selectedOperationsScope.value, selectedOperationsPeriod.value))
+const operationCallTrend = computed(() => {
+  const source = selectedOperationsPeriod.value.trend
+  const calls = distributeMetricTotal(operationScopeMetrics.value.calls, source.map((item) => item.calls))
+  const results = distributeMetricTotal(operationScopeMetrics.value.successfulCalls, source.map((item) => item.results))
+  return source.map((item, index) => ({ ...item, calls: calls[index], results: results[index] }))
+})
 const operationCallTrendMax = computed(() => Math.max(...operationCallTrend.value.map((item) => item.calls), 1))
+const operationApplicationRows = computed(() => buildApplicationMetricRows({
+  apps: appPerformance,
+  snapshot: operationScopeMetrics.value,
+  profile: cockpitAppScopeProfiles[operationsScope.value.split('__')[0]] || cockpitAppScopeProfiles.group,
+  scopeShare: operationsScopeShare.value,
+}).map((item, index) => ({ ...item, id: `operation-app-${index}` })))
 const operationSummary = computed(() => {
   const rows = operationApplicationRows.value
-  const totalCalls = rows.reduce((sum, item) => sum + item.calls, 0)
   const weightedDuration = rows.reduce((sum, item) => sum + durationToSeconds(item.duration) * item.calls, 0)
-  const totalTasks = scaleOperationsMetric(selectedOperationsScope.value.tasks)
-  const completedTasks = scaleOperationsMetric(selectedOperationsScope.value.completedTasks)
   return {
-    calls: totalCalls,
-    completion: completedTasks / Math.max(totalTasks, 1) * 100,
-    duration: totalCalls ? weightedDuration / totalCalls : 0,
-    firstResponse: selectedOperationsScope.value.firstResponseSeconds,
-    logins: selectedOperationsScope.value.historicalLogins,
+    ...operationScopeMetrics.value,
+    duration: operationScopeMetrics.value.calls ? weightedDuration / operationScopeMetrics.value.calls : 0,
   }
 })
-const operationApplicationRows = computed(() => appPerformance.map((item, index) => {
-  const calls = Math.max(1, Math.round(item.calls * selectedOperationsPeriod.value.scale * operationsScopeShare.value))
-  const outputs = Math.min(calls, Math.round(item.outputs * selectedOperationsPeriod.value.scale * operationsScopeShare.value))
-  return { ...item, id: `operation-app-${index}`, calls, outputs, completionRate: calls ? outputs / calls * 100 : 0, failedOrInterrupted: Math.max(0, calls - outputs), processing: Math.max(0, Math.round(item.processing * operationsScopeShare.value)) }
-}))
 const operationMetricCards = computed(() => [
-  { id: 'calls', label: '调用量', value: formatNumber(operationSummary.value.calls), unit: '次', icon: Activity, view: 'applications', tone: 'blue' },
-  { id: 'completion', label: '任务完成率', value: formatRate(operationSummary.value.completion), unit: '', icon: CheckCircle2, view: 'applications', tone: 'green' },
-  { id: 'response', label: '首次响应', value: operationSummary.value.firstResponse.toFixed(1), unit: '秒', icon: Clock3, view: 'applications', tone: 'amber' },
-  { id: 'logins', label: '登录次数', value: formatNumber(operationSummary.value.logins), unit: '次', icon: Users, view: 'users', tone: 'violet' },
+  { id: 'calls', label: '调用总量', value: formatNumber(operationSummary.value.calls), unit: '次', icon: Activity, view: 'applications', tone: 'blue' },
+  { id: 'completion', label: '任务完成率', value: formatRate(operationSummary.value.completionRate), unit: '', icon: CheckCircle2, view: 'applications', tone: 'green' },
+  { id: 'response', label: '平均首次响应', value: operationSummary.value.firstResponseSeconds.toFixed(1), unit: '秒', icon: Clock3, view: 'applications', tone: 'amber' },
+  { id: 'frequency', label: '用户均调用频次', value: operationSummary.value.perUserCallFrequency?.toFixed(1) ?? '—', unit: '次/人', icon: Users, view: 'users', tone: 'violet' },
 ])
 const operationEventMetrics = computed(() => [
-  { label: '任务发起', display: formatNumber(scaleOperationsMetric(selectedOperationsScope.value.starts)), unit: '次' },
-  { label: '创建任务', display: formatNumber(scaleOperationsMetric(selectedOperationsScope.value.tasks)), unit: '项' },
-  { label: '报告生成', display: formatNumber(scaleOperationsMetric(selectedOperationsScope.value.reports)), unit: '份' },
-  { label: '调用成功率', display: formatRate(scaleOperationsMetric(selectedOperationsScope.value.successfulCalls) / Math.max(scaleOperationsMetric(selectedOperationsScope.value.calls), 1) * 100), unit: '' },
+  { label: 'Agent 已启动任务', display: formatNumber(operationSummary.value.startedTasks), unit: '次' },
+  { label: '完整任务', display: formatNumber(operationSummary.value.completedTasks), unit: '次' },
+  { label: '报告生成', display: formatNumber(operationSummary.value.reports), unit: '份' },
+  { label: '调用成功率', display: formatRate(operationSummary.value.callSuccessRate), unit: '' },
 ])
-const operationActivitySummary = computed(() => {
-  const activeUsers = scaleOperationsUsers(selectedOperationsScope.value.activeUsers)
-  const registeredUsers = selectedOperationsScope.value.registeredUsers
-  return { activeUsers, registeredUsers, activeRate: activeUsers / Math.max(registeredUsers, 1) * 100, usageFrequency: operationSummary.value.calls / Math.max(registeredUsers, 1) }
-})
-const operationComparisonBranchIds = computed(() => (
-  operationsScope.value === 'group'
-    ? cockpitScopes.filter((scope) => scope.id !== 'group').map((scope) => scope.id)
-    : [operationsScope.value.split('__')[0]]
-))
-const operationComparisonRows = computed(() => operationComparisonBranchIds.value.flatMap((branchId) => {
-  const branch = cockpitScopes.find((scope) => scope.id === branchId)
-  if (!branch) return []
-
-  return [
-    {
-      id: branch.id,
-      name: branch.name,
-      level: '二级单位',
-      depth: 0,
-      calls: scaleOperationsMetric(branch.calls),
-      tasks: scaleOperationsMetric(branch.tasks),
-      reports: scaleOperationsMetric(branch.reports),
-      users: scaleOperationsUsers(branch.activeUsers),
-      selected: operationsScope.value === branch.id,
-    },
-    ...branch.children.map((child, index) => ({
-      id: `${branch.id}__${index}`,
-      name: child.name,
-      level: '三级单位',
-      depth: 1,
-      calls: scaleOperationsMetric(child.calls),
-      tasks: scaleOperationsMetric(child.tasks),
-      reports: scaleOperationsMetric(child.reports),
-      users: scaleOperationsUsers(child.users),
-      selected: operationsScope.value === `${branch.id}__${index}`,
-    })),
-  ]
+const operationActivitySummary = computed(() => ({
+  activeUsers: operationSummary.value.activeUsers,
+  registeredUsers: operationSummary.value.registeredUsers,
+  activeRate: operationSummary.value.activeRate ?? 0,
+  usageFrequency: operationSummary.value.perUserCallFrequency,
 }))
+const operationComparisonRows = computed(() => {
+  const tertiary = selectComparisonTertiarySources(cockpitComparisonScopes, 10)
+  const selectedRootName = cockpitScopes.find((scope) => scope.id === operationsScope.value.split('__')[0])?.name
+  const selectedBranch = cockpitComparisonScopes.find((scope) => scope.name === selectedRootName)
+  const sources = operationsScope.value === 'group'
+    ? [
+        ...cockpitComparisonScopes.map((scope) => ({ ...scope, level: '二级单位', depth: 0 })),
+        ...tertiary.map((child) => ({ ...child, level: '三级单位', depth: 1 })),
+      ]
+    : (selectedBranch?.children || []).map((child) => ({ ...child, level: '三级单位', depth: 1 }))
+
+  return sources.map((source) => ({
+    ...buildComparisonMetricUnit(source, selectedOperationsPeriod.value),
+    selected: selectedOperationsScope.value.name === source.name,
+  }))
+})
 const operationComparisonMaxes = computed(() => Object.fromEntries(operationComparisonMetrics.map((metric) => [
   metric.id,
   Math.max(...operationComparisonRows.value.map((item) => item[metric.id]), 1),
@@ -957,6 +948,7 @@ async function submitPasswordReset() {
               <div class="operations-organization-control">
                 <BaseSelect v-model="operationsScope" :options="operationsScopeOptions" aria-label="选择组织范围" prefix="组织" />
                 <button class="operations-comparison-trigger" type="button" @click="focusOperationsComparison"><Network :size="15" />同级对比</button>
+                <button class="operations-comparison-trigger operations-definition-trigger" type="button" @click="operationsDefinitionOpen = true"><Info :size="15" />统计口径</button>
               </div>
             </section>
           </div>
@@ -980,7 +972,7 @@ async function submitPasswordReset() {
               </section>
               <section class="operations-trend-card operations-activity-glance">
                 <header><h3>用户活跃</h3><button type="button" class="operation-inline-link" @click="openOperationsView('users')">用户明细<ChevronRight :size="15" /></button></header>
-                <div class="operations-activity-metrics"><article><span>活跃用户</span><b>{{ formatRate(operationActivitySummary.activeRate) }}</b><p>{{ formatNumber(operationActivitySummary.activeUsers) }} / {{ formatNumber(operationActivitySummary.registeredUsers) }} 人</p></article><article><span>人均调用</span><b>{{ operationActivitySummary.usageFrequency.toFixed(1) }}<em>次 / 人</em></b></article></div>
+                <div class="operations-activity-metrics"><article><span>活跃用户</span><b>{{ formatRate(operationActivitySummary.activeRate) }}</b><p>{{ formatNumber(operationActivitySummary.activeUsers) }} / {{ formatNumber(operationActivitySummary.registeredUsers) }} 人</p></article><article><span>人均调用</span><b>{{ operationActivitySummary.usageFrequency?.toFixed(1) ?? '—' }}<em>次 / 人</em></b></article></div>
               </section>
             </div>
             <section class="operations-detail-card operations-app-snapshot">
@@ -995,7 +987,7 @@ async function submitPasswordReset() {
                   <div class="operations-comparison-head" role="row"><span>组织层级</span><span v-for="metric in operationComparisonMetrics" :key="metric.id">{{ metric.label }}</span></div>
                   <button v-for="item in operationComparisonRows" :key="item.id" type="button" class="operations-comparison-row" :class="[`is-depth-${item.depth}`, { selected: item.selected }]" role="row" @click="openOperationsOrganization(item)">
                     <span class="operations-comparison-name"><i aria-hidden="true" /><b>{{ item.name }}</b><small>{{ item.level }}</small></span>
-                    <span v-for="metric in operationComparisonMetrics" :key="metric.id" class="operations-comparison-metric" :style="{ '--comparison-tone': metric.tone }"><small>{{ metric.label }}</small><i><u :style="{ width: operationComparisonMetricWidth(item, metric.id) }" /></i><b>{{ formatNumber(item[metric.id]) }}</b></span>
+                    <span v-for="metric in operationComparisonMetrics" :key="metric.id" class="operations-comparison-metric" :style="{ '--comparison-tone': metric.tone }"><small>{{ metric.label }}</small><i><u :style="{ width: operationComparisonMetricWidth(item, metric.id) }" /></i><b>{{ metric.rate ? formatRate(item[metric.id]) : formatNumber(item[metric.id]) }}</b></span>
                     <ChevronRight :size="16" aria-hidden="true" />
                   </button>
                 </div>
@@ -1005,11 +997,11 @@ async function submitPasswordReset() {
 
           <section v-else-if="operationsView === 'applications'" class="operations-detail-card operations-list-card">
             <header><h3>智能应用</h3><span>{{ selectedOperationsPeriod.name }} · {{ selectedOperationsScope.name }}</span></header>
-            <div class="operations-table-wrap"><table class="operations-table operations-app-table"><thead><tr><th>智能应用</th><th>调用次数</th><th>形成成果</th><th>任务完成率</th><th>平均处理时间</th><th aria-label="查看详情" /></tr></thead><tbody><tr v-for="item in operationApplicationRows" :key="item.id" class="operation-record-row" tabindex="0" @click="selectedOperationsApp = item" @keydown.enter.prevent="selectedOperationsApp = item"><td><b>{{ item.name }}</b><small>{{ item.processing ? `${item.processing} 项处理中` : '运行正常' }}</small></td><td>{{ formatNumber(item.calls) }} 次</td><td>{{ formatNumber(item.outputs) }} 份</td><td>{{ formatRate(item.completionRate) }}</td><td>{{ item.duration }}</td><td><ChevronRight :size="17" /></td></tr></tbody></table></div>
+            <div class="operations-table-wrap"><table class="operations-table operations-app-table"><thead><tr><th>智能应用</th><th>调用次数</th><th>Agent 已启动任务</th><th>完整任务</th><th>任务完成率</th><th>调用成功率</th><th>平均处理时间</th><th aria-label="查看详情" /></tr></thead><tbody><tr v-for="item in operationApplicationRows" :key="item.id" class="operation-record-row" tabindex="0" @click="selectedOperationsApp = item" @keydown.enter.prevent="selectedOperationsApp = item"><td><b>{{ item.name }}</b><small>{{ item.processing ? `${item.processing} 项处理中` : '运行正常' }}</small></td><td>{{ formatNumber(item.calls) }} 次</td><td>{{ formatNumber(item.startedTasks) }} 次</td><td>{{ formatNumber(item.completedTasks) }} 次</td><td>{{ formatRate(item.completionRate) }}</td><td>{{ formatRate(item.successRate) }}</td><td>{{ item.duration }}</td><td><ChevronRight :size="17" /></td></tr></tbody></table></div>
           </section>
 
           <template v-else-if="operationsView === 'users'">
-            <section class="operations-user-summary"><article><span>活跃用户占比</span><b>{{ formatRate(operationActivitySummary.activeRate) }}</b><small>{{ formatNumber(operationActivitySummary.activeUsers) }} 名活跃用户</small></article><article><span>注册用户</span><b>{{ formatNumber(operationActivitySummary.registeredUsers) }} 名</b><small>所选组织范围</small></article><article><span>人均调用次数</span><b>{{ operationActivitySummary.usageFrequency.toFixed(1) }} 次</b><small>按注册用户平均计算</small></article></section>
+            <section class="operations-user-summary"><article><span>活跃用户占比</span><b>{{ formatRate(operationActivitySummary.activeRate) }}</b><small>{{ formatNumber(operationActivitySummary.activeUsers) }} 名活跃用户</small></article><article><span>注册用户</span><b>{{ formatNumber(operationActivitySummary.registeredUsers) }} 名</b><small>所选组织范围</small></article><article><span>用户均调用频次</span><b>{{ operationActivitySummary.usageFrequency?.toFixed(1) ?? '—' }} 次</b><small>按注册用户平均计算</small></article></section>
             <section class="operations-detail-card operations-list-card">
               <header><h3>近期应用活动</h3><span>{{ operationUserActivityRows.length }} 名用户</span></header>
               <div class="operations-table-wrap"><table class="operations-table operations-activity-user-table"><thead><tr><th><button class="table-sort-button" type="button" :aria-sort="activityUserSort.key === 'name' ? (activityUserSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'" @click="toggleOperationSort(activityUserSort, 'name')"><span>用户</span><span class="table-sort-icon" :class="{ active: activityUserSort.key === 'name' }" aria-hidden="true"><component :is="sortIcon(activityUserSort, 'name')" :size="13" :stroke-width="2.4" /></span></button></th><th><button class="table-sort-button" type="button" :aria-sort="activityUserSort.key === 'department' ? (activityUserSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'" @click="toggleOperationSort(activityUserSort, 'department')"><span>部门</span><span class="table-sort-icon" :class="{ active: activityUserSort.key === 'department' }" aria-hidden="true"><component :is="sortIcon(activityUserSort, 'department')" :size="13" :stroke-width="2.4" /></span></button></th><th>使用过的智能应用</th><th><button class="table-sort-button" type="button" :aria-sort="activityUserSort.key === 'calls' ? (activityUserSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'" @click="toggleOperationSort(activityUserSort, 'calls')"><span>调用次数</span><span class="table-sort-icon" :class="{ active: activityUserSort.key === 'calls' }" aria-hidden="true"><component :is="sortIcon(activityUserSort, 'calls')" :size="13" :stroke-width="2.4" /></span></button></th><th><button class="table-sort-button" type="button" :aria-sort="activityUserSort.key === 'lastActivityAt' ? (activityUserSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'" @click="toggleOperationSort(activityUserSort, 'lastActivityAt')"><span>最近活跃</span><span class="table-sort-icon" :class="{ active: activityUserSort.key === 'lastActivityAt' }" aria-hidden="true"><component :is="sortIcon(activityUserSort, 'lastActivityAt')" :size="13" :stroke-width="2.4" /></span></button></th></tr></thead><tbody><tr v-for="user in operationUserActivityRows" :key="user.id"><td><b>{{ user.name }}</b></td><td>{{ user.department }}</td><td>{{ user.applications }}</td><td>{{ user.calls }} 次</td><td>{{ formatActivityTime(user.lastActivityAt) }}</td></tr><tr v-if="!operationUserActivityRows.length"><td class="operations-table-empty" colspan="5">暂无已记录的智能应用调用</td></tr></tbody></table></div>
@@ -1243,18 +1235,29 @@ async function submitPasswordReset() {
         <dl><div><dt>调用时间</dt><dd>{{ selectedOperationRecord.time }}</dd></div><div><dt>用户</dt><dd>{{ selectedOperationRecord.user }} · {{ selectedOperationRecord.department }}</dd></div><div><dt>智能应用</dt><dd>{{ selectedOperationRecord.app }}</dd></div><div><dt>记录编号</dt><dd>{{ selectedOperationRecord.id }}</dd></div></dl>
       </section>
     </BaseModal>
+    <BaseModal :open="operationsDefinitionOpen" title="统计口径与计算方式" width="960px" @close="operationsDefinitionOpen = false">
+      <section class="operations-definition">
+        <header><div><span>当前范围</span><b>{{ selectedOperationsScope.name }} · {{ selectedOperationsPeriod.name }}</b></div><p>管理员中心与驾驶舱共用以下口径；切换周期或组织时，所有概览、明细与单位对比同步更新。</p></header>
+        <div class="operations-definition-groups">
+          <section v-for="group in operationMetricDefinitionGroups" :key="group.id">
+            <h3>{{ group.title }}</h3>
+            <dl><div v-for="item in group.items" :key="item.label"><dt>{{ item.label }}</dt><dd><b>{{ item.formula }}</b><small>{{ item.detail }}</small></dd></div></dl>
+          </section>
+        </div>
+      </section>
+    </BaseModal>
     <BaseModal :open="Boolean(selectedOperationsApp)" :title="selectedOperationsApp ? `${selectedOperationsApp.name}明细` : '智能应用明细'" width="600px" @close="selectedOperationsApp = null">
       <section v-if="selectedOperationsApp" class="operation-record-detail operations-app-detail">
         <header><span class="operation-scope-chip" :class="`scope-${selectedOperationsApp.id.replace('operation-app-', '')}`">{{ selectedOperationsApp.name }}</span><span>{{ selectedOperationsPeriod.name }}</span></header>
         <div><h3>{{ selectedOperationsScope.name }} · {{ selectedOperationsApp.name }}</h3><p>数据随当前组织和统计周期同步汇总。</p></div>
-        <dl><div><dt>调用次数</dt><dd>{{ formatNumber(selectedOperationsApp.calls) }} 次</dd></div><div><dt>形成成果</dt><dd>{{ formatNumber(selectedOperationsApp.outputs) }} 份</dd></div><div><dt>任务完成率</dt><dd>{{ formatRate(selectedOperationsApp.completionRate) }}</dd></div><div><dt>平均处理时间</dt><dd>{{ selectedOperationsApp.duration }}</dd></div><div><dt>当前状态</dt><dd>{{ selectedOperationsApp.processing ? `${selectedOperationsApp.processing} 项处理中` : '运行正常' }}</dd></div></dl>
+        <dl><div><dt>调用次数</dt><dd>{{ formatNumber(selectedOperationsApp.calls) }} 次</dd></div><div><dt>Agent 已启动任务</dt><dd>{{ formatNumber(selectedOperationsApp.startedTasks) }} 次</dd></div><div><dt>完整任务</dt><dd>{{ formatNumber(selectedOperationsApp.completedTasks) }} 次</dd></div><div><dt>任务完成率</dt><dd>{{ formatRate(selectedOperationsApp.completionRate) }}</dd></div><div><dt>调用成功率</dt><dd>{{ formatRate(selectedOperationsApp.successRate) }}</dd></div><div><dt>平均首次响应</dt><dd>{{ selectedOperationsApp.firstResponseSeconds.toFixed(1) }} 秒</dd></div><div><dt>平均处理时间</dt><dd>{{ selectedOperationsApp.duration }}</dd></div><div><dt>当前状态</dt><dd>{{ selectedOperationsApp.processing ? `${selectedOperationsApp.processing} 项处理中` : '运行正常' }}</dd></div></dl>
       </section>
     </BaseModal>
     <BaseModal :open="Boolean(selectedOperationsOrganization)" :title="selectedOperationsOrganization ? `${selectedOperationsOrganization.name}详情` : '单位详情'" width="560px" @close="selectedOperationsOrganization = null">
       <section v-if="selectedOperationsOrganization" class="operation-record-detail operations-organization-detail">
         <header><span class="operation-scope-chip">{{ selectedOperationsOrganization.level }}</span><span>{{ selectedOperationsPeriod.name }}</span></header>
         <div><h3>{{ selectedOperationsOrganization.name }}</h3><p>当前组织范围内的单位使用情况。</p></div>
-        <dl><div><dt>调用量</dt><dd>{{ formatNumber(selectedOperationsOrganization.calls) }} 次</dd></div><div><dt>创建任务</dt><dd>{{ formatNumber(selectedOperationsOrganization.tasks) }} 项</dd></div><div><dt>形成成果</dt><dd>{{ formatNumber(selectedOperationsOrganization.reports) }} 份</dd></div><div><dt>活跃用户</dt><dd>{{ formatNumber(selectedOperationsOrganization.users) }} 名</dd></div></dl>
+        <dl><div><dt>调用量</dt><dd>{{ formatNumber(selectedOperationsOrganization.calls) }} 次</dd></div><div><dt>Agent 已启动任务</dt><dd>{{ formatNumber(selectedOperationsOrganization.startedTasks) }} 次</dd></div><div><dt>完整任务</dt><dd>{{ formatNumber(selectedOperationsOrganization.completedTasks) }} 次</dd></div><div><dt>任务完成率</dt><dd>{{ formatRate(selectedOperationsOrganization.completionRate) }}</dd></div><div><dt>活跃用户</dt><dd>{{ formatNumber(selectedOperationsOrganization.activeUsers) }} / {{ formatNumber(selectedOperationsOrganization.registeredUsers) }} 名</dd></div><div><dt>活跃用户占比</dt><dd>{{ formatRate(selectedOperationsOrganization.activeRate) }}</dd></div></dl>
       </section>
     </BaseModal>
     <div v-if="ui.toast" class="app-toast" :class="`tone-${ui.toast.tone}`" role="status">{{ ui.toast.message }}</div>
