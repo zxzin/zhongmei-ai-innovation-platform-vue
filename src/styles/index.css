@@ -1129,12 +1129,12 @@ tbody tr:hover { background: #f7fbfe; }
 .semantic-results-toolbar-v3 b { color: #234d69; font-size: 16px; }
 .semantic-results-toolbar-v3 span { color: #7890a0; font-size: 13px; }
 .semantic-results-toolbar-v3__controls { display: flex; align-items: center; gap: 9px; }
-.semantic-results-toolbar-v3__save { position: relative; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; color: #186e9b; border: 1px solid #b9d7e5; border-radius: 8px; background: #f5fbfe; font-size: 13px; font-weight: 750; white-space: nowrap; transition: color .16s ease, border-color .16s ease, background-color .16s ease, transform .16s ease; }
-.semantic-results-toolbar-v3__save:hover:not(:disabled) { color: #fff; border-color: #197cac; background: #197cac; transform: translateY(-1px); }
-.semantic-results-toolbar-v3__save:active:not(:disabled) { transform: translateY(0); }
-.semantic-results-toolbar-v3__save:disabled { cursor: not-allowed; color: #9aadb9; border-color: #dce7ec; background: #f5f8f9; }
-.semantic-results-toolbar-v3__save:hover::after { position: absolute; z-index: 79; top: calc(100% + 9px); right: 0; padding: 7px 9px; color: #fff; border-radius: 6px; background: #264d66; box-shadow: 0 5px 14px rgba(25, 55, 76, .16); content: attr(title); font-size: 12px; font-weight: 650; line-height: 1.35; white-space: nowrap; }
-.semantic-results-toolbar-v3__save:hover::before { position: absolute; z-index: 80; top: calc(100% + 4px); right: 14px; width: 8px; height: 8px; background: #264d66; content: ''; transform: rotate(45deg); }
+.semantic-results-toolbar-v3__download { position: relative; width: 36px; min-height: 36px; display: grid; place-items: center; padding: 0; color: #355f78; border: 1px solid #d5e2e9; border-radius: 8px; background: #fff; transition: color .16s ease, border-color .16s ease, background-color .16s ease, transform .16s ease; }
+.semantic-results-toolbar-v3__download:hover:not(:disabled) { color: #197cac; border-color: #8bbbd3; background: #f9fdff; transform: translateY(-1px); }
+.semantic-results-toolbar-v3__download:active:not(:disabled) { transform: translateY(0); }
+.semantic-results-toolbar-v3__download:disabled { cursor: not-allowed; color: #9aadb9; border-color: #dce7ec; background: #f5f8f9; }
+.semantic-results-toolbar-v3__download:hover::after { position: absolute; z-index: 79; top: calc(100% + 9px); right: 0; padding: 7px 9px; color: #fff; border-radius: 6px; background: #264d66; box-shadow: 0 5px 14px rgba(25, 55, 76, .16); content: attr(title); font-size: 12px; font-weight: 650; line-height: 1.35; white-space: nowrap; }
+.semantic-results-toolbar-v3__download:hover::before { position: absolute; z-index: 80; top: calc(100% + 4px); right: 14px; width: 8px; height: 8px; background: #264d66; content: ''; transform: rotate(45deg); }
 .semantic-results-toolbar-v3__filter select { min-width: 112px; min-height: 36px; padding: 0 30px 0 12px; color: #355f78; border: 1px solid #d5e2e9; border-radius: 8px; outline: none; background-color: #fff; font-size: 13px; font-weight: 750; }
 .semantic-results-toolbar-v3__filter select:hover, .semantic-results-toolbar-v3__filter select:focus { border-color: #8bbbd3; background-color: #f9fdff; }
 .semantic-result-table-wrap { overflow-x: auto; }
@@ -1152,13 +1152,6 @@ tbody tr:hover { background: #f7fbfe; }
 .semantic-result-title button { min-width: 0; overflow: hidden; padding: 0; color: #136fce; background: transparent; font-size: 14px; font-weight: 650; line-height: 1.7; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .semantic-result-title button:hover { color: #075aa8; text-decoration: underline; }
 .semantic-result-title button.has-preview:hover { text-decoration-color: rgba(19, 111, 206, .48); text-underline-offset: 3px; }
-.semantic-result-inline-actions { width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden; margin-left: 0; opacity: 0; pointer-events: none; transform: translateX(-5px); transition: width .18s ease, margin-left .18s ease, opacity .14s ease, transform .18s ease; }
-.semantic-result-title__content:hover .semantic-result-inline-actions, .semantic-result-title__content:focus-within .semantic-result-inline-actions, .literature-result-item__title-row:hover .semantic-result-inline-actions, .literature-result-item__title-row:focus-within .semantic-result-inline-actions { width: 64px; margin-left: 8px; opacity: 1; pointer-events: auto; transform: translateX(0); }
-.semantic-result-inline-actions button { width: 28px; min-width: 28px; height: 28px; min-height: 28px; display: grid; place-items: center; padding: 0; color: #4d7590; border: 1px solid #d4e2ea; border-radius: 7px; background: #fff; line-height: 1; transition: color .16s ease, border-color .16s ease, background-color .16s ease, transform .16s ease; }
-.semantic-result-inline-actions button:hover { color: #fff; border-color: #197cac; background: #197cac; transform: translateY(-1px); }
-.semantic-result-inline-actions button:active { transform: translateY(0); }
-.semantic-result-inline-actions button.saved { color: #238067; border-color: #b6ddcf; background: #f1faf6; }
-.semantic-result-inline-actions button.saved:hover { color: #fff; border-color: #238067; background: #238067; }
 .semantic-patent-hover-card { position: fixed; z-index: 78; width: 422px; display: grid; grid-template-columns: minmax(0, 1fr) 122px; gap: 16px; padding: 18px; color: #314b5c; border: 1px solid #c7d3dc; border-radius: 8px; background: #fff; box-shadow: 0 10px 25px rgba(25, 55, 76, .18); font-size: 13px; line-height: 1.62; }
 .semantic-patent-hover-card__abstract { max-height: 248px; overflow: auto; padding-right: 4px; scrollbar-width: thin; }
 .semantic-patent-hover-card__figure { width: 122px; min-height: 122px; display: grid; place-items: center; align-self: center; margin: 0; border: 1px solid #d5dfe6; background: #fff; }
@@ -1212,7 +1205,7 @@ tbody tr:hover { background: #f7fbfe; }
 .literature-result-item footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; border-top: 1px solid #edf2f4; padding-top: 9px; }
 .literature-result-item footer > span { padding: 3px 7px; color: #b86212; border-radius: 4px; background: #fff2e5; font-size: 11px; line-height: 1.35; }
 .literature-result-item footer > span:first-child { color: #a9550a; background: #ffe8d2; font-weight: 750; }
-.literature-result-item footer em { max-width: 100%; overflow: hidden; margin-left: auto; color: #718997; font-size: 12px; font-style: normal; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.literature-result-item footer em { min-width: 0; max-width: 100%; overflow: hidden; margin-left: 4px; color: #718997; font-size: 12px; font-style: normal; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .semantic-empty { padding: 36px !important; color: #8499a6; text-align: center; }
 .semantic-pagination { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 15px 19px; color: #8194a0; font-size: 12px; }
 .semantic-pagination > div { display: flex; align-items: center; gap: 5px; }
@@ -1455,7 +1448,7 @@ tbody tr:hover { background: #f7fbfe; }
   .semantic-results-toolbar-v3 { padding: 0 19px 15px; }
   .semantic-results-toolbar-v3 { align-items: stretch; flex-direction: column; }
   .semantic-results-toolbar-v3__controls { justify-content: space-between; }
-  .semantic-results-toolbar-v3__save { flex: 1 1 auto; min-width: 0; padding: 0 10px; font-size: 12px; }
+  .semantic-results-toolbar-v3__download { flex: 0 0 36px; width: 36px; min-width: 36px; }
   .semantic-results-toolbar-v3__filter { align-self: flex-end; }
   .literature-result-item { grid-template-columns: 28px minmax(0,1fr); gap: 9px; padding: 14px 12px; }
   .literature-result-item__body > header { gap: 8px; }
@@ -1463,7 +1456,7 @@ tbody tr:hover { background: #f7fbfe; }
   .literature-result-item__body > header strong { font-size: 15px; }
   .literature-result-item__year { margin-left: 6px; padding: 3px 5px; font-size: 11px; }
   .literature-result-item dl { gap: 5px 12px; }
-  .literature-result-item footer em { width: 100%; margin-left: 0; }
+  .literature-result-item footer em { min-width: 0; margin-left: 4px; }
   .semantic-output__heading { flex-wrap: wrap; }
   .semantic-query-dialog-layer { align-items: end; padding: 0; }
   .semantic-query-dialog { width: 100%; border-bottom-right-radius: 0; border-bottom-left-radius: 0; }
@@ -1496,9 +1489,6 @@ tbody tr:hover { background: #f7fbfe; }
   .semantic-generation__signal::after { opacity: .35; transform: none; }
 }
 
-@media (hover: none) {
-  .semantic-result-inline-actions { width: 64px; margin-left: 8px; opacity: 1; pointer-events: auto; transform: none; }
-}
 
 /* Actual workflow surfaces */
 .admin-workbench-shell > .admin-panel { min-width: 0; padding: 25px; border: 1px solid var(--line); border-radius: 17px; background: #fff; box-shadow: var(--shadow-soft); }
@@ -3701,4 +3691,58 @@ tbody tr:hover { background: #f7fbfe; }
   .admin-console-page-heading { margin-bottom: 12px; }
   .admin-console-page-heading h2 { font-size: 23px; }
   .admin-console-panel { padding: 18px 14px; border-radius: 11px; }
+}
+
+/* Keep the expanded task rail useful on shorter desktop viewports. */
+@media (min-width: 701px) {
+  .app-shell:not(.side-collapsed) .side-nav nav { gap: 6px; margin-top: 14px; }
+  .app-shell:not(.side-collapsed) .side-nav-scroll-region {
+    min-height: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .app-shell:not(.side-collapsed) .side-nav-scroll-region::-webkit-scrollbar { display: none; }
+  .app-shell:not(.side-collapsed) .application-links { gap: 0; }
+  .app-shell:not(.side-collapsed) .side-nav-label { padding: 2px 13px 3px; }
+  .app-shell:not(.side-collapsed) .side-nav nav .nav-application { height: 39px; min-height: 39px; }
+  .app-shell:not(.side-collapsed) .recent-tasks { flex: 0 0 auto; grid-template-rows: auto auto; overflow: visible; }
+  .app-shell:not(.side-collapsed) .recent-tasks-list { overflow: visible; }
+  .app-shell:not(.side-collapsed) .recent-tasks-heading { height: 42px; min-height: 42px; }
+  .app-shell:not(.side-collapsed) .side-cockpit { min-height: 46px; }
+}
+
+.app-shell.side-collapsed .side-nav-scroll-region { display: contents; }
+
+/* Larger workspaces get a proportionate expanded rail without changing the compact mode. */
+@media (min-width: 1600px) and (min-height: 780px) {
+  .app-shell:not(.side-collapsed) .side-nav {
+    width: clamp(248px, 13.125vw, 278px);
+    padding: clamp(18px, 1.05vw, 22px);
+  }
+  .app-shell:not(.side-collapsed).with-side .app-content { margin-left: clamp(248px, 13.125vw, 278px); }
+  .app-shell:not(.side-collapsed) .side-brand { min-height: 60px; gap: 6px; padding: 0; }
+  .app-shell:not(.side-collapsed) .side-brand > button:first-child { min-width: 0; flex: 1 1 auto; }
+  .app-shell:not(.side-collapsed) .side-brand > button:first-child > span,
+  .app-shell:not(.side-collapsed) .side-brand b { overflow: hidden; text-overflow: ellipsis; }
+  .app-shell:not(.side-collapsed) .side-brand .side-brand-lockup { width: 46px; height: 38px; }
+  .app-shell:not(.side-collapsed) .side-brand b { font-size: clamp(16px, .9vw, 18px); }
+  .app-shell:not(.side-collapsed) .side-brand small { font-size: 12px; }
+  .app-shell:not(.side-collapsed) .collapse-button { position: static; top: auto; right: auto; bottom: auto; left: auto; width: 28px; min-width: 28px; height: 28px; flex: 0 0 28px; transform: none; }
+  .app-shell:not(.side-collapsed) .side-brand .collapse-reference-icon { width: 21px; }
+  .app-shell:not(.side-collapsed) .side-nav nav { gap: 8px; margin-top: 18px; }
+  .app-shell:not(.side-collapsed) .side-nav-scroll-region { gap: 8px; }
+  .app-shell:not(.side-collapsed) .side-nav-label { padding-top: 3px; padding-bottom: 4px; font-size: 15px; }
+  .app-shell:not(.side-collapsed) .side-nav nav > .nav-home,
+  .app-shell:not(.side-collapsed) .side-nav nav .nav-application { height: clamp(40px, 2.1vw, 46px); min-height: clamp(40px, 2.1vw, 46px); font-size: 16px; }
+  .app-shell:not(.side-collapsed) .side-nav nav .nav-application > svg { width: 21px; height: 21px; }
+  .app-shell:not(.side-collapsed) .recent-tasks-heading { height: 44px; min-height: 44px; font-size: 16px; }
+  .app-shell:not(.side-collapsed) .recent-tasks-list button { min-height: 36px; font-size: 15px; }
+  .app-shell:not(.side-collapsed) .side-cockpit { min-height: 48px; font-size: 16px; }
+  .app-shell:not(.side-collapsed) .side-footer .side-account > span { font-size: 15px; }
+  .app-shell:not(.side-collapsed) .side-footer .side-account > b { font-size: 16px; }
 }

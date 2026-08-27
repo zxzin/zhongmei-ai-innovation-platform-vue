@@ -8,6 +8,7 @@ import {
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useTasksStore } from '../../stores/tasks.js'
+import { routeChoice, useRouteQueryState } from '../../composables/useRouteQueryState.js'
 
 const ui = useUiStore()
 const tasks = useTasksStore()
@@ -76,7 +77,7 @@ const literatureReferenceGroups = [
     ['测试报告', '多传感器融合定位与断网续航测试报告'],
   ] },
 ]
-const activeLiteratureTitle = ref('专利')
+const activeLiteratureTitle = useRouteQueryState(route, router, 'source', '专利', routeChoice(['专利', '论文', '政策', '内部知识'], '专利'))
 const activeLiteratureGroup = computed(() => literatureReferenceGroups.find((group) => group.title === activeLiteratureTitle.value) || literatureReferenceGroups[0])
 const literatureReferenceTotal = computed(() => literatureReferenceGroups.reduce((total, group) => total + group.items.length, 0))
 

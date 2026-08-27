@@ -109,55 +109,57 @@ function logout() {
           <House :size="21" /><span>首页</span>
         </RouterLink>
 
-        <div class="side-nav-section application-links">
-          <small class="side-nav-label">智能应用</small>
-          <RouterLink
-            v-for="application in agents"
-            :key="application.id"
-            :to="applicationPath(application.id)"
-            :class="['nav-application', `nav-accent-${application.accent}`, { 'router-link-active': applicationIsActive(application.id) }]"
-            :title="application.name"
-            @click="accountOpen = false"
-          >
-            <component :is="application.icon" :size="21" />
-            <span>{{ application.name }}</span>
-          </RouterLink>
-        </div>
-
-        <section
-          v-if="tasks.recent.length"
-          class="recent-tasks"
-          :class="{ 'is-collapsed': !recentTasksExpanded }"
-          aria-label="历史记录"
-        >
-          <div class="recent-tasks-heading">
+        <div class="side-nav-scroll-region">
+          <div class="side-nav-section application-links">
+            <small class="side-nav-label">智能应用</small>
             <RouterLink
-              class="recent-tasks-page-link"
-              to="/history"
-              @click="accountOpen = false; recentTasksOpen = false"
+              v-for="application in agents"
+              :key="application.id"
+              :to="applicationPath(application.id)"
+              :class="['nav-application', `nav-accent-${application.accent}`, { 'router-link-active': applicationIsActive(application.id) }]"
+              :title="application.name"
+              @click="accountOpen = false"
             >
-              <History :size="21" aria-hidden="true" />
-              <span>历史记录</span>
+              <component :is="application.icon" :size="21" />
+              <span>{{ application.name }}</span>
             </RouterLink>
-            <button
-              class="recent-tasks-toggle"
-              type="button"
-              :aria-expanded="recentTasksExpanded"
-              aria-controls="recent-tasks-list"
-              :aria-label="recentTasksExpanded ? '收起历史记录列表' : '展开历史记录列表'"
-              :title="recentTasksExpanded ? '收起历史记录列表' : '展开历史记录列表'"
-              @click="toggleRecentTasksList"
-            >
-              <ChevronDown :size="16" aria-hidden="true" />
-            </button>
           </div>
-          <div v-show="recentTasksExpanded" id="recent-tasks-list" class="recent-tasks-list">
-            <button v-for="task in tasks.recent" :key="task.id" type="button" :title="task.title" @click="openHistoryRecord(task)">
-              <component :is="agentMap[task.agent].icon" :size="20" />
-              <span>{{ task.title }}</span>
-            </button>
-          </div>
-        </section>
+
+          <section
+            v-if="tasks.recent.length"
+            class="recent-tasks"
+            :class="{ 'is-collapsed': !recentTasksExpanded }"
+            aria-label="历史记录"
+          >
+            <div class="recent-tasks-heading">
+              <RouterLink
+                class="recent-tasks-page-link"
+                to="/history"
+                @click="accountOpen = false; recentTasksOpen = false"
+              >
+                <History :size="21" aria-hidden="true" />
+                <span>历史记录</span>
+              </RouterLink>
+              <button
+                class="recent-tasks-toggle"
+                type="button"
+                :aria-expanded="recentTasksExpanded"
+                aria-controls="recent-tasks-list"
+                :aria-label="recentTasksExpanded ? '收起历史记录列表' : '展开历史记录列表'"
+                :title="recentTasksExpanded ? '收起历史记录列表' : '展开历史记录列表'"
+                @click="toggleRecentTasksList"
+              >
+                <ChevronDown :size="16" aria-hidden="true" />
+              </button>
+            </div>
+            <div v-show="recentTasksExpanded" id="recent-tasks-list" class="recent-tasks-list">
+              <button v-for="task in tasks.recent" :key="task.id" type="button" :title="task.title" @click="openHistoryRecord(task)">
+                <component :is="agentMap[task.agent].icon" :size="20" />
+                <span>{{ task.title }}</span>
+              </button>
+            </div>
+          </section>
+        </div>
         <button
           v-if="tasks.recent.length"
           class="recent-tasks-trigger"

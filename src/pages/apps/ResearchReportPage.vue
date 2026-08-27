@@ -5,6 +5,7 @@ import { FileText } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
 import researchReportSource from '../../data/researchReportSource.js'
+import { routeBoolean, routeChoice, useRouteQueryState } from '../../composables/useRouteQueryState.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,7 +14,7 @@ const stage = ref('launch')
 const prompt = ref('')
 const requirement = ref('')
 const focus = ref('')
-const tocOpen = ref(false)
+const tocOpen = useRouteQueryState(route, router, 'toc', false, routeBoolean())
 const playersEditing = ref(false)
 const streamSectionIndex = ref(0)
 const streamChunk = ref(0)
@@ -83,7 +84,7 @@ const referenceGroups = [
     ['测试报告', '多传感器融合定位与断网续航测试报告'],
   ] },
 ]
-const activeReferenceTitle = ref('专利')
+const activeReferenceTitle = useRouteQueryState(route, router, 'source', '专利', routeChoice(['专利', '论文', '政策', '内部知识'], '专利'))
 const activeReferenceGroup = computed(() => referenceGroups.find((group) => group.title === activeReferenceTitle.value) || referenceGroups[0])
 const referenceTotal = computed(() => referenceGroups.reduce((total, group) => total + group.items.length, 0))
 const streamedReportSections = computed(() => reportSections.slice(0, streamSectionIndex.value + (streamChunk.value > 0 ? 1 : 0)))
@@ -288,7 +289,7 @@ function routeFor(next) {
 }
 function move(next) {
   stage.value = next
-  router.push(routeFor(next))
+  router.push({ path: routeFor(next), query: route.query })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 function startResearch() {

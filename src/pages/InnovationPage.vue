@@ -1,9 +1,17 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BookmarkCheck, BookmarkPlus, Download, FileText, FileUp } from '@lucide/vue'
+import { CircleAlert, Download, FileText, FileUp, Flag, LayoutGrid, Plus, Search, Table2, X } from '@lucide/vue'
 import ApplicationHeading from '../components/ApplicationHeading.vue'
+import { innovationReports } from '../data/innovationReports.js'
 import { technologyTopicPaperResults } from '../data/innovationResearchResults.js'
+import {
+  retrievedPointPaperResults,
+  retrievedPointPatentResults,
+  retrievedThemePaperResults,
+  retrievedThemePatentResults,
+} from '../data/innovationSearchResults.js'
 import { useRoute, useRouter } from 'vue-router'
+import { routeBoolean, routeChoice, routePositiveInteger, useRouteQueryState } from '../composables/useRouteQueryState.js'
 import { useTasksStore } from '../stores/tasks.js'
 import { useUiStore } from '../stores/ui.js'
 
@@ -17,43 +25,127 @@ const stageAliases = { confirm: 'project', setup: 'project', evidence: 'research
 const workflowSteps = [
   { id: 'project', label: '信息确认' },
   { id: 'analysis', label: '项目分析' },
-  { id: 'research', label: '资料检索' },
+  { id: 'research', label: '数据检索' },
   { id: 'report', label: '报告生成' },
 ]
 const originalProfile = {
   name: '煤炭资源开采过程伴随大量高矿化度涌水问题研究',
-  field: '矿山生态环境 · 矿井水处理 · 高矿化度矿井水资源化利用',
-  scenario: '蒙陕矿区深部矿井（煤水混杂采场作业环境）',
-  outputs: '形成发明专利 6 项、核心期刊论文 4 篇、新技术/工艺 3 项及研究报告 1 项；建成 1 项稳定运行不少于 6 个月的工业示范。',
-  breakthroughs: '矿井水回用率由 62% 提升至 ≥88%；结晶盐纯度由 92% 提升至 ≥98.5%；单位处理成本由 18.6 元/m³ 降至 ≤13 元/m³；建成 1 项工业示范。',
-  issue: '解决高含盐条件下的膜污堵与结垢、煤水混杂采场环境下回采推进与排水负荷的时序耦合控制、浓盐水零排放路径的经济性约束三项关键技术难题。',
-  manifestations: '蒙陕矿区随开采深度增加，矿井涌水量与矿化度同步上升，部分矿井涌水含盐量达到 8,000—15,000 mg/L；常规预处理加反渗透工艺出水难以稳定达标，浓盐水与结晶盐处置缺乏成熟路径，并制约矿区水资源循环利用、达标排放和矿井生产接续。',
-  solution: '采用“煤水共采协同调控与矿井水分盐资源化”技术路线，通过工作面回采、井下排水与地面处理三段联动；以回采推进度为输入动态调控井下排水系统负荷，并以两级纳滤实现一价盐与二价盐分离。',
+  field: '矿山生态环境板块下的矿井水处理方向，具体面向高矿化度矿井水资源化利用。',
+  scenario: '蒙陕矿区',
+  outputs: '发明专利 6 项、核心期刊论文 4 篇；新技术/工艺 3 项、工业示范 1 项（稳定运行不少于 6 个月）；研究报告 1 项。',
+  breakthroughs: '矿井水回用率：62% 至 ≥88%；结晶盐纯度：92% 至 ≥98.5%；单位处理成本：18.6 元/m³ 至 ≤13 元/m³；工业示范：无示范工程至建成 1 项。',
+  issue: '1. 高含盐条件下的膜污堵与结垢机理及抑制方法\n2. 煤水混杂采场环境下回采推进与排水负荷的时序耦合控制\n3. 浓盐水零排放路径的经济性约束',
+  manifestations: '蒙陕矿区随开采深度增加，矿井涌水量与矿化度同步上升，部分矿井涌水含盐量已达 8,000-15,000 mg/L，常规预处理加反渗透工艺出水难以稳定达标，浓盐水与结晶盐处置缺乏成熟路径。',
+  solution: '煤水共采协同调控与矿井水分盐资源化技术路线。通过工作面回采、井下排水与地面处理三段联动，以回采推进度为输入动态调控井下排水系统负荷，并采用两级纳滤实现一价盐与二价盐分离。',
   features: '形成适用于深部矿区高矿化度矿井水的协同调控与分盐资源化技术体系，实现高比例回用与结晶盐资源化，并建成工业示范。',
 }
 const profile = reactive({ ...originalProfile })
+const originalProjectKeyMetrics = [
+  { label: '矿井水回用率', current: '62%', target: '≥88%' },
+  { label: '结晶盐纯度', current: '92%', target: '≥98.5%' },
+  { label: '单位处理成本', current: '18.6 元/m³', target: '≤13 元/m³' },
+  { label: '工业示范', current: '无示范工程', target: '建成 1 项' },
+]
+const projectKeyMetrics = reactive(originalProjectKeyMetrics.map((metric) => ({ ...metric })))
 const inputMode = ref('file')
 const uploadedFile = ref(null)
-const workflowMax = ref(1)
-const themeSource = ref('patent')
-const pointSource = ref('patent')
-const themeSort = ref('relevance')
-const pointSort = ref('relevance')
-const themePage = ref(1)
-const pointPage = ref(1)
-const savedResearchPanel = ref('')
-const pointTab = ref(0)
-const patentTopicTab = ref(0)
-const researchPanel = ref('theme')
+const manualProposalText = ref('')
+const manualProposalPlaceholder = '可粘贴完整项目材料。至少包含：项目名称、技术领域、应用场景、关键问题、技术路线、指标或成果。'
+const reportGenerationStorageKey = `innovation-report-generated:${route.params.mode === 'admin' ? 'admin' : 'researcher'}`
+function readStoredReportGenerated() {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(reportGenerationStorageKey) === 'true'
+  } catch {
+    return false
+  }
+}
+const reportGenerated = ref(readStoredReportGenerated())
+const workflowMax = ref(reportGenerated.value ? stages.length : 1)
+function markReportGenerated() {
+  reportGenerated.value = true
+  workflowMax.value = stages.length
+  try {
+    window.localStorage.setItem(reportGenerationStorageKey, 'true')
+  } catch {
+    // 本地存储不可用时保留当前页面内的流程状态。
+  }
+}
+function resetReportGeneration() {
+  reportGenerated.value = false
+  workflowMax.value = 1
+  try {
+    window.localStorage.removeItem(reportGenerationStorageKey)
+  } catch {
+    // 本地存储不可用时无需额外处理。
+  }
+}
+const themeSource = useRouteQueryState(route, router, 'themeSource', 'patent', routeChoice(['patent', 'paper', 'policy', 'internal'], 'patent'))
+const pointSource = useRouteQueryState(route, router, 'pointSource', 'patent', routeChoice(['patent', 'paper', 'policy', 'internal'], 'patent'))
+const themeSort = useRouteQueryState(route, router, 'themeSort', 'relevance', routeChoice(['relevance', 'latest'], 'relevance'))
+const pointSort = useRouteQueryState(route, router, 'pointSort', 'relevance', routeChoice(['relevance', 'latest'], 'relevance'))
+const themePage = useRouteQueryState(route, router, 'themePage', 1, routePositiveInteger())
+const pointPage = useRouteQueryState(route, router, 'pointPage', 1, routePositiveInteger())
+const pointTab = useRouteQueryState(route, router, 'point', 0, {
+  parse: (value) => ['0', '1', '2'].includes(value) ? Number(value) : 0,
+  serialize: (value) => Number(value) === 0 ? undefined : String(value),
+})
+const patentTopicTab = useRouteQueryState(route, router, 'topic', 0, {
+  parse: (value) => ['0', '1'].includes(value) ? Number(value) : 0,
+  serialize: (value) => Number(value) === 0 ? undefined : String(value),
+})
+const researchPanel = useRouteQueryState(route, router, 'panel', 'theme', routeChoice(['theme', 'point'], 'theme'))
+const researchViewMode = useRouteQueryState(route, router, 'view', 'card', routeChoice(['card', 'table'], 'card'))
+const researchScrollRange = ref(0)
 const patentPreview = ref(null)
-const savedPatentCodes = ref(new Set())
+const researchAddModal = ref(false)
+const researchAddPanel = ref('theme')
+const researchAddSource = ref('patent')
+const researchAddTopicIndex = ref(0)
+const researchAddQuery = ref('')
+const researchAddSearched = ref(false)
+const researchAddSelectedIds = ref([])
+const researchAddOrder = ref([])
+const researchAddOrderLocks = reactive({})
+const researchAddedCount = reactive({})
+const pointTop5Modal = ref(false)
+const themeTopicPreview = ref(null)
+const pointTopicPreview = ref(null)
 let patentPreviewCloseTimer
-const reportWorkflowNavCollapsed = ref(false)
+let themeTopicPreviewCloseTimer
+let pointTopicPreviewCloseTimer
+const reportWorkflowNavStorageKey = 'innovation-report-workflow-nav-collapsed'
+const reportVersionStorageKey = 'innovation-report-version-selection'
+function readStoredReportWorkflowNavState() {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(reportWorkflowNavStorageKey) === 'true'
+  } catch {
+    return false
+  }
+}
+function readStoredReportVersionState() {
+  if (typeof window === 'undefined') return { scope: 'research', active: 'research', template: 'A' }
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(reportVersionStorageKey) || '{}')
+    const scope = ['research', 'review', 'both'].includes(saved.scope) ? saved.scope : 'research'
+    const active = ['research', 'review'].includes(saved.active) ? saved.active : 'research'
+    const template = ['A', 'B', 'C'].includes(saved.template) ? saved.template : 'A'
+    return { scope, active, template }
+  } catch {
+    return { scope: 'research', active: 'research', template: 'A' }
+  }
+}
+const storedReportVersionState = readStoredReportVersionState()
+const reportWorkflowNavCollapsed = ref(readStoredReportWorkflowNavState())
+const reportOutlineCollapsed = useRouteQueryState(route, router, 'outline', false, routeBoolean())
+const reportSelectionOpen = ref(false)
+const selectedReportScope = ref(storedReportVersionState.scope)
+const activeReportVersion = ref(storedReportVersionState.active)
+const selectedReviewTemplate = ref(storedReportVersionState.template)
+const reviewReportTemplates = ['A', 'B', 'C']
 const themeExpanded = ref('')
 const pointExpanded = ref('')
-const projectDetailsExpanded = ref(false)
-const projectEditing = ref(false)
-const analysisEditing = ref(false)
 const taskRecorded = ref(false)
 const scopeTopics = ref([
   '煤炭资源开采过程伴随大量高矿化度涌水的治理问题',
@@ -64,20 +156,22 @@ const scopePoints = ref([
   '高含盐矿井水纳滤分盐工艺',
   '浓盐水零排放经济性优化模型',
 ])
-const projectMetricTargets = reactive([
-  { label: '矿井水回用率', current: '62%', target: '≥88%' },
-  { label: '结晶盐纯度', current: '92%', target: '≥98.5%' },
-  { label: '单位处理成本', current: '18.6 元/m³', target: '≤13 元/m³' },
-  { label: '工业示范', current: '无', target: '1 项 / ≥6 个月' },
-])
 const themeAnalysisDetails = reactive([
-  { keywords: '高矿化度矿井水、矿井涌水、浓盐水处理、纳滤分盐、膜污堵与结垢、结晶盐提纯' },
-  { keywords: '煤水共采、井下排水调控、回采推进与排水协同、涌水量动态预测' },
+  {
+    description: '煤炭开采随深度增加，矿井涌水量与矿化度同步上升，涌水含盐量达 8,000—15,000 mg/L，常规预处理加反渗透工艺出水难以稳定达标。该问题涉及涌水减量、高含盐水处理、浓盐水分盐与结晶盐提纯等技术环节，其中高含盐条件下的膜污堵与结垢是核心技术障碍。',
+  },
+  {
+    description: '在煤水混杂的采场作业环境中，工作面回采推进与井下排水负荷缺乏时序耦合，排水系统按固定工况运行，难以匹配回采过程中涌水量的动态变化。该问题涉及回采推进度感知、排水负荷动态调控、井下水处理设施布置与排水系统调度等技术环节。',
+  },
 ])
 const innovationAnalysisDetails = reactive([
-  { scheme: '以工作面回采推进度为输入，动态调控井下排水系统负荷。', scenario: '煤水混杂的深部矿井采场作业环境', differentiation: '将回采推进与排水负荷耦合，区别于单一排水环节控制。', metric: '待补充：排水能耗降幅、涌水量匹配精度。' },
-  { scheme: '采用两级纳滤实现一价盐与二价盐分离，并配置浓水回流。', scenario: '高矿化度矿井水地面处理段，衔接蒸发结晶工序', differentiation: '需明确与现有高相似方案的规避设计或工艺组合差异。', metric: '结晶盐纯度 ≥98.5%' },
-  { scheme: '以能耗与药剂成本为约束，建立浓盐水处置路径的经济性优化模型。', scenario: '浓盐水处置工艺路线设计与运行参数调优', differentiation: '将经济性作为目标函数前置于路径选择。', metric: '单位处理成本 ≤13 元/m³' },
+  { description: '以工作面回采推进度为输入，动态调控井下排水系统负荷，实现回采与排水的时序协同。技术原理为建立回采推进速度与涌水量响应的耦合模型，据此动态分配排水能力；实现方式为在既有井下排水系统上叠加调度控制层；应用场景为煤水混杂的深部矿井采场作业环境。与现有技术的区别在于，现有方案均针对单一排水环节做控制优化，本创新点将回采推进与排水负荷耦合，属新的协同维度。' },
+  { description: '针对矿化度 8,000—15,000 mg/L 的矿井水，采用两级纳滤实现一价盐与二价盐分离，提升后续蒸发结晶所得结晶盐纯度。技术原理为利用纳滤膜对一价与二价离子的选择透过性差异实现分级截留；实现方式为两级纳滤串联并配置浓水回流；应用场景为高矿化度矿井水的地面处理段，衔接蒸发结晶工序。' },
+  { description: '以能耗与药剂成本为约束，建立浓盐水处置路径的经济性优化模型，在达标前提下降低单位水量处理成本。技术原理为将处置路径选择转化为多约束条件下的最优化问题，以单位处理成本为目标函数；实现方式为构建包含膜通量衰减、药剂投加量、蒸发能耗等参数的成本模型并求解最优路径组合；应用场景为浓盐水处置工艺路线设计与运行参数调优。' },
+])
+const innovationBranchTags = ref([
+  '矿井水处理工艺', '井下排水与控制', '浓盐水资源化', '水质监测预测',
+  '煤水共采协同', '结晶盐提纯', '膜材料抗污堵', '生态修复回灌',
 ])
 
 const themeEvidence = reactive({
@@ -108,10 +202,10 @@ const themeEvidence = reactive({
     { id: 'T-R-04', title: '地下水管理条例（国务院令第748号）', source: '国务院', meta: '地下水保护 · 监测管理', excerpt: '对地下水污染防治、监测管理和开发利用提出要求，可作为采动扰动下水量、水质监测与回采排水协同的合规参考。', selected: false, topics: [1] },
   ],
   internal: [
-    { id: 'T-K-01', title: '蒙陕矿区深部矿井涌水预测与水质预警应用案例', source: '内部知识库 · 矿区工程案例', meta: '案例复盘 · 2025 更新', excerpt: '汇总多个深部矿井的涌水量、水化学监测与预测模型应用记录，可用于核验采动扰动下多源数据融合、模型精度和预警边界。', selected: true, topics: [1] },
+    { id: 'T-K-01', title: '蒙陕矿区深部矿井涌水预测与水质预警应用案例', source: '个人知识库 · 专家工程案例', meta: '案例复盘 · 2025 更新', excerpt: '汇总多个深部矿井的涌水量、水化学监测与预测模型应用记录，可用于核验采动扰动下多源数据融合、模型精度和预警边界。', selected: true, topics: [1] },
     { id: 'T-K-02', title: '高矿化度矿井水分质处理与资源化利用技术手册', source: '内部知识库 · 技术规范', meta: '工艺指引 · V2.3', excerpt: '沉淀高盐矿井水预处理、膜法分盐、浓盐水减量和副产盐处置的工程参数与运行约束，为主题一的治理路径提供内部经验依据。', selected: true, topics: [0] },
     { id: 'T-K-03', title: '煤水共采矿井“控—储—净”系统建设与运行复盘', source: '内部知识库 · 项目档案', meta: '示范项目 · 已结题', excerpt: '记录清浊分流、井下调蓄、净化回用与采场排水协同的系统设计、运行问题及优化措施，对主题二的工程闭环具有参考价值。', selected: true, topics: [1] },
-    { id: 'T-K-04', title: '矿区多水源分级利用与供需平衡分析模板', source: '内部知识库 · 方法工具', meta: '分析模板 · 2026 更新', excerpt: '提供矿井水、地表水和再生水的水量水质台账、用水单元分级及优化配置测算方法，可辅助比对项目的动态调配方案。', selected: false, topics: [0] },
+    { id: 'T-K-04', title: '矿区多水源分级利用与供需平衡分析模板', source: '个人知识库 · 专家方法工具', meta: '分析模板 · 2026 更新', excerpt: '提供矿井水、地表水和再生水的水量水质台账、用水单元分级及优化配置测算方法，可辅助比对项目的动态调配方案。', selected: false, topics: [0] },
   ],
 })
 
@@ -178,7 +272,8 @@ function extendResearchDemoResults(items, targetLength, prefix) {
     }
     if (seed.code) {
       generated.code = `CN11${String(408000 + serial * 97 + prefix.length * 31).padStart(6, '0')}A`
-      generated.relevance = `${Math.max(62, Number.parseInt(seed.relevance, 10) - (serial % 13))}%`
+      // 保持前 20 条真实检索结果处于“最相关”排序的首屏，补充分页条目仅用于模拟后续结果。
+      generated.relevance = `${Math.max(40, Math.min(60, Number.parseInt(seed.relevance, 10) - 30 - (serial % 10)))}%`
       generated.filingDate = `20${16 + (serial % 10)}-${String((serial % 12) + 1).padStart(2, '0')}-${String((serial % 27) + 1).padStart(2, '0')}`
       generated.publicationDate = `20${17 + (serial % 9)}-${String(((serial + 3) % 12) + 1).padStart(2, '0')}-${String(((serial + 6) % 27) + 1).padStart(2, '0')}`
     }
@@ -186,8 +281,8 @@ function extendResearchDemoResults(items, targetLength, prefix) {
     items.push(generated)
   }
 }
-patentTopicEvidence.forEach((topic, index) => extendResearchDemoResults(topic.items, 60, `PT${index + 1}`))
-paperTopicEvidence.forEach((topic, index) => extendResearchDemoResults(topic.items, 60, `PA${index + 1}`))
+patentTopicEvidence.forEach((topic, index) => extendResearchDemoResults(topic.items, Number(topic.total.replace(/,/g, '')), `PT${index + 1}`))
+paperTopicEvidence.forEach((topic, index) => extendResearchDemoResults(topic.items, Number(topic.total.replace(/,/g, '')), `PA${index + 1}`))
 
 const pointPatentEvidence = reactive([
   {
@@ -324,10 +419,14 @@ pointPatentFirstPageRows.forEach((rows, pointIndex) => {
     selected: index < 3,
   })))
 })
+;[...new Set(pointPatentEvidenceIndex)].forEach((index) => {
+  const evidence = pointPatentEvidence[index]
+  extendResearchDemoResults(evidence.items, Number(evidence.total.replace(/,/g, '')), `IP${index + 1}`)
+})
 
 const pointPaperEvidence = reactive([
   {
-    total: '5',
+    total: '1,000',
     items: [
       { id: 'IL1-01', title: 'Dynamic prediction method and application of mine water inflow based on mining rock mass seepage theory', year: '2026', authors: '杜锋 · 鲁鹏涛 · 李振华 · 马丹 等', outlet: 'Journal of China Coal Society, 51(4), 2323–2344', identifier: '10.13225/j.cnki.jccs.WA25.0697', identifierLabel: 'DOI', abstract: '基于采动岩体渗流理论开展矿井涌水量动态预测，并给出工程应用验证。', keywords: ['采动渗流', '动态预测'], selected: true },
       { id: 'IL1-02', title: 'Time series prediction model using LSTM-Transformer neural network for mine water inflow', year: '2024', authors: 'Junwei Shi · Shiqi Wang · Pengfei Qu · Jianli Shao', outlet: 'Scientific Reports, 14, 18284', identifier: '10.1038/s41598-024-69418-z', identifierLabel: 'DOI', abstract: '采用 LSTM-Transformer 建立矿井涌水时间序列预测模型。', keywords: ['涌水预测', 'LSTM-Transformer'], selected: true },
@@ -337,7 +436,7 @@ const pointPaperEvidence = reactive([
     ],
   },
   {
-    total: '5',
+    total: '1,000',
     items: [
       { id: 'IL2-01', title: '五阳煤矿煤水共采及矿井水资源化研究', year: '2025', authors: '郑丽萍 · 蒋宇程 · 刘万成 · 王骞 等', outlet: '煤炭技术, 44(04), 149–153', identifier: '10.13301/j.cnki.ct.2025.04.028', identifierLabel: 'DOI', abstract: '结合五阳煤矿地质、水文地质与涌水条件，提出煤水共采与矿井水资源化利用方案。', keywords: ['煤水共采', '资源化利用'], selected: true },
       { id: 'IL2-02', title: 'On the Coordinated Development of Coal-Water-Soil Multiple Resources', year: '2024', authors: 'Wang Shuangming · Sun Qiang · Yuan Shihao 等', outlet: 'Northwestern Geology, 57(5), 1–10', identifier: '10.12401/j.nwg.2024069', identifierLabel: 'DOI', abstract: '从煤、水、土多资源的时空组合和动态耦合响应出发，讨论协同开发与调控。', keywords: ['煤水协同', '动态耦合'], selected: true },
@@ -347,7 +446,7 @@ const pointPaperEvidence = reactive([
     ],
   },
   {
-    total: '5',
+    total: '1,000',
     items: [
       { id: 'IL3-01', title: '高矿化度矿井水纳滤膜适度脱盐技术研究', year: '2021', authors: '葛光荣 · 吴一平 · 张全', outlet: '煤炭科学技术, 49(3), 208–214', identifier: '10.13199/j.cnki.cst.2021.03.029', identifierLabel: 'DOI', abstract: '提出针对微咸矿井水分级分质回用的纳滤适度脱盐工艺，讨论脱盐率、能耗和膜污染约束。', keywords: ['纳滤脱盐', '分级回用'], selected: true },
       { id: 'IL3-02', title: '高矿化度矿井水处理技术及资源化利用研究', year: '2025', authors: '张春海', outlet: '工程与管理科学, 7(10)', identifier: '10.12238/ems.v7i10.15762', identifierLabel: 'DOI', abstract: '分析高矿化度矿井水处理技术和水、矿物质资源化利用路径。', keywords: ['高矿化度', '资源化'], selected: true },
@@ -357,7 +456,7 @@ const pointPaperEvidence = reactive([
     ],
   },
   {
-    total: '5',
+    total: '1,000',
     items: [
       { id: 'IL4-01', title: '内蒙古西部干旱地区煤矿反渗透浓盐水的综合利用', year: '2023', authors: '孙红福 · 吴叶琪 · 赵峰华 · 权琳 等', outlet: '煤炭学报, 48(12), 4512–4520', identifier: '10.13225/j.cnki.jccs.2023.0361', identifierLabel: 'DOI', abstract: '比较浓盐水排海、蒸发池浓缩、零排放和离子提取等路径，并评估资源回收的经济可行性。', keywords: ['浓盐水', '经济性'], selected: true },
       { id: 'IL4-02', title: 'Research Progress on Zero Discharge and Resource Utilization of Industrial High-Salt Wastewater', year: '2021', authors: 'Dan Liu · Qiongqiong Liu · Y. Zhang', outlet: 'Clean – Soil, Air, Water, 49, 2000410', identifier: '10.1002/clen.202000410', identifierLabel: 'DOI', abstract: '综述高盐废水零排放与资源化路径，重点讨论浓缩结晶耦合工艺。', keywords: ['零排放', '高盐废水'], selected: true },
@@ -369,6 +468,33 @@ const pointPaperEvidence = reactive([
 ])
 
 const pointPaperEvidenceIndex = [1, 2, 3]
+;[...new Set(pointPaperEvidenceIndex)].forEach((index) => {
+  const evidence = pointPaperEvidence[index]
+  extendResearchDemoResults(evidence.items, Number(evidence.total.replace(/,/g, '')), `IL${index + 1}`)
+})
+
+// 每个专题均使用本次单独检索的前 20 条结果，避免与演示样本混用。
+const retrievedPatentTopicEvidence = reactive(retrievedThemePatentResults())
+const retrievedPaperTopicEvidence = reactive(retrievedThemePaperResults())
+const retrievedPointPatentEvidence = reactive(retrievedPointPatentResults())
+const retrievedPointPaperEvidence = reactive(retrievedPointPaperResults())
+
+// 首屏保留真实摘录；后续页使用同口径的演示条目补足检索规模。
+;[
+  ...retrievedPatentTopicEvidence,
+  ...retrievedPaperTopicEvidence,
+  ...retrievedPointPatentEvidence,
+  ...retrievedPointPaperEvidence,
+].forEach((result, index) => {
+  extendResearchDemoResults(result.items, Number(result.total.replace(/,/g, '')), `SR${index + 1}`)
+})
+
+// 创新点的专利、论文默认将语义相关度靠前的 5 条标为重点资料。
+function initializePointTop5(result) {
+  result.items.forEach((item, index) => { item.topFocus = index < 5 })
+}
+retrievedPointPatentEvidence.forEach(initializePointTop5)
+retrievedPointPaperEvidence.forEach(initializePointTop5)
 
 const pointEvidenceDetails = {
   'I1-P-01': ['创新点 1 · 专利候选', '将工作面推进、顶底板岩性和含水层参数纳入预测模型，适合比对本项目采动条件下涌水量预测的输入变量与精度目标。', true],
@@ -464,7 +590,7 @@ const themeSupplementalEvidence = {
     ['T-R-08', '关于进一步加强煤炭资源开发环境影响评价管理的通知', '煤炭开发 · 矿井水管理', '明确可利用矿井水应合理充分利用，并对外排与取用提出环境管理要求，可作为回采排水协同和矿井水处置的合规依据。', [1]],
   ],
   internal: [
-    ['T-K-05', '矿井水膜系统故障模式与运维知识图谱', '运维知识 · 故障模式', '汇总膜污染、结垢、清洗和药剂投加等故障模式及处置记录，可补充识别两级纳滤系统的运行风险与验证点。', [0]],
+    ['T-K-05', '矿井水膜系统故障模式与运维知识图谱', '专家复盘 · 故障模式', '汇总膜污染、结垢、清洗和药剂投加等故障模式及处置记录，可补充识别两级纳滤系统的运行风险与验证点。', [0]],
     ['T-K-06', '西北矿区采排协同调度参数复用清单', '调度参数 · 可复用经验', '沉淀采掘推进、涌水预测和排水设备联控的参数配置与复盘结论，可为煤水共采协同控制提供内部工程参照。', [1]],
   ],
 }
@@ -523,16 +649,68 @@ const policyEvidence = reactive([
   { id: 'R-08', title: '关于进一步加强煤炭资源开发环境影响评价管理的通知', source: '生态环境部', meta: '2020 · 煤炭开发环境管理', excerpt: '明确可利用的矿井水应合理充分利用，对矿井水外排和其他水源取用提出环境管理要求，可作为项目资源化利用与排放管理的合规依据。', selected: false },
 ])
 const sourceMeta = {
-  patent: { label: '专利', recordLabel: '公开专利', total: '2', unit: '个主题', coverage: '每主题 1,000 条 · 首屏 20 条', method: '已按主题分别检索', tags: ['涌水预测', '水害预警', '水资源配置', '采动扰动'] },
-  paper: { label: '论文', recordLabel: '学术论文', total: '246', unit: '篇', coverage: '每页 20 篇', method: '按技术主题匹配排序', tags: ['涌水预测', '深度学习', '水文地质', '多目标优化'] },
-  policy: { label: '政策', recordLabel: '政策条款', total: '47', unit: '件', coverage: '条款级比对 1,382 条', method: '以现行政策法规为主，按条款关联筛选', tags: ['矿井水', '地下水保护', '非常规水源', '循环利用', '绿色开采'] },
-  internal: { label: '内部知识', recordLabel: '院内知识', total: '286', unit: '条', coverage: '工程案例 74 项 · 项目档案 68 项 · 技术报告 83 份 · 专家复盘 61 份', method: '院内知识库按文档版本、项目与专题去重', tags: ['工程案例', '项目档案', '技术方案', '运行复盘', '方法工具'] },
+  patent: { label: '专利', recordLabel: '公开专利', total: '1,000', unit: '条', coverage: '每主题 1,000 条 · 首屏 20 条', method: '已按主题分别检索', tags: ['涌水预测', '水害预警', '水资源配置', '采动扰动'] },
+  paper: { label: '论文', recordLabel: '学术论文', total: '1,000', unit: '篇', coverage: '每主题 1,000 条 · 首屏 20 条', method: '按技术主题匹配排序', tags: ['涌水预测', '深度学习', '水文地质', '多目标优化'] },
+  policy: { label: '政策', recordLabel: '政策条款', total: '1,000', unit: '件', coverage: '每主题 1,000 条 · 首屏 20 条', method: '以现行政策法规为主，按条款关联筛选', tags: ['矿井水', '地下水保护', '非常规水源', '循环利用', '绿色开采'] },
+  internal: { label: '内部知识', recordLabel: '院内知识', total: '1,000', unit: '条', coverage: '每主题 1,000 条 · 首屏 20 条', method: '院内知识库按文档版本、项目与专题去重', tags: ['工程案例', '项目档案', '技术方案', '运行复盘', '方法工具'] },
 }
 const pointTotals = [
-  { patent: '118', paper: '47', policy: '11', internal: '74' }, { patent: '187', paper: '62', policy: '15', internal: '91' }, { patent: '29', paper: '34', policy: '9', internal: '58' },
+  { patent: '1,000', paper: '1,000', policy: '1,000', internal: '1,000' }, { patent: '1,000', paper: '1,000', policy: '1,000', internal: '1,000' }, { patent: '1,000', paper: '1,000', policy: '1,000', internal: '1,000' },
 ]
 
+function researchTotalNumber(value) {
+  return Number(String(value ?? '').replace(/[^\d]/g, '')) || 0
+}
+
+function formatResearchTotal(value) {
+  return researchTotalNumber(value).toLocaleString('en-US')
+}
+
+function extendScopedResearchResults(items, targetLength, prefix, label, topicIndex) {
+  const seeds = items.filter((item) => topicIndex == null || (item.topics || []).includes(topicIndex))
+  if (!seeds.length) return
+  for (let index = seeds.length; index < targetLength; index += 1) {
+    const seed = seeds[index % seeds.length]
+    const serial = index + 1
+    items.push({
+      ...seed,
+      id: `${prefix}-${String(serial).padStart(3, '0')}`,
+      title: `${seed.title}（${label} ${String(serial).padStart(2, '0')}）`,
+      meta: `${seed.meta} · ${label}`,
+      selected: false,
+      ...(topicIndex == null ? {} : { topics: [topicIndex] }),
+    })
+  }
+}
+
+;[0, 1].forEach((topicIndex) => {
+  extendScopedResearchResults(themeEvidence.policy, researchTotalNumber(sourceMeta.policy.total), `TR${topicIndex + 1}`, '关联条款', topicIndex)
+  extendScopedResearchResults(themeEvidence.internal, researchTotalNumber(sourceMeta.internal.total), `TK${topicIndex + 1}`, '知识片段', topicIndex)
+})
+pointEvidence.forEach((group, pointIndex) => {
+  extendScopedResearchResults(group.policy, researchTotalNumber(pointTotals[pointIndex].policy), `IR${pointIndex + 1}`, '关联条款')
+  extendScopedResearchResults(group.internal, researchTotalNumber(pointTotals[pointIndex].internal), `IK${pointIndex + 1}`, '知识片段')
+})
+
+const paperCitationByIdentifier = {
+  '10.1038/s41598-024-69418-z': '101',
+  '10.1016/j.scitotenv.2023.162056': '50',
+  '10.1109/ACCESS.2020.3028959': '13',
+  '10.1007/s12665-019-8098-2': '37',
+}
+
+function paperCitation(item) {
+  if (item.citations && item.citations !== '—') return item.citations
+  return paperCitationByIdentifier[item.identifier] || ''
+}
+
 function researchFacts(source, item, index) {
+  if (source === 'patent' && item.code) return [
+    { label: '公开（公告）号', value: item.code },
+    { label: '相关度', value: item.relevance || '未提供' },
+    { label: '法律状态', value: item.legalStatus || '未提供' },
+    { label: '技术分类', value: (item.classifications || []).join('、') || '未提供' },
+  ]
   if (item.facts) return item.facts
   if (source === 'patent' || source === 'paper') return [
     { label: '匹配方向', value: item.meta },
@@ -566,6 +744,27 @@ function researchFacts(source, item, index) {
   ]
 }
 
+function researchTableHeaders(source) {
+  return {
+    paper: ['年份', '作者', '期刊 / 来源', '标识'],
+    policy: ['发布单位', '文件属性', '施行状态'],
+    internal: ['知识类型', '资料属性', '可用范围'],
+  }[source] || []
+}
+
+function researchTableFacts(source, item, index) {
+  if (source === 'paper') {
+    const fallback = researchFacts(source, item, index)
+    return [
+      { label: '年份', value: item.year || fallback[1]?.value || '未提供' },
+      { label: '作者', value: item.authors || fallback[2]?.value || '未提供' },
+      { label: '期刊 / 来源', value: item.outlet || fallback[0]?.value || item.source || '未提供' },
+      { label: '标识', value: item.identifier ? `${item.identifierLabel || 'DOI'} ${item.identifier}` : fallback[1]?.value || '未提供' },
+    ]
+  }
+  return researchFacts(source, item, index)
+}
+
 function internalKnowledgeTag(item) {
   const text = `${item.title} ${item.source} ${item.meta}`
   return /专家|个人/.test(text) ? '个人知识' : '企业知识'
@@ -579,67 +778,147 @@ const stage = computed(() => {
   const raw = route.params.stage || 'upload'
   return stageAliases[raw] || (stages.includes(raw) ? raw : 'upload')
 })
+const isReviewer = computed(() => route.params.mode === 'admin')
+const currentReport = computed(() => (isReviewer.value ? innovationReports[activeReportVersion.value] : innovationReports.research) || innovationReports.research)
+const showReportVersions = computed(() => isReviewer.value && selectedReportScope.value === 'both')
+const reportVersionOptions = computed(() => showReportVersions.value
+  ? [innovationReports.research, innovationReports.review]
+  : [currentReport.value])
 const currentStageIndex = computed(() => Math.max(0, stages.indexOf(stage.value)))
-const stageInfo = computed(() => ({
-  project: {
-    title: '确认项目输入',
-    description: '',
-    metrics: [
-      { label: '项目材料', value: uploadedFile.value ? '已上传' : '待补充' },
-      { label: '关键字段', value: '8 项' },
-    ],
-  },
-  analysis: {
-    title: '形成分析框架',
-    description: '',
-    metrics: [
-      { label: '技术主题', value: `${scopeTopics.value.length} 项` },
-      { label: '创新点', value: `${scopePoints.value.length} 项` },
-    ],
-  },
-  research: {
-    title: '建立检索证据链',
-    metrics: [
-      { label: '已选证据', value: `${selectedEvidenceCount.value} 项` },
-      { label: '资料覆盖', value: '专利 · 论文' },
-    ],
-  },
-}[stage.value] || { title: '', description: '', metrics: [] }))
-const nextStageLabel = computed(() => workflowSteps[currentStageIndex.value + 1]?.label || '报告查看')
+const nextStageLabel = computed(() => {
+  if (stage.value === 'research') return researchPanel.value === 'theme' ? '创新点相关数据' : '报告生成'
+  return workflowSteps[currentStageIndex.value + 1]?.label || '报告查看'
+})
+const nextStageActionLabel = computed(() => {
+  if (stage.value === 'research' && researchPanel.value === 'point' && reportGenerated.value) return '查看已生成报告'
+  if (stage.value === 'research' && researchPanel.value === 'point') return '确认并生成报告'
+  if (stage.value === 'research') return '确认并进入创新点相关数据'
+  return '确认并进入下一步'
+})
 const researchPageSize = 20
-const patentTopicItems = computed(() => patentTopicEvidence.flatMap((topic) => topic.items))
-const activePatentTopic = computed(() => patentTopicEvidence[patentTopicTab.value])
-const activePaperTopic = computed(() => paperTopicEvidence[patentTopicTab.value])
+const patentTopicItems = computed(() => retrievedPatentTopicEvidence.flatMap((topic) => topic.items))
+const activePatentTopic = computed(() => retrievedPatentTopicEvidence[patentTopicTab.value])
+const activePaperTopic = computed(() => retrievedPaperTopicEvidence[patentTopicTab.value])
 const activeThemeItems = computed(() => {
   if (themeSource.value === 'patent') return patentTopicItems.value
   return themeEvidence[themeSource.value]
     .filter((item) => !item.topics || item.topics.includes(patentTopicTab.value))
-    .slice(0, 8)
 })
 const activeResearchItems = computed(() => {
   if (themeSource.value === 'patent') return activePatentTopic.value.items
   if (themeSource.value === 'paper') return activePaperTopic.value.items
   return activeThemeItems.value
 })
+function researchAddKey(panel = researchAddPanel.value, source = researchAddSource.value, index = researchAddTopicIndex.value) {
+  return `${panel}:${source}:${index}`
+}
+function researchAddLabel(panel = researchAddPanel.value, source = researchAddSource.value, index = researchAddTopicIndex.value) {
+  return `${panel === 'theme' ? `技术主题 ${index + 1}` : `创新点 ${index + 1}`} · ${sourceMeta[source].label}`
+}
+function researchAddScopeName(panel = researchAddPanel.value, index = researchAddTopicIndex.value) {
+  return panel === 'theme' ? scopeTopics.value[index] : scopePoints.value[index]
+}
+function researchAddAllCandidates(source = researchAddSource.value) {
+  if (source === 'patent') return [
+    ...retrievedThemePatentResults().flatMap((topic) => topic.items),
+    ...retrievedPointPatentResults().flatMap((topic) => topic.items),
+  ]
+  if (source === 'paper') return [
+    ...retrievedThemePaperResults().flatMap((topic) => topic.items),
+    ...retrievedPointPaperResults().flatMap((topic) => topic.items),
+  ]
+  return [
+    ...themeEvidence[source],
+    ...pointEvidence.flatMap((group) => group[source]),
+  ]
+}
+function researchAddTargetItems(panel = researchAddPanel.value, source = researchAddSource.value, index = researchAddTopicIndex.value) {
+  if (panel === 'theme' && source === 'patent') return retrievedPatentTopicEvidence[index].items
+  if (panel === 'theme' && source === 'paper') return retrievedPaperTopicEvidence[index].items
+  if (panel === 'point' && source === 'patent') return retrievedPointPatentEvidence[index].items
+  if (panel === 'point' && source === 'paper') return retrievedPointPaperEvidence[index].items
+  return panel === 'theme'
+    ? themeEvidence[source].filter((item) => !item.topics || item.topics.includes(index))
+    : pointEvidence[index][source]
+}
+function researchAddCandidateIdentity(item) {
+  return item.manualSourceIdentity || item.code || item.identifier || item.id || item.title
+}
+const researchAddCandidates = computed(() => researchAddAllCandidates().map((item, index) => ({
+  ...item,
+  id: `research-add-${researchAddKey()}-${index}-${item.code || item.identifier || item.id || 'item'}`,
+  candidateIdentity: researchAddCandidateIdentity(item),
+  sourceRank: index + 1,
+})))
+const researchAddResults = computed(() => {
+  if (!researchAddSearched.value) return []
+  const existing = new Set(researchAddTargetItems().map(researchAddCandidateIdentity))
+  const terms = researchAddQuery.value.split(/[，,、；;\s]+/).map((term) => term.trim()).filter((term) => term.length > 1)
+  return researchAddCandidates.value
+    .filter((item) => !existing.has(item.candidateIdentity))
+    .map((item) => {
+      const sourceText = `${item.title} ${item.abstract || item.excerpt || ''} ${item.meta || ''} ${item.source || ''}`
+      return { ...item, searchScore: terms.reduce((score, term) => score + (sourceText.includes(term) ? 1 : 0), 0) }
+    })
+    .sort((a, b) => b.searchScore - a.searchScore || Number.parseInt(b.relevance || b.highlight || 0, 10) - Number.parseInt(a.relevance || a.highlight || 0, 10) || a.sourceRank - b.sourceRank)
+})
+const researchAddSelection = computed(() => researchAddOrder.value
+  .map((id) => researchAddCandidates.value.find((item) => item.id === id))
+  .filter(Boolean))
 const activePointItems = computed(() => {
   const source = pointSource.value
-  if (source === 'patent') return pointPatentEvidence[pointPatentEvidenceIndex[pointTab.value]].items
-  if (source === 'paper') return pointPaperEvidence[pointPaperEvidenceIndex[pointTab.value]].items
-  return pointEvidence[pointTab.value][source].slice(0, 3)
+  if (source === 'patent') return retrievedPointPatentEvidence[pointTab.value].items
+  if (source === 'paper') return retrievedPointPaperEvidence[pointTab.value].items
+  return pointEvidence[pointTab.value][source]
 })
 function sortResearchItems(items, sort) {
-  if (sort === 'title') return [...items].sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
-  return items
+  const relevance = (item) => Number.parseFloat(item.relevance || item.highlight || 0) || 0
+  const latest = (item) => {
+    const date = item.filingDate || item.publicationDate || item.year || item.meta?.match(/20\d{2}(?:[-/]\d{1,2}(?:[-/]\d{1,2})?)?/)?.[0] || ''
+    return Number(date.replace(/\D/g, '').padEnd(8, '0')) || 0
+  }
+  if (sort === 'latest') return [...items].sort((a, b) => latest(b) - latest(a))
+  return [...items].sort((a, b) => relevance(b) - relevance(a))
 }
-const themeSourceIsPaged = computed(() => themeSource.value === 'patent' || themeSource.value === 'paper')
-const themePageCount = computed(() => {
-  const total = themeSource.value === 'patent'
-    ? Number(activePatentTopic.value.total.replace(/,/g, ''))
-    : themeSource.value === 'paper'
-      ? Number(activePaperTopic.value.total.replace(/,/g, ''))
-      : Number(sourceMeta[themeSource.value].total.replace(/,/g, ''))
-  return Math.max(1, Math.ceil(total / researchPageSize))
-})
+function researchRelevance(item) {
+  return Number.parseFloat(item.relevance || item.highlight || 0) || 0
+}
+function pointTop5Target(source = pointSource.value, index = pointTab.value) {
+  if (source === 'patent') return retrievedPointPatentEvidence[index].items
+  if (source === 'paper') return retrievedPointPaperEvidence[index].items
+  return []
+}
+const pointTop5Enabled = computed(() => ['patent', 'paper'].includes(pointSource.value))
+const pointTop5Items = computed(() => pointTop5Target().filter((item) => item.topFocus))
+const pointTop5Count = computed(() => pointTop5Items.value.length)
+function togglePointTop5(item) {
+  if (!pointTop5Enabled.value) return
+  if (item.topFocus) {
+    item.topFocus = false
+    return
+  }
+  if (pointTop5Count.value >= 5) {
+    ui.notify('TOP5 已满，请先取消一条重点标注', 'warning')
+    return
+  }
+  item.topFocus = true
+}
+function applyAddedItemsToPointTop5(items, additions) {
+  const added = new Set(additions)
+  const existingTop = items
+    .filter((item) => item.topFocus && !added.has(item))
+    .sort((a, b) => researchRelevance(b) - researchRelevance(a))
+  const addedTop = additions
+    .filter((item) => items.includes(item))
+    .sort((a, b) => researchRelevance(b) - researchRelevance(a))
+  items.forEach((item) => { item.topFocus = false })
+  ;[...addedTop, ...existingTop].slice(0, 5).forEach((item) => { item.topFocus = true })
+}
+function openPointTop5Modal() {
+  if (pointTop5Enabled.value) pointTop5Modal.value = true
+}
+const themeSourceIsPaged = computed(() => true)
+const themePageCount = computed(() => Math.max(1, Math.ceil(activeResearchItems.value.length / researchPageSize)))
 const themePageOffset = computed(() => (themePage.value - 1) * researchPageSize)
 const themePaginationEntries = computed(() => {
   const count = themePageCount.value
@@ -652,13 +931,12 @@ function setThemePage(page) {
   themeExpanded.value = ''
 }
 const displayThemeItems = computed(() => {
-  const items = sortResearchItems(activeResearchItems.value, themeSort.value)
-  if (!themeSourceIsPaged.value) return items
-  const samplePageCount = Math.max(1, Math.ceil(items.length / researchPageSize))
-  const samplePage = (themePage.value - 1) % samplePageCount
-  return items.slice(samplePage * researchPageSize, (samplePage + 1) * researchPageSize)
+  const items = researchAddOrderLocks[researchAddKey('theme', themeSource.value, patentTopicTab.value)]
+    ? activeResearchItems.value
+    : sortResearchItems(activeResearchItems.value, themeSort.value)
+  return items.slice(themePageOffset.value, themePageOffset.value + researchPageSize)
 })
-const pointSourceIsPaged = computed(() => pointSource.value === 'patent' || pointSource.value === 'paper')
+const pointSourceIsPaged = computed(() => true)
 const pointPageCount = computed(() => Math.max(1, Math.ceil(activePointItems.value.length / researchPageSize)))
 const pointPaginationEntries = computed(() => {
   const count = pointPageCount.value
@@ -671,52 +949,33 @@ function setPointPage(page) {
   pointExpanded.value = ''
 }
 const displayPointItems = computed(() => {
-  const items = sortResearchItems(activePointItems.value, pointSort.value)
-  if (!pointSourceIsPaged.value) return items
+  const items = researchAddOrderLocks[researchAddKey('point', pointSource.value, pointTab.value)]
+    ? activePointItems.value
+    : sortResearchItems(activePointItems.value, pointSort.value)
   const offset = (pointPage.value - 1) * researchPageSize
   return items.slice(offset, offset + researchPageSize)
 })
+function researchDisplayOrder(panel, index) {
+  const offset = panel === 'theme' ? themePageOffset.value : (pointPage.value - 1) * researchPageSize
+  return String(offset + index + 1).padStart(2, '0')
+}
 function researchResultTotal(panel) {
   const source = panel === 'theme' ? themeSource.value : pointSource.value
-  if (panel === 'theme' && source === 'patent') return activePatentTopic.value.total
-  if (panel === 'theme' && source === 'paper') return activePaperTopic.value.total
-  if (panel === 'point' && source === 'patent') return pointPatentEvidence[pointPatentEvidenceIndex[pointTab.value]].total
-  if (panel === 'point' && source === 'paper') return pointPaperEvidence[pointPaperEvidenceIndex[pointTab.value]].total
-  return panel === 'theme' ? sourceMeta[source].total : pointTotals[pointTab.value][source]
+  const isDirectResult = source === 'patent' || source === 'paper'
+  const base = panel === 'theme'
+    ? (isDirectResult ? (source === 'patent' ? activePatentTopic.value.total : activePaperTopic.value.total) : sourceMeta[source].total)
+    : (isDirectResult ? (source === 'patent' ? retrievedPointPatentEvidence[pointTab.value].total : retrievedPointPaperEvidence[pointTab.value].total) : pointTotals[pointTab.value][source])
+  const additions = isDirectResult ? 0 : (researchAddedCount[researchAddKey(panel, source, panel === 'theme' ? patentTopicTab.value : pointTab.value)] || 0)
+  return formatResearchTotal(researchTotalNumber(base) + additions)
 }
 function researchResultUnit(source) {
   return { patent: '条专利', paper: '篇论文', policy: '件政策', internal: '条内部知识' }[source]
 }
-function saveResearchEvidence(panel) {
-  savedResearchPanel.value = panel
-}
-function savePatentToKnowledge(item) {
-  savedPatentCodes.value = new Set([...savedPatentCodes.value, item.code])
-  ui.notify('已收藏至个人知识库', 'success')
-}
-function downloadPatentInformation(item) {
-  const content = [
-    `专利名称：${item.title}`,
-    `公开（公告）号：${item.code}`,
-    `法律状态：${item.legalStatus}`,
-    `当前申请人/权利人：${item.assignee}`,
-    `技术分类：${item.classifications.join('、')}`,
-    `申请日：${item.filingDate}`,
-    `公开日：${item.publicationDate}`,
-    ...(patentPreviewAbstract(item) ? ['', `${patentPreviewLabel(item)}：${patentPreviewAbstract(item)}`] : []),
-  ].join('\r\n')
-  const url = URL.createObjectURL(new Blob(['\ufeff', content], { type: 'text/plain;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${item.code}-专利信息.txt`
-  document.body.append(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  ui.notify('已下载专利信息', 'success')
-}
 function patentPreviewAbstract(item) {
-  return patentAbstractByCode[item.code] || item.abstract || ''
+  return item.abstract || patentAbstractByCode[item.code] || ''
+}
+function researchExcerpt(item) {
+  return item.abstract || item.excerpt || ''
 }
 function patentPreviewLabel(item) {
   return patentPreviewAbstract(item) ? '专利摘要' : '专利信息'
@@ -724,8 +983,8 @@ function patentPreviewLabel(item) {
 function showPatentPreview(item, type, event) {
   window.clearTimeout(patentPreviewCloseTimer)
   const rect = event.currentTarget.getBoundingClientRect()
-  const width = type === 'title' ? 420 : 328
-  const height = type === 'title' ? 390 : 224
+  const width = type === 'paper-title' ? 460 : type === 'title' ? 420 : 328
+  const height = type === 'paper-title' ? 370 : type === 'title' ? 390 : 224
   const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16)
   const top = rect.bottom + height + 10 <= window.innerHeight
     ? rect.bottom + 10
@@ -738,12 +997,38 @@ function schedulePatentPreviewClose() {
 function keepPatentPreviewOpen() {
   window.clearTimeout(patentPreviewCloseTimer)
 }
+function showThemeTopicPreview(topic, index, event) {
+  window.clearTimeout(themeTopicPreviewCloseTimer)
+  const rect = event.currentTarget.getBoundingClientRect()
+  const width = Math.min(420, window.innerWidth - 32)
+  const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16)
+  const top = rect.bottom + 8 <= window.innerHeight - 104
+    ? rect.bottom + 8
+    : Math.max(16, rect.top - 100)
+  themeTopicPreview.value = { topic, index, left, top }
+}
+function scheduleThemeTopicPreviewClose() {
+  themeTopicPreviewCloseTimer = window.setTimeout(() => { themeTopicPreview.value = null }, 80)
+}
+function showPointTopicPreview(point, index, event) {
+  window.clearTimeout(pointTopicPreviewCloseTimer)
+  const rect = event.currentTarget.getBoundingClientRect()
+  const width = Math.min(420, window.innerWidth - 32)
+  const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16)
+  const top = rect.bottom + 8 <= window.innerHeight - 104
+    ? rect.bottom + 8
+    : Math.max(16, rect.top - 100)
+  pointTopicPreview.value = { point, index, left, top }
+}
+function schedulePointTopicPreviewClose() {
+  pointTopicPreviewCloseTimer = window.setTimeout(() => { pointTopicPreview.value = null }, 80)
+}
 const selectedEvidenceCount = computed(() => [
   ...patentTopicItems.value,
   ...Object.entries(themeEvidence).filter(([source]) => source !== 'patent' && source !== 'paper').flatMap(([, items]) => items),
-  ...paperTopicEvidence.flatMap((topic) => topic.items),
-  ...pointPatentEvidenceIndex.flatMap((index) => pointPatentEvidence[index].items),
-  ...pointPaperEvidenceIndex.flatMap((index) => pointPaperEvidence[index].items),
+  ...retrievedPaperTopicEvidence.flatMap((topic) => topic.items),
+  ...retrievedPointPatentEvidence.flatMap((topic) => topic.items),
+  ...retrievedPointPaperEvidence.flatMap((topic) => topic.items),
   ...pointEvidence.flatMap((group) => [...group.policy, ...group.internal]),
   ...policyEvidence,
 ].filter((item) => item.selected).length)
@@ -752,14 +1037,37 @@ watch(stage, (value) => {
   const index = stages.indexOf(value)
   if (index >= 0) workflowMax.value = Math.max(workflowMax.value, index + 1)
   if (value === 'project') syncProjectTextareaHeights()
+  if (value === 'analysis') syncAnalysisTextareaHeights()
+  if (value === 'research') {
+    window.scrollTo(0, 0)
+    syncResearchPageScrollRange()
+  } else {
+    researchScrollRange.value = 0
+  }
 }, { immediate: true })
-
+watch(reportWorkflowNavCollapsed, (collapsed) => {
+  try {
+    window.localStorage.setItem(reportWorkflowNavStorageKey, String(collapsed))
+  } catch {
+    // 浏览器禁止本地存储时，仅保留当前会话状态。
+  }
+  if (stage.value === 'project') syncProjectTextareaHeights()
+})
+watch([selectedReportScope, activeReportVersion, selectedReviewTemplate], ([scope, active, template]) => {
+  try {
+    window.localStorage.setItem(reportVersionStorageKey, JSON.stringify({ scope, active, template }))
+  } catch {
+    // 浏览器禁止本地存储时，仅保留当前会话状态。
+  }
+})
 function syncProjectTextareaHeights() {
   nextTick(() => {
-    document.querySelectorAll('.inn-project-confirm-item textarea').forEach((textarea) => {
+    const resizeAll = () => document.querySelectorAll('.inn-project-identity textarea, .inn-project-confirm-item textarea, .inn-project-objectives textarea, .inn-project-source-item textarea, .inn-project-source-target-grid textarea, .inn-project-details textarea').forEach((textarea) => {
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
     })
+    resizeAll()
+    window.requestAnimationFrame(resizeAll)
   })
 }
 function autoResizeProjectTextarea(event) {
@@ -767,18 +1075,115 @@ function autoResizeProjectTextarea(event) {
   textarea.style.height = 'auto'
   textarea.style.height = `${textarea.scrollHeight}px`
 }
+function resizeAnalysisTextarea(textarea) {
+  textarea.style.height = 'auto'
+  textarea.style.height = `${Math.ceil(textarea.scrollHeight) + 2}px`
+}
+function syncAnalysisTextareaHeights() {
+  nextTick(() => {
+    const resizeAll = () => document.querySelectorAll('.inn-wf-card-analysis textarea').forEach(resizeAnalysisTextarea)
+    resizeAll()
+    window.requestAnimationFrame(resizeAll)
+  })
+}
+function autoResizeAnalysisTextarea(event) {
+  resizeAnalysisTextarea(event.target)
+}
+function researchScrollArea() {
+  return document.querySelector('.inn-wf-card-research .inn-wf-research-page')
+}
+function syncResearchContentScroll() {
+  if (stage.value !== 'research') return
+  const area = researchScrollArea()
+  if (!area) return
+  area.scrollTop = Math.min(window.scrollY, Math.max(0, area.scrollHeight - area.clientHeight))
+}
+function syncResearchPageScrollRange() {
+  nextTick(() => {
+    if (stage.value !== 'research') return
+    const area = researchScrollArea()
+    if (!area) return
+    researchScrollRange.value = Math.max(0, area.scrollHeight - area.clientHeight + 2)
+    syncResearchContentScroll()
+  })
+}
+watch(projectKeyMetrics, (metrics) => {
+  profile.breakthroughs = metrics.map((metric) => `${metric.label}：${metric.current} 至 ${metric.target}`).join('；')
+}, { deep: true })
+watch([researchPanel, themeSource, pointSource, patentTopicTab, pointTab, themePage, pointPage, themeExpanded, pointExpanded, researchViewMode], syncResearchPageScrollRange)
+function focusLatestAnalysisField(selector) {
+  nextTick(() => {
+    syncAnalysisTextareaHeights()
+    const fields = document.querySelectorAll(selector)
+    fields[fields.length - 1]?.focus()
+  })
+}
+function addAnalysisTopic() {
+  const index = scopeTopics.value.length
+  scopeTopics.value.push('')
+  themeAnalysisDetails.push({ description: '' })
+  patentTopicEvidence.push({ id: `custom-topic-${index + 1}`, total: '0', items: [] })
+  paperTopicEvidence.push({ id: `custom-topic-${index + 1}`, total: '0', items: [] })
+  focusLatestAnalysisField('.inn-analysis-topic-card > header textarea')
+}
+function addInnovationPoint() {
+  const index = scopePoints.value.length
+  scopePoints.value.push('')
+  innovationAnalysisDetails.push({ description: '' })
+  pointTotals.push({ patent: '0', paper: '0', policy: '0', internal: '0' })
+  pointEvidence.push({ patent: [], paper: [], policy: [], internal: [] })
+  pointPatentEvidenceIndex.push(pointPatentEvidence.length)
+  pointPatentEvidence.push({ total: '0', items: [] })
+  pointPaperEvidenceIndex.push(pointPaperEvidence.length)
+  pointPaperEvidence.push({ total: '0', items: [] })
+  focusLatestAnalysisField('.inn-analysis-point-title textarea')
+}
+function addInnovationBranchTag() {
+  innovationBranchTags.value.push('')
+  focusLatestAnalysisField('.inn-analysis-tag-editor input')
+}
+function removeInnovationBranchTag(index) {
+  innovationBranchTags.value.splice(index, 1)
+}
+function normalizeInnovationBranchTag(index) {
+  const tag = innovationBranchTags.value[index]?.trim()
+  if (!tag) {
+    removeInnovationBranchTag(index)
+    return
+  }
+  const duplicateIndex = innovationBranchTags.value.findIndex((item, itemIndex) => itemIndex !== index && item === tag)
+  if (duplicateIndex !== -1) {
+    innovationBranchTags.value.splice(index, 1)
+    return
+  }
+  innovationBranchTags.value[index] = tag
+}
 onMounted(() => {
   window.addEventListener('resize', syncProjectTextareaHeights)
+  window.addEventListener('resize', syncAnalysisTextareaHeights)
+  window.addEventListener('resize', syncResearchPageScrollRange)
+  window.addEventListener('scroll', syncResearchContentScroll, { passive: true })
   syncProjectTextareaHeights()
+  syncAnalysisTextareaHeights()
+  syncResearchPageScrollRange()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncProjectTextareaHeights)
+  window.removeEventListener('resize', syncAnalysisTextareaHeights)
+  window.removeEventListener('resize', syncResearchPageScrollRange)
+  window.removeEventListener('scroll', syncResearchContentScroll)
   window.clearTimeout(patentPreviewCloseTimer)
+  window.clearTimeout(themeTopicPreviewCloseTimer)
+  window.clearTimeout(pointTopicPreviewCloseTimer)
 })
 
 function move(next) {
   const mode = route.params.mode === 'admin' ? 'admin' : 'researcher'
-  router.push(`/innovation/${mode}/${next}`)
+  router.push({ path: `/innovation/${mode}/${next}`, query: route.query })
+}
+function navigateResearchPanel(panel) {
+  const mode = route.params.mode === 'admin' ? 'admin' : 'researcher'
+  router.push({ path: `/innovation/${mode}/research`, query: { ...route.query, panel } })
 }
 function selectFile(event) {
   const file = event.target.files?.[0]
@@ -787,33 +1192,212 @@ function selectFile(event) {
 }
 function useTemplate() {
   Object.assign(profile, originalProfile)
+  projectKeyMetrics.splice(0, projectKeyMetrics.length, ...originalProjectKeyMetrics.map((metric) => ({ ...metric })))
   uploadedFile.value = { name: `${originalProfile.name}.docx`, size: '约 0.2 MB' }
 }
 function removeFile() { uploadedFile.value = null }
 function startFile() {
   if (!uploadedFile.value) return ui.notify('请先上传立项建议书或导入范本文件', 'warning')
+  resetReportGeneration()
   move('project')
 }
+const manualFieldLabels = [
+  '项目名称', '课题名称', '技术领域', '所属领域', '行业领域', '项目实施地点', '实施地点', '应用场景', '实施场景', '研究场景',
+  '项目背景和关键问题', '项目背景', '问题背景', '核心技术问题', '关键问题', '技术问题',
+  '总体技术路线', '技术路线', '研究方案', '预期指标', '技术指标', '预期效果', '预期成果', '交付成果',
+]
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+function extractManualField(text, labels) {
+  const escapedLabels = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const fieldBoundary = manualFieldLabels.map(escapeRegExp).join('|')
+  const match = text.match(new RegExp(`(?:^|\\n)\\s*(?:${escapedLabels})\\s*[：:]\\s*([\\s\\S]*?)(?=\\n\\s*(?:${fieldBoundary})\\s*[：:]|$)`, 'i'))
+  return match?.[1].trim() || ''
+}
+function parseManualProposalText(text) {
+  const content = text.trim()
+  const paragraphs = content.split(/\n\s*\n|\r?\n/).map((item) => item.trim()).filter(Boolean)
+  Object.keys(originalProfile).forEach((key) => { profile[key] = '' })
+  const fieldMap = [
+    ['name', ['项目名称', '课题名称']],
+    ['field', ['技术领域', '所属领域', '行业领域']],
+    ['scenario', ['项目实施地点', '实施地点', '应用场景', '实施场景', '研究场景']],
+    ['manifestations', ['项目背景和关键问题', '项目背景', '问题背景']],
+    ['issue', ['项目背景和关键问题', '核心技术问题', '关键问题', '技术问题']],
+    ['solution', ['总体技术路线', '技术路线', '研究方案']],
+    ['breakthroughs', ['预期指标', '技术指标', '预期效果']],
+    ['outputs', ['预期成果', '交付成果']],
+  ]
+  fieldMap.forEach(([key, labels]) => {
+    const value = extractManualField(content, labels)
+    if (value) profile[key] = value
+  })
+  const findParagraph = (pattern) => paragraphs.find((paragraph) => pattern.test(paragraph)) || ''
+  if (!profile.name) profile.name = (paragraphs[0] || content).slice(0, 80)
+  if (!profile.issue) profile.issue = findParagraph(/问题|难题|挑战|制约/) || paragraphs[1] || content
+  if (!profile.solution) profile.solution = findParagraph(/方案|路线|采用|通过/) || paragraphs[2] || ''
+  if (!profile.breakthroughs) profile.breakthroughs = findParagraph(/目标|指标|提升|降低|成果/) || paragraphs[3] || ''
+  if (!profile.manifestations) profile.manifestations = content
+}
 function startManual() {
-  if (!profile.name.trim()) return ui.notify('请填写项目名称', 'warning')
+  if (!manualProposalText.value.trim()) return ui.notify('请粘贴项目材料', 'warning')
+  parseManualProposalText(manualProposalText.value)
+  uploadedFile.value = { name: '手动录入项目材料', size: `${manualProposalText.value.trim().length.toLocaleString()} 字` }
+  resetReportGeneration()
   move('project')
 }
 function nextStage() {
+  if (stage.value === 'research' && researchPanel.value === 'theme') {
+    researchPanel.value = 'point'
+    return
+  }
+  if (stage.value === 'research' && researchPanel.value === 'point' && isReviewer.value && !reportGenerated.value) {
+    reportSelectionOpen.value = true
+    return
+  }
   const next = stages[stages.indexOf(stage.value) + 1] || 'report'
   if (stage.value === 'research' && !taskRecorded.value) {
     tasks.addTask('innovation', profile.name, '创新性分析报告')
     taskRecorded.value = true
   }
+  if (next === 'report') markReportGenerated()
   move(next)
 }
-function previousStage() { move(stages[stages.indexOf(stage.value) - 1] || 'upload') }
-function navigateStep(step, index) { if (index + 1 <= workflowMax.value) move(step.id) }
+function confirmReportGeneration() {
+  activeReportVersion.value = selectedReportScope.value === 'review' ? 'review' : 'research'
+  reportSelectionOpen.value = false
+  if (!taskRecorded.value) {
+    tasks.addTask('innovation', profile.name, '创新性分析报告')
+    taskRecorded.value = true
+  }
+  markReportGenerated()
+  move('report')
+}
+function openReportSection(id) {
+  nextTick(() => {
+    const target = document.getElementById(`innovation-report-${id}`) || document.getElementById(id)
+    const documentPanel = target?.closest('.inn-vue-report-document')
+    if (!target || !documentPanel) return
+
+    const targetOffset = target.getBoundingClientRect().top - documentPanel.getBoundingClientRect().top
+    documentPanel.scrollTo({
+      top: documentPanel.scrollTop + targetOffset - 16,
+      behavior: 'smooth',
+    })
+  })
+}
+function previousStage() {
+  if (stage.value === 'research' && researchPanel.value === 'point') {
+    navigateResearchPanel('theme')
+    return
+  }
+  move(stages[stages.indexOf(stage.value) - 1] || 'upload')
+}
+function isWorkflowStepDone(item, index) {
+  return index + 1 < workflowMax.value || (item.id === 'report' && reportGenerated.value && stage.value !== 'report')
+}
+function navigateStep(step, index) {
+  if (step.id === 'report' && reportGenerated.value) {
+    workflowMax.value = Math.max(workflowMax.value, stages.length)
+    move('report')
+    return
+  }
+  if (index + 1 <= workflowMax.value) move(step.id)
+}
+function openGeneratedReport(version) {
+  if (!reportGenerated.value) return
+  activeReportVersion.value = version
+  workflowMax.value = Math.max(workflowMax.value, stages.length)
+  move('report')
+}
 function selectAll(items, selected) { items.forEach((item) => { item.selected = selected }) }
+function openResearchAddModal(panel) {
+  researchAddPanel.value = panel
+  researchAddSource.value = panel === 'theme' ? themeSource.value : pointSource.value
+  researchAddTopicIndex.value = panel === 'theme' ? patentTopicTab.value : pointTab.value
+  researchAddQuery.value = researchAddScopeName(panel, researchAddTopicIndex.value)
+  researchAddSearched.value = true
+  researchAddSelectedIds.value = []
+  researchAddOrder.value = []
+  researchAddModal.value = true
+}
+function closeResearchAddModal() {
+  researchAddModal.value = false
+}
+function searchResearchAdd() {
+  if (!researchAddQuery.value.trim()) {
+    ui.notify('请输入检索内容', 'warning')
+    return
+  }
+  researchAddSearched.value = true
+}
+function toggleResearchAddCandidate(id) {
+  const selected = new Set(researchAddSelectedIds.value)
+  if (selected.has(id)) {
+    selected.delete(id)
+    researchAddOrder.value = researchAddOrder.value.filter((selectedId) => selectedId !== id)
+  } else {
+    selected.add(id)
+    researchAddOrder.value = [...researchAddOrder.value, id]
+  }
+  researchAddSelectedIds.value = [...selected]
+}
+function addResearchSelections() {
+  const selection = researchAddSelection.value
+  if (!selection.length) {
+    ui.notify(`请选择要新增的${sourceMeta[researchAddSource.value].label}`, 'warning')
+    return
+  }
+  const contextKey = researchAddKey()
+  const source = researchAddSource.value
+  const panel = researchAddPanel.value
+  const index = researchAddTopicIndex.value
+  const targetItems = researchAddTargetItems(panel, source, index)
+  const existingIdentities = new Set(targetItems.map(researchAddCandidateIdentity))
+  const additions = selection
+    .filter((item) => !existingIdentities.has(item.candidateIdentity))
+    .map((item, additionIndex) => ({
+      ...item,
+      id: `manual-${contextKey}-${item.code || item.identifier || item.candidateIdentity || additionIndex}`,
+      manualSourceIdentity: item.candidateIdentity,
+      selected: false,
+      manualAdded: true,
+      ...(panel === 'theme' && (source === 'policy' || source === 'internal') ? { topics: [index] } : {}),
+    }))
+  if (!additions.length) {
+    ui.notify('所选资料已在当前列表中', 'warning')
+    return
+  }
+  const nextItems = [...additions, ...targetItems]
+  if (panel === 'theme' && (source === 'policy' || source === 'internal')) {
+    const allItems = themeEvidence[source]
+    const unrelatedItems = allItems.filter((item) => item.topics?.every((topic) => topic !== index))
+    allItems.splice(0, allItems.length, ...nextItems, ...unrelatedItems)
+  } else {
+    const target = panel === 'theme'
+      ? (source === 'patent' ? retrievedPatentTopicEvidence[index] : retrievedPaperTopicEvidence[index])
+      : (source === 'patent' ? retrievedPointPatentEvidence[index] : source === 'paper' ? retrievedPointPaperEvidence[index] : null)
+    if (target) {
+      target.items.splice(0, target.items.length, ...nextItems)
+      target.total = String(target.items.length)
+      if (panel === 'point' && (source === 'patent' || source === 'paper')) {
+        applyAddedItemsToPointTop5(target.items, additions)
+      }
+    } else {
+      targetItems.splice(0, targetItems.length, ...nextItems)
+      researchAddedCount[contextKey] = (researchAddedCount[contextKey] || 0) + additions.length
+    }
+  }
+  researchAddOrderLocks[contextKey] = true
+  if (panel === 'theme') themePage.value = 1
+  else pointPage.value = 1
+  closeResearchAddModal()
+  ui.notify(`已新增 ${additions.length} 条${sourceMeta[source].label}`, 'success')
+}
 function toggleThemeDetail(id) { themeExpanded.value = themeExpanded.value === id ? '' : id }
 function togglePointDetail(id) { pointExpanded.value = pointExpanded.value === id ? '' : id }
-function toggleProjectEditing() { projectEditing.value = !projectEditing.value }
-function toggleAnalysisEditing() { analysisEditing.value = !analysisEditing.value }
-function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿化度涌水问题研究-立项审查报告》PDF', 'success') }
+function exportReport() { ui.notify(`已生成《${currentReport.value.title}》PDF`, 'success') }
 </script>
 
 <template>
@@ -829,17 +1413,10 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
             <label v-else class="inn-simple-dropzone is-file-selected"><input type="file" accept=".doc,.docx" @change="selectFile" /><span class="inn-simple-selected-file-icon"><FileText :size="27" /></span><b>{{ uploadedFile.name }}</b><small>立项建议书　·　{{ uploadedFile.size }}　·　点击更换文件</small></label>
             <button v-if="!uploadedFile" class="inn-simple-template-link" type="button" @click="useTemplate">导入范本文件</button>
           </template>
-          <div v-else class="inn-simple-manual">
-            <div class="inn-simple-fields">
-              <label class="inn-simple-field wide"><span>项目名称 <i>*</i></span><input v-model="profile.name" placeholder="请输入项目名称" /></label>
-              <label class="inn-simple-field"><span>技术领域</span><input v-model="profile.field" placeholder="例如：矿井水资源化" /></label>
-              <label class="inn-simple-field"><span>应用场景</span><input v-model="profile.scenario" placeholder="例如：深部煤矿" /></label>
-              <label class="inn-simple-field wide"><span>核心技术问题</span><textarea v-model="profile.issue" placeholder="请输入待解决的核心技术问题" /></label>
-              <label class="inn-simple-field wide"><span>总体技术路线</span><textarea v-model="profile.solution" placeholder="请输入研究方案或总体技术路线" /></label>
-              <label class="inn-simple-field wide"><span>预期指标</span><textarea v-model="profile.breakthroughs" placeholder="请输入主要指标或预期效果" /></label>
-            </div>
-            <footer class="inn-simple-manual-footer"><button class="primary-btn inn-simple-start" type="button" @click="startManual">开始分析</button></footer>
-          </div>
+          <section v-else class="inn-simple-manual-dialog">
+            <label class="inn-simple-manual-input" for="innovation-manual-input"><span>项目材料</span><textarea id="innovation-manual-input" v-model="manualProposalText" autofocus :placeholder="manualProposalPlaceholder" /></label>
+            <footer><span>{{ manualProposalText.trim().length.toLocaleString() }} 字</span><button class="primary-btn inn-simple-start" type="button" :disabled="!manualProposalText.trim()" @click="startManual">解析并开始分析</button></footer>
+          </section>
         </div>
         <footer v-if="inputMode === 'file' && uploadedFile" class="inn-simple-upload-continue"><button class="inn-simple-clear" type="button" @click="removeFile">移除文件</button><button class="primary-btn inn-simple-start" type="button" @click="startFile">开始分析</button></footer>
       </div>
@@ -848,67 +1425,85 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
     <section v-else class="inn-wf-shell">
       <div class="inn-wf-layout" :class="{ 'report-flow-collapsed': reportWorkflowNavCollapsed }">
         <aside class="inn-wf-nav" :class="{ collapsed: reportWorkflowNavCollapsed }">
-          <h1 v-show="!reportWorkflowNavCollapsed">创新性分析</h1>
-          <button class="inn-wf-nav-collapse" :aria-label="reportWorkflowNavCollapsed ? '展开流程导航' : '收起流程导航'" :title="reportWorkflowNavCollapsed ? '展开流程导航' : '收起流程导航'" type="button" @click="reportWorkflowNavCollapsed = !reportWorkflowNavCollapsed">{{ reportWorkflowNavCollapsed ? '›' : '‹' }}</button>
+          <h1><span>创新性分析</span><small>{{ workflowSteps[currentStageIndex]?.label }}</small></h1>
+          <button class="inn-wf-nav-collapse" :aria-expanded="!reportWorkflowNavCollapsed" :aria-label="reportWorkflowNavCollapsed ? '展开流程导航' : '收起流程导航'" :title="reportWorkflowNavCollapsed ? '展开流程导航' : '收起流程导航'" type="button" @click="reportWorkflowNavCollapsed = !reportWorkflowNavCollapsed"><span aria-hidden="true">{{ reportWorkflowNavCollapsed ? '›' : '‹' }}</span></button>
           <div v-show="!reportWorkflowNavCollapsed">
             <template v-for="(item, index) in workflowSteps" :key="item.id">
-              <button :class="{ active: stage === item.id, done: index + 1 < workflowMax }" :disabled="index + 1 > workflowMax" type="button" @click="navigateStep(item, index)">
-                <i>{{ index + 1 < workflowMax ? '✓' : index + 1 }}</i>
+              <button :class="{ active: stage === item.id, done: isWorkflowStepDone(item, index) }" :disabled="index + 1 > workflowMax && !(item.id === 'report' && reportGenerated)" type="button" @click="navigateStep(item, index)">
+                <i>{{ isWorkflowStepDone(item, index) ? '✓' : index + 1 }}</i>
                 <span>{{ item.label }}</span>
               </button>
-              <nav v-if="item.id === 'research' && (stage === 'research' || stage === 'report')" class="inn-wf-subnav" aria-label="资料检索分类">
-                <button type="button" :class="{ active: stage === 'research' && researchPanel === 'theme' }" @click="researchPanel = 'theme'">技术主题资料</button>
-                <button type="button" :class="{ active: stage === 'research' && researchPanel === 'point' }" @click="researchPanel = 'point'">创新点资料</button>
+              <nav v-if="item.id === 'research' && (stage === 'research' || stage === 'report')" class="inn-wf-subnav" aria-label="数据检索步骤">
+                <button type="button" :class="{ active: stage === 'research' && researchPanel === 'theme', done: stage === 'report' || (stage === 'research' && researchPanel === 'point') }" :aria-current="stage === 'research' && researchPanel === 'theme' ? 'step' : undefined" @click="navigateResearchPanel('theme')"><i aria-hidden="true">{{ stage === 'report' || (stage === 'research' && researchPanel === 'point') ? '✓' : '01' }}</i><span class="inn-wf-subnav-label"><b>技术主题</b><b>相关数据</b></span></button>
+                <button type="button" :class="{ active: stage === 'research' && researchPanel === 'point', done: stage === 'report' }" :aria-current="stage === 'research' && researchPanel === 'point' ? 'step' : undefined" @click="navigateResearchPanel('point')"><i aria-hidden="true">{{ stage === 'report' ? '✓' : '02' }}</i><span class="inn-wf-subnav-label"><b>创新点</b><b>相关数据</b></span></button>
+              </nav>
+              <nav v-if="item.id === 'report' && reportGenerated && showReportVersions" class="inn-wf-subnav inn-wf-report-version-nav" aria-label="报告版本">
+                <button v-for="report in reportVersionOptions" :key="report.id" type="button" :class="{ active: activeReportVersion === report.id, done: reportGenerated }" :aria-current="activeReportVersion === report.id ? 'page' : undefined" @click="openGeneratedReport(report.id)"><i aria-hidden="true">{{ reportGenerated ? '✓' : (report.id === 'research' ? '研' : '评') }}</i><span class="inn-wf-subnav-label"><b>{{ report.id === 'research' ? '研发版' : '评审版' }}</b><b>分析报告</b></span></button>
               </nav>
             </template>
           </div>
         </aside>
         <main class="inn-wf-main">
-          <article class="inn-wf-card" :class="[`inn-wf-card-${stage}`, { 'is-project-editing': stage === 'project' && projectEditing, 'is-analysis-editing': stage === 'analysis' && analysisEditing }]">
-            <header v-if="stage !== 'report'" class="inn-wf-stage-header">
-              <div class="inn-wf-stage-copy"><span>当前环节</span><h2>{{ stageInfo.title }}</h2><p v-if="stageInfo.description">{{ stageInfo.description }}</p></div>
-              <button v-if="stage === 'project'" class="inn-project-edit-toggle" :aria-pressed="projectEditing" type="button" @click="toggleProjectEditing">{{ projectEditing ? '完成' : '编辑' }}</button>
-              <div v-else-if="stage === 'analysis'" class="inn-analysis-header-actions"><dl class="inn-wf-stage-metrics"><div v-for="metric in stageInfo.metrics" :key="metric.label"><dt>{{ metric.label }}</dt><dd>{{ metric.value }}</dd></div></dl><button class="inn-project-edit-toggle inn-analysis-edit-toggle" :aria-pressed="analysisEditing" type="button" @click="toggleAnalysisEditing">{{ analysisEditing ? '完成' : '编辑' }}</button></div>
-              <dl v-else-if="stage !== 'research'" class="inn-wf-stage-metrics"><div v-for="metric in stageInfo.metrics" :key="metric.label"><dt>{{ metric.label }}</dt><dd>{{ metric.value }}</dd></div></dl>
-            </header>
+          <article class="inn-wf-card" :class="[`inn-wf-card-${stage}`, { 'is-project-editing': stage === 'project' }]">
             <section v-if="stage === 'project'" class="inn-wf-section inn-wf-project-page">
               <section class="inn-project-overview">
                 <header class="inn-project-section-head"><span>项目概览</span></header>
-                <div class="inn-project-overview-fields">
-                  <label class="inn-wf-field"><span>项目名称</span><input v-model="profile.name" :readonly="!projectEditing" /></label>
-                  <label class="inn-wf-field"><span>行业领域</span><input v-model="profile.field" :readonly="!projectEditing" /></label>
+                <div class="inn-project-identity">
+                  <label class="inn-wf-field inn-project-name-field"><span>项目名称</span><textarea v-model="profile.name" rows="1" @input="autoResizeProjectTextarea" /></label>
+                  <label class="inn-wf-field inn-project-meta-field inn-project-region-field"><span>示范区域</span><textarea v-model="profile.scenario" rows="1" @input="autoResizeProjectTextarea" /></label>
+                  <label class="inn-wf-field inn-project-meta-field inn-project-direction-field"><span>研究方向</span><textarea v-model="profile.field" rows="1" @input="autoResizeProjectTextarea" /></label>
                 </div>
                 <div class="inn-project-confirm-grid">
-                  <label class="inn-wf-field inn-project-confirm-item"><span>关键问题</span><textarea v-model="profile.issue" :readonly="!projectEditing" rows="3" @input="autoResizeProjectTextarea" /></label>
-                  <label class="inn-wf-field inn-project-confirm-item inn-project-route-item"><span>技术路线</span><textarea v-model="profile.solution" :readonly="!projectEditing" rows="4" @input="autoResizeProjectTextarea" /></label>
+                  <label class="inn-wf-field inn-project-confirm-item"><span>拟解决的关键技术问题</span><textarea v-model="profile.issue" rows="3" @input="autoResizeProjectTextarea" /></label>
+                  <label class="inn-wf-field inn-project-confirm-item inn-project-route-item"><span>技术路线</span><textarea v-model="profile.solution" rows="4" @input="autoResizeProjectTextarea" /></label>
                 </div>
               </section>
 
-              <section class="inn-project-targets">
-                <header class="inn-project-section-head"><span>关键目标与指标</span></header>
-                <div class="inn-project-target-grid"><article v-for="(metric, index) in projectMetricTargets" :key="index"><input v-model="metric.label" :readonly="!projectEditing" aria-label="指标名称" /><div><small>当前</small><input v-model="metric.current" :readonly="!projectEditing" aria-label="当前值" /></div><div><small>目标</small><input v-model="metric.target" :readonly="!projectEditing" aria-label="目标值" /></div></article></div>
-              </section>
-
-              <section class="inn-project-details-shell" :class="{ 'is-expanded': projectDetailsExpanded }">
-                <button class="inn-project-details-toggle" type="button" @click="projectDetailsExpanded = !projectDetailsExpanded"><span><b>补充信息</b></span><em>{{ projectDetailsExpanded ? '收起' : '展开' }}</em></button>
-                <div v-if="projectDetailsExpanded" class="inn-project-details">
-                  <label class="inn-wf-field"><span>完整技术指标说明</span><textarea v-model="profile.breakthroughs" :readonly="!projectEditing" rows="3" /></label>
-                  <label class="inn-wf-field"><span>项目预期交付成果</span><textarea v-model="profile.outputs" :readonly="!projectEditing" rows="3" /></label>
-                  <label class="inn-wf-field"><span>问题背景与具体表现</span><textarea v-model="profile.manifestations" :readonly="!projectEditing" rows="4" /></label>
-                  <label class="inn-wf-field"><span>技术体系与方案特点</span><textarea v-model="profile.features" :readonly="!projectEditing" rows="4" /></label>
+              <section class="inn-project-objectives">
+                <header class="inn-project-section-head"><span>预期指标与成果</span></header>
+                <div class="inn-project-target-grid" aria-label="预期指标">
+                  <article v-for="(metric, metricIndex) in projectKeyMetrics" :key="metricIndex">
+                    <input class="inn-project-target-name" v-model="metric.label" aria-label="指标名称" />
+                    <div class="inn-project-target-current"><small>立项时</small><input v-model="metric.current" aria-label="立项时指标" /></div>
+                    <div class="inn-project-target-result"><small>预期完成</small><input v-model="metric.target" aria-label="预期完成指标" /></div>
+                  </article>
                 </div>
+                <label class="inn-wf-field inn-project-deliverables"><span>预期成果</span><textarea v-model="profile.outputs" rows="2" @input="autoResizeProjectTextarea" /></label>
               </section>
             </section>
 
             <section v-else-if="stage === 'analysis'" class="inn-wf-section inn-wf-analysis-page">
               <section class="inn-analysis-section">
-                <header class="inn-analysis-section-head"><span>研究技术主题</span></header>
-                <div class="inn-analysis-topic-grid"><article v-for="(detail, index) in themeAnalysisDetails" :key="`topic-${index}`" class="inn-analysis-topic-card"><header><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea v-if="analysisEditing" v-model="scopeTopics[index]" rows="1" /><strong v-else class="inn-analysis-readonly-title">{{ scopeTopics[index] }}</strong></div></header><label><span>核心技术词</span><textarea v-if="analysisEditing" v-model="detail.keywords" rows="2" /><p v-else class="inn-analysis-readonly-copy">{{ detail.keywords }}</p></label></article></div>
+                <header class="inn-analysis-section-head">
+                  <span>研究技术主题</span>
+                  <div class="inn-analysis-section-actions">
+                    <button class="inn-analysis-add" type="button" @click="addAnalysisTopic"><Plus :size="15" />新增技术主题</button>
+                  </div>
+                </header>
+                <div class="inn-analysis-topic-grid">
+                  <article v-for="(topic, index) in scopeTopics" :key="`topic-${index}`" class="inn-analysis-topic-card" :class="{ 'is-empty': !topic.trim() }">
+                    <header><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea v-model="scopeTopics[index]" rows="1" placeholder="输入技术主题" @input="autoResizeAnalysisTextarea" /></div></header>
+                    <textarea v-model="themeAnalysisDetails[index].description" rows="4" placeholder="输入技术主题详情" @input="autoResizeAnalysisTextarea" />
+                  </article>
+                </div>
               </section>
 
               <section class="inn-analysis-section">
-                <header class="inn-analysis-section-head"><span>创新点确认</span></header>
-                <div class="inn-analysis-point-list"><article v-for="(detail, index) in innovationAnalysisDetails" :key="`point-${index}`" class="inn-analysis-point-card"><header><div class="inn-analysis-point-title"><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea v-if="analysisEditing" v-model="scopePoints[index]" rows="1" /><strong v-else class="inn-analysis-readonly-title">{{ scopePoints[index] }}</strong></div></div></header><div class="inn-analysis-point-body"><label class="inn-analysis-point-primary"><span>技术方案</span><textarea v-if="analysisEditing" v-model="detail.scheme" rows="2" /><p v-else class="inn-analysis-readonly-copy">{{ detail.scheme }}</p></label><label class="inn-analysis-point-differentiation"><span>差异化要点</span><textarea v-if="analysisEditing" v-model="detail.differentiation" rows="2" /><p v-else class="inn-analysis-readonly-copy">{{ detail.differentiation }}</p></label></div></article></div>
+                <header class="inn-analysis-section-head"><span>创新技术点</span><button class="inn-analysis-add" type="button" @click="addInnovationPoint"><Plus :size="15" />新增创新点</button></header>
+                <div class="inn-analysis-point-list">
+                  <article v-for="(point, index) in scopePoints" :key="`point-${index}`" class="inn-analysis-point-card" :class="{ 'is-empty': !point.trim() }">
+                    <header><div class="inn-analysis-point-title"><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea v-model="scopePoints[index]" rows="1" placeholder="输入创新技术点" @input="autoResizeAnalysisTextarea" /></div></div></header>
+                    <textarea v-model="innovationAnalysisDetails[index].description" rows="5" placeholder="输入创新点详情" @input="autoResizeAnalysisTextarea" />
+                  </article>
+                </div>
+                <section class="inn-analysis-tag-panel" aria-label="技术标签">
+                  <header><div class="inn-analysis-tag-heading"><span>技术标签</span><small>{{ innovationBranchTags.length }} 项</small></div><button class="inn-analysis-add" type="button" @click="addInnovationBranchTag"><Plus :size="15" />新增标签</button></header>
+                  <div class="inn-analysis-branch-tags">
+                    <template v-for="(tag, index) in innovationBranchTags" :key="`branch-tag-${index}`">
+                      <label class="inn-analysis-tag-editor"><input v-model="innovationBranchTags[index]" :aria-label="`技术标签 ${index + 1}`" @blur="normalizeInnovationBranchTag(index)" /><button type="button" :aria-label="`删除标签 ${tag}`" @click="removeInnovationBranchTag(index)"><X :size="15" /></button></label>
+                    </template>
+                  </div>
+                </section>
               </section>
             </section>
 
@@ -920,35 +1515,54 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
 
             <section v-if="stage === 'research'" class="inn-wf-section inn-wf-research-page">
 
-              <section v-if="researchPanel === 'theme'" class="inn-wf-point-recall">
+              <section v-if="researchPanel === 'theme'" class="inn-wf-point-recall" :class="`is-${themeSource}`">
                 <nav class="inn-wf-point-tabs inn-patent-topic-tabs">
-                  <button v-for="(topic, index) in patentTopicEvidence" :key="topic.id" :class="{ active: patentTopicTab === index }" type="button" @click="patentTopicTab = index; themeExpanded = ''; themePage = 1"><span class="inn-patent-topic-title">{{ topic.title }}</span></button>
+                  <button v-for="(topic, index) in retrievedPatentTopicEvidence" :key="topic.id || index" :class="{ active: patentTopicTab === index }" type="button" :aria-describedby="themeTopicPreview?.index === index ? `technology-topic-preview-${index}` : undefined" @mouseenter="showThemeTopicPreview(scopeTopics[index], index, $event)" @mouseleave="scheduleThemeTopicPreviewClose" @focus="showThemeTopicPreview(scopeTopics[index], index, $event)" @blur="scheduleThemeTopicPreviewClose" @click="patentTopicTab = index; themeExpanded = ''; themePage = 1"><span class="inn-patent-topic-title">{{ scopeTopics[index] }}</span></button>
                 </nav>
                 <header class="inn-recall-controls">
                   <nav class="inn-recall-type-tabs">
-                    <button v-for="source in Object.keys(sourceMeta)" :key="source" :class="{ active: themeSource === source }" type="button" @click="themeSource = source; themeExpanded = ''; savedResearchPanel = ''; themePage = 1"><span>{{ sourceMeta[source].label }}</span></button>
+                    <button v-for="source in Object.keys(sourceMeta)" :key="source" :class="{ active: themeSource === source }" type="button" @click="themeSource = source; themeExpanded = ''; themePage = 1"><span>{{ sourceMeta[source].label }}</span></button>
                   </nav>
-                  <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('theme') }}</strong><b>{{ researchResultUnit(themeSource) }}</b><span v-if="themeSourceIsPaged">第 {{ themePage }} 页，每页 {{ researchPageSize }} 条</span></div>
-                  <div class="inn-recall-list-actions"><button :class="{ saved: savedResearchPanel === 'theme' }" type="button" @click="saveResearchEvidence('theme')">{{ savedResearchPanel === 'theme' ? '已保存' : '保存' }}</button><select v-model="themeSort" aria-label="技术主题资料排序"><option value="relevance">最相关</option><option value="title">按题名</option></select></div>
+                  <div class="inn-recall-toolbar">
+                    <div class="inn-recall-view-switch" role="group" aria-label="切换视图"><span>切换视图</span><button :class="{ active: researchViewMode === 'table' }" type="button" aria-label="表格视图" title="表格视图" :aria-pressed="researchViewMode === 'table'" @click="researchViewMode = 'table'"><Table2 :size="16" /></button><button :class="{ active: researchViewMode === 'card' }" type="button" aria-label="卡片视图" title="卡片视图" :aria-pressed="researchViewMode === 'card'" @click="researchViewMode = 'card'"><LayoutGrid :size="16" /></button></div>
+                    <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('theme') }}</strong><b>{{ researchResultUnit(themeSource) }}</b><span v-if="themeSourceIsPaged">第 {{ themePage }} 页，每页 {{ researchPageSize }} 条</span></div>
+                    <div class="inn-recall-list-actions"><button class="inn-recall-add" type="button" @click="openResearchAddModal('theme')"><Plus :size="16" />新增</button></div>
+                  </div>
                 </header>
-                <section v-if="themeSource === 'patent'" class="inn-patent-topic-list">
-                  <div class="inn-patent-table-wrap"><table class="inn-patent-table"><thead><tr><th></th><th>序号</th><th>相关度</th><th>公开(公告)号</th><th>专利名称</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayThemeItems" :key="item.id"><tr :class="{ 'is-selected': item.selected }"><td><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /></td><td>{{ String(index + 1).padStart(2, '0') }}</td><td><b>{{ item.relevance }}</b></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td class="inn-patent-title-cell"><button class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="toggleThemeDetail(item.id)">{{ item.title }}</button><span class="inn-patent-title-tools"><button :class="{ saved: savedPatentCodes.has(item.code) }" type="button" :aria-label="savedPatentCodes.has(item.code) ? '已收藏到个人知识库' : '收藏到个人知识库'" :title="savedPatentCodes.has(item.code) ? '已收藏到个人知识库' : '收藏到个人知识库'" @click.stop="savePatentToKnowledge(item)"><BookmarkCheck v-if="savedPatentCodes.has(item.code)" :size="14" /><BookmarkPlus v-else :size="14" /></button><button type="button" aria-label="下载到本地" title="下载到本地" @click.stop="downloadPatentInformation(item)"><Download :size="14" /></button></span></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="themeExpanded === item.id" class="inn-patent-table-detail"><td></td><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
+                <section v-if="researchViewMode === 'table' && themeSource === 'patent'" class="inn-patent-topic-list">
+<div class="inn-patent-table-wrap"><table class="inn-patent-table inn-theme-data-table"><thead><tr><th>序号</th><th>专利名称</th><th>公开(公告)号</th><th>相关度</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayThemeItems" :key="item.id"><tr><td>{{ researchDisplayOrder('theme', index) }}</td><td class="inn-patent-title-cell"><a v-if="index < 3 && item.detailUrl" class="inn-patent-title" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="toggleThemeDetail(item.id)">{{ item.title }}</button></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td><b>{{ item.relevance }}</b></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="themeExpanded === item.id" class="inn-patent-table-detail"><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
                 </section>
-                <section v-else-if="themeSource === 'paper'" class="inn-paper-list">
-                  <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-paper-item" :class="{ 'is-selected': item.selected }">
-                    <div class="inn-paper-item-index"><label><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /></label></div>
-                    <div class="inn-paper-item-body"><header><div class="inn-paper-title-row"><b>{{ String(index + 1).padStart(2, '0') }}</b><button type="button" @click="toggleThemeDetail(item.id)"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em></span></button></div><span class="inn-paper-status">{{ item.selected ? '已入选' : '待选择' }}</span></header><dl><div><dt>作者</dt><dd>{{ item.authors }}</dd></div><div><dt>期刊</dt><dd>{{ item.outlet }}</dd></div><div><dt>{{ item.identifierLabel }}</dt><dd>{{ item.identifier }}</dd></div></dl><p><b>摘要</b>{{ item.abstract }}</p><footer><span v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</span></footer><div v-if="themeExpanded === item.id" class="inn-paper-detail"><b>资料定位</b><span>{{ item.outlet }} · {{ item.identifierLabel }} {{ item.identifier }}</span></div></div>
+                <section v-else-if="researchViewMode === 'table'" class="inn-research-table-wrap">
+                  <table :class="['inn-research-table', 'inn-theme-data-table', `is-${themeSource}`]">
+                    <thead><tr><th>序号</th><th>资料名称</th><th v-for="column in researchTableHeaders(themeSource)" :key="column">{{ column }}</th></tr></thead>
+<tbody><template v-for="(item, index) in displayThemeItems" :key="item.id"><tr><td>{{ researchDisplayOrder('theme', index) }}</td><td class="inn-research-table-title"><a v-if="themeSource === 'paper' && index < 3 && item.detailUrl" class="inn-research-table-link" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'paper-title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'paper-title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else type="button" @mouseenter="themeSource === 'paper' && showPatentPreview(item, 'paper-title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="themeSource === 'paper' && showPatentPreview(item, 'paper-title', $event)" @blur="schedulePatentPreviewClose" @click="toggleThemeDetail(item.id)">{{ item.title }}</button><span>{{ researchExcerpt(item) }}</span></td><td v-for="fact in researchTableFacts(themeSource, item, index)" :key="fact.label" :title="fact.value">{{ fact.value }}</td></tr><tr v-if="themeExpanded === item.id" class="inn-research-table-detail"><td :colspan="researchTableHeaders(themeSource).length + 2"><b>摘要</b><span>{{ researchExcerpt(item) }}</span></td></tr></template></tbody>
+                  </table>
+                </section>
+                <section v-else-if="themeSource === 'patent'" class="inn-patent-card-list">
+                  <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-patent-card is-theme">
+<div class="inn-patent-card-body"><header><b class="inn-patent-card-order">{{ researchDisplayOrder('theme', index) }}</b><a v-if="index < 3 && item.detailUrl" class="inn-patent-card-title" :href="item.detailUrl" target="_blank" rel="noopener">{{ item.title }}</a><button v-else class="inn-patent-card-title" type="button" @click="toggleThemeDetail(item.id)">{{ item.title }}</button><b class="inn-patent-card-code">{{ item.code }}</b><em class="inn-patent-card-relevance">{{ item.relevance }}</em><i class="inn-patent-card-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</i></header><p class="inn-patent-card-summary">{{ patentPreviewAbstract(item) || item.match }}</p><footer class="inn-patent-card-facts"><div class="inn-patent-card-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div><div><b :title="item.assignee">{{ item.assignee }}</b></div><time class="is-filing"><small>申请日</small><b>{{ item.filingDate }}</b></time><time class="is-publication"><small>公开日</small><b>{{ item.publicationDate }}</b></time></footer><div v-if="themeExpanded === item.id" class="inn-patent-card-detail"><b>匹配要点</b><span>{{ item.match }}</span></div></div>
                   </article>
                 </section>
-                <section v-else-if="themeSource === 'policy' || themeSource === 'internal'" class="inn-evidence-ledger" :class="`is-${themeSource}`">
-                  <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-evidence-ledger-row" :class="{ 'is-selected': item.selected }">
-                    <label class="inn-evidence-ledger-select"><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /><span>{{ String(index + 1).padStart(2, '0') }}</span></label>
-                    <div class="inn-evidence-ledger-body"><header><button type="button" @click="toggleThemeDetail(item.id)">{{ item.title }}</button><div class="inn-evidence-ledger-header-meta"><span class="inn-evidence-ledger-type" :class="[`is-${themeSource}`, { 'is-personal': themeSource === 'internal' && internalKnowledgeTag(item) === '个人知识' }]">{{ themeSource === 'policy' ? '政策文件' : internalKnowledgeTag(item) }}</span><span class="inn-evidence-ledger-status">{{ item.selected ? '已入选' : '待选择' }}</span></div></header><p>{{ item.excerpt }}</p><dl><div v-for="fact in researchFacts(themeSource, item, index)" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div></dl><div v-if="themeExpanded === item.id" class="inn-evidence-ledger-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></div>
+                <section v-else-if="themeSource === 'paper'" class="inn-paper-list">
+                  <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-paper-item is-theme">
+                    <div class="inn-paper-item-body">
+<header><div class="inn-paper-title-row"><b>{{ researchDisplayOrder('theme', index) }}</b><a v-if="index < 3 && item.detailUrl" :href="item.detailUrl" target="_blank" rel="noopener"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em><i v-if="paperCitation(item)" class="inn-paper-citation">被引 {{ paperCitation(item) }}</i></span></a><button v-else type="button" @click="toggleThemeDetail(item.id)"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em><i v-if="paperCitation(item)" class="inn-paper-citation">被引 {{ paperCitation(item) }}</i></span></button></div></header>
+<dl class="inn-paper-biblio"><div><dd>{{ item.authors }}</dd></div><div><dd>{{ item.outlet }}</dd></div><div><dt>{{ item.identifierLabel }}</dt><dd>{{ item.identifier }}</dd></div></dl>
+                      <p><b>摘要</b>{{ item.abstract }}</p>
+                      <footer class="inn-paper-footer"><div class="inn-paper-keywords"><span v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</span></div><span v-if="item.affiliation" class="inn-paper-affiliation">{{ item.affiliation }}</span></footer>
+                      <div v-if="themeExpanded === item.id" class="inn-paper-detail"><b>资料定位</b><span>{{ item.outlet }} · {{ item.identifierLabel }} {{ item.identifier }}</span></div>
+                    </div>
+                  </article>
+                </section>
+                <section v-else-if="themeSource === 'policy' || themeSource === 'internal'" class="inn-evidence-ledger is-theme" :class="`is-${themeSource}`">
+                  <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-evidence-ledger-row">
+                    <span class="inn-evidence-ledger-order">{{ researchDisplayOrder('theme', index) }}</span>
+<div class="inn-evidence-ledger-body"><header><button type="button" @click="toggleThemeDetail(item.id)">{{ item.title }}</button><div class="inn-evidence-ledger-header-meta"><span class="inn-evidence-ledger-type" :class="[`is-${themeSource}`, { 'is-personal': themeSource === 'internal' && internalKnowledgeTag(item) === '个人知识' }]">{{ themeSource === 'policy' ? '政策文件' : internalKnowledgeTag(item) }}</span></div></header><p>{{ item.excerpt }}</p><dl><div v-for="fact in researchFacts(themeSource, item, index)" :key="fact.label"><dd>{{ fact.value }}</dd></div></dl><div v-if="themeExpanded === item.id" class="inn-evidence-ledger-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></div>
                   </article>
                 </section>
                 <section v-else class="inn-recall-results">
                   <article v-for="(item, index) in displayThemeItems" :key="item.id" class="inn-recall-result" :class="[{ 'is-selected': item.selected }, `inn-recall-result-${themeSource}`]">
-                    <header><span class="inn-recall-order">{{ String(index + 1).padStart(2, '0') }}</span><div class="inn-recall-title"><div class="inn-recall-record-type"><b>{{ sourceMeta[themeSource].recordLabel }}</b><em v-if="item.highlight" class="inn-recall-key">{{ item.highlightLabel }} {{ item.highlight }}</em></div><h3><button type="button" @click="toggleThemeDetail(item.id)">{{ item.title }}</button></h3><div class="inn-recall-tags"><span v-for="tag in item.tags || sourceMeta[themeSource].tags.slice(index % 3, index % 3 + 3)" :key="tag">{{ tag }}</span></div></div><label class="inn-recall-selection"><input v-model="item.selected" type="checkbox" /><span>{{ item.selected ? '已入选' : '待选择' }}</span></label></header>
+                    <header><span class="inn-recall-order">{{ researchDisplayOrder('theme', index) }}</span><div class="inn-recall-title"><div class="inn-recall-record-type"><b>{{ sourceMeta[themeSource].recordLabel }}</b><em v-if="item.highlight" class="inn-recall-key">{{ item.highlightLabel }} {{ item.highlight }}</em></div><h3><button type="button" @click="toggleThemeDetail(item.id)">{{ item.title }}</button></h3><div class="inn-recall-tags"><span v-for="tag in item.tags || sourceMeta[themeSource].tags.slice(index % 3, index % 3 + 3)" :key="tag">{{ tag }}</span></div></div><label class="inn-recall-selection"><input v-model="item.selected" type="checkbox" /><span>{{ item.selected ? '已入选' : '待选择' }}</span></label></header>
                     <p><b>摘要</b>{{ item.excerpt }}</p><dl class="inn-recall-facts"><div v-for="fact in researchFacts(themeSource, item, index)" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div></dl><footer><span>{{ item.source }}</span><span>{{ item.meta }}</span></footer><div v-if="themeExpanded === item.id" class="inn-recall-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div>
                   </article>
                 </section>
@@ -958,23 +1572,47 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
                 </nav>
               </section>
 
-              <section v-else class="inn-wf-point-recall">
-                <nav class="inn-wf-point-tabs"><button v-for="(point, index) in scopePoints" :key="point" :class="{ active: pointTab === index }" type="button" @click="pointTab = index; pointExpanded = ''; pointPage = 1"><b>创新点 {{ index + 1 }}</b><span>{{ point }}</span></button></nav>
+              <section v-else class="inn-wf-point-recall" :class="`is-${pointSource}`">
+                <nav class="inn-wf-point-tabs inn-point-topic-tabs"><button v-for="(point, index) in scopePoints" :key="point" :class="{ active: pointTab === index }" type="button" :aria-describedby="pointTopicPreview?.index === index ? `innovation-point-preview-${index}` : undefined" @mouseenter="showPointTopicPreview(point, index, $event)" @mouseleave="schedulePointTopicPreviewClose" @focus="showPointTopicPreview(point, index, $event)" @blur="schedulePointTopicPreviewClose" @click="pointTab = index; pointExpanded = ''; pointPage = 1"><span class="inn-point-topic-title">创新点 {{ index + 1 }} · {{ point }}</span></button></nav>
                 <header class="inn-recall-controls">
-                  <nav class="inn-recall-type-tabs"><button v-for="source in Object.keys(sourceMeta)" :key="source" :class="{ active: pointSource === source }" type="button" @click="pointSource = source; pointExpanded = ''; savedResearchPanel = ''; pointPage = 1"><span>{{ sourceMeta[source].label }}</span></button></nav>
-                  <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('point') }}</strong><b>{{ researchResultUnit(pointSource) }}</b><span v-if="pointSourceIsPaged">第 {{ pointPage }} 页，每页 {{ researchPageSize }} 条</span></div>
-                  <div class="inn-recall-list-actions"><button :class="{ saved: savedResearchPanel === 'point' }" type="button" @click="saveResearchEvidence('point')">{{ savedResearchPanel === 'point' ? '已保存' : '保存' }}</button><select v-model="pointSort" aria-label="创新点资料排序"><option value="relevance">最相关</option><option value="title">按题名</option></select></div>
+                  <nav class="inn-recall-type-tabs"><button v-for="source in Object.keys(sourceMeta)" :key="source" :class="{ active: pointSource === source }" type="button" @click="pointSource = source; pointExpanded = ''; pointPage = 1"><span>{{ sourceMeta[source].label }}</span></button></nav>
+                  <div class="inn-recall-toolbar">
+                    <div class="inn-recall-view-switch" role="group" aria-label="切换视图"><span>切换视图</span><button :class="{ active: researchViewMode === 'table' }" type="button" aria-label="表格视图" title="表格视图" :aria-pressed="researchViewMode === 'table'" @click="researchViewMode = 'table'"><Table2 :size="16" /></button><button :class="{ active: researchViewMode === 'card' }" type="button" aria-label="卡片视图" title="卡片视图" :aria-pressed="researchViewMode === 'card'" @click="researchViewMode = 'card'"><LayoutGrid :size="16" /></button></div>
+                    <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('point') }}</strong><b>{{ researchResultUnit(pointSource) }}</b><span v-if="pointSourceIsPaged">第 {{ pointPage }} 页，每页 {{ researchPageSize }} 条</span></div>
+                    <div class="inn-recall-list-actions"><button v-if="pointTop5Enabled" class="inn-top5-summary" type="button" @click="openPointTop5Modal"><Flag :size="15" />TOP {{ pointTop5Count }}/5</button><button class="inn-recall-add" type="button" @click="openResearchAddModal('point')"><Plus :size="16" />新增</button></div>
+                  </div>
                 </header>
-                <section v-if="pointSource === 'patent'" class="inn-patent-topic-list">
-                  <div class="inn-patent-table-wrap"><table class="inn-patent-table"><thead><tr><th></th><th>序号</th><th>相关度</th><th>公开(公告)号</th><th>专利名称</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayPointItems" :key="item.id"><tr :class="{ 'is-selected': item.selected }"><td><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /></td><td>{{ String(index + 1).padStart(2, '0') }}</td><td><b>{{ item.relevance }}</b></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td class="inn-patent-title-cell"><button class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="togglePointDetail(item.id)">{{ item.title }}</button><span class="inn-patent-title-tools"><button :class="{ saved: savedPatentCodes.has(item.code) }" type="button" :aria-label="savedPatentCodes.has(item.code) ? '已收藏到个人知识库' : '收藏到个人知识库'" :title="savedPatentCodes.has(item.code) ? '已收藏到个人知识库' : '收藏到个人知识库'" @click.stop="savePatentToKnowledge(item)"><BookmarkCheck v-if="savedPatentCodes.has(item.code)" :size="14" /><BookmarkPlus v-else :size="14" /></button><button type="button" aria-label="下载到本地" title="下载到本地" @click.stop="downloadPatentInformation(item)"><Download :size="14" /></button></span></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="pointExpanded === item.id" class="inn-patent-table-detail"><td></td><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
+                <section v-if="researchViewMode === 'table' && pointSource === 'patent'" class="inn-patent-topic-list">
+<div class="inn-patent-table-wrap"><table class="inn-patent-table"><thead><tr><th class="inn-top5-column-head"><span class="inn-top5-help" aria-label="TOP5 说明"><CircleAlert :size="15" /><i>TOP5 用于报告中的创新点重点对比，全部资料仍参与整体分析。</i></span></th><th>序号</th><th>专利名称</th><th>公开(公告)号</th><th>相关度</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayPointItems" :key="item.id"><tr :class="{ 'is-top-focus': item.topFocus }"><td><button class="inn-top5-flag" :class="{ active: item.topFocus }" type="button" :aria-label="item.topFocus ? `取消${item.title}的重点标注` : `标注${item.title}为重点`" :title="item.topFocus ? '取消重点标注' : '标为重点'" @click="togglePointTop5(item)"><Flag :size="16" /></button></td><td>{{ researchDisplayOrder('point', index) }}</td><td class="inn-patent-title-cell"><a v-if="index < 3 && item.detailUrl" class="inn-patent-title" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="togglePointDetail(item.id)">{{ item.title }}</button></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td><b>{{ item.relevance }}</b></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="pointExpanded === item.id" class="inn-patent-table-detail"><td></td><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
+                </section>
+                <section v-else-if="researchViewMode === 'table'" class="inn-research-table-wrap">
+                  <table :class="['inn-research-table', `is-${pointSource}`]">
+                    <thead><tr><th v-if="pointSource === 'paper'" class="inn-top5-column-head"><span class="inn-top5-help" aria-label="TOP5 说明"><CircleAlert :size="15" /><i>TOP5 用于报告中的创新点重点对比，全部资料仍参与整体分析。</i></span></th><th>序号</th><th>资料名称</th><th v-for="column in researchTableHeaders(pointSource)" :key="column">{{ column }}</th></tr></thead>
+<tbody><template v-for="(item, index) in displayPointItems" :key="item.id"><tr :class="{ 'is-top-focus': pointSource === 'paper' && item.topFocus }"><td v-if="pointSource === 'paper'"><button class="inn-top5-flag" :class="{ active: item.topFocus }" type="button" :aria-label="item.topFocus ? `取消${item.title}的重点标注` : `标注${item.title}为重点`" :title="item.topFocus ? '取消重点标注' : '标为重点'" @click="togglePointTop5(item)"><Flag :size="16" /></button></td><td>{{ researchDisplayOrder('point', index) }}</td><td class="inn-research-table-title"><a v-if="pointSource === 'paper' && index < 3 && item.detailUrl" class="inn-research-table-link" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'paper-title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'paper-title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else type="button" @mouseenter="pointSource === 'paper' && showPatentPreview(item, 'paper-title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="pointSource === 'paper' && showPatentPreview(item, 'paper-title', $event)" @blur="schedulePatentPreviewClose" @click="togglePointDetail(item.id)">{{ item.title }}</button><span>{{ researchExcerpt(item) }}</span></td><td v-for="fact in researchTableFacts(pointSource, item, index)" :key="fact.label" :title="fact.value">{{ fact.value }}</td></tr><tr v-if="pointExpanded === item.id" class="inn-research-table-detail"><td :colspan="researchTableHeaders(pointSource).length + (pointSource === 'paper' ? 3 : 2)"><b>摘要</b><span>{{ researchExcerpt(item) }}</span></td></tr></template></tbody>
+                  </table>
+                </section>
+                <section v-else-if="pointSource === 'patent'" class="inn-patent-card-list">
+                  <article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-patent-card" :class="{ 'is-top-focus': item.topFocus }">
+                    <button class="inn-patent-card-select inn-top5-flag" :class="{ active: item.topFocus }" type="button" :aria-label="item.topFocus ? `取消${item.title}的重点标注` : `标注${item.title}为重点`" :title="item.topFocus ? '取消重点标注' : '标为重点'" @click="togglePointTop5(item)"><Flag :size="16" /></button>
+<div class="inn-patent-card-body"><header><b class="inn-patent-card-order">{{ researchDisplayOrder('point', index) }}</b><a v-if="index < 3 && item.detailUrl" class="inn-patent-card-title" :href="item.detailUrl" target="_blank" rel="noopener">{{ item.title }}</a><button v-else class="inn-patent-card-title" type="button" @click="togglePointDetail(item.id)">{{ item.title }}</button><b class="inn-patent-card-code">{{ item.code }}</b><em class="inn-patent-card-relevance">{{ item.relevance }}</em><i class="inn-patent-card-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</i></header><p class="inn-patent-card-summary">{{ patentPreviewAbstract(item) || item.match }}</p><footer class="inn-patent-card-facts"><div class="inn-patent-card-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div><div><b :title="item.assignee">{{ item.assignee }}</b></div><time class="is-filing"><small>申请日</small><b>{{ item.filingDate }}</b></time><time class="is-publication"><small>公开日</small><b>{{ item.publicationDate }}</b></time></footer><div v-if="pointExpanded === item.id" class="inn-patent-card-detail"><b>匹配要点</b><span>{{ item.match }}</span></div></div>
+                  </article>
                 </section>
                 <section v-else-if="pointSource === 'paper'" class="inn-paper-list">
-                  <article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-paper-item" :class="{ 'is-selected': item.selected }"><div class="inn-paper-item-index"><label><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /></label></div><div class="inn-paper-item-body"><header><div class="inn-paper-title-row"><b>{{ String(index + 1).padStart(2, '0') }}</b><button type="button" @click="togglePointDetail(item.id)"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em></span></button></div><span class="inn-paper-status">{{ item.selected ? '已入选' : '待选择' }}</span></header><dl><div><dt>作者</dt><dd>{{ item.authors }}</dd></div><div><dt>期刊</dt><dd>{{ item.outlet }}</dd></div><div><dt>{{ item.identifierLabel }}</dt><dd>{{ item.identifier }}</dd></div></dl><p><b>摘要</b>{{ item.abstract }}</p><footer><span v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</span></footer><div v-if="pointExpanded === item.id" class="inn-paper-detail"><b>资料定位</b><span>{{ item.outlet }} · {{ item.identifierLabel }} {{ item.identifier }}</span></div></div></article>
+                  <article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-paper-item" :class="{ 'is-top-focus': item.topFocus }">
+                    <div class="inn-paper-item-index"><button class="inn-top5-flag" :class="{ active: item.topFocus }" type="button" :aria-label="item.topFocus ? `取消${item.title}的重点标注` : `标注${item.title}为重点`" :title="item.topFocus ? '取消重点标注' : '标为重点'" @click="togglePointTop5(item)"><Flag :size="16" /></button></div>
+                    <div class="inn-paper-item-body">
+<header><div class="inn-paper-title-row"><b>{{ researchDisplayOrder('point', index) }}</b><a v-if="index < 3 && item.detailUrl" :href="item.detailUrl" target="_blank" rel="noopener"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em><i v-if="paperCitation(item)" class="inn-paper-citation">被引 {{ paperCitation(item) }}</i></span></a><button v-else type="button" @click="togglePointDetail(item.id)"><span><strong>{{ item.title }}</strong><em>{{ item.year }}</em><i v-if="paperCitation(item)" class="inn-paper-citation">被引 {{ paperCitation(item) }}</i></span></button></div></header>
+<dl class="inn-paper-biblio"><div><dd>{{ item.authors }}</dd></div><div><dd>{{ item.outlet }}</dd></div><div><dt>{{ item.identifierLabel }}</dt><dd>{{ item.identifier }}</dd></div></dl>
+                      <p><b>摘要</b>{{ item.abstract }}</p>
+                      <footer class="inn-paper-footer"><div class="inn-paper-keywords"><span v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</span></div><span v-if="item.affiliation" class="inn-paper-affiliation">{{ item.affiliation }}</span></footer>
+                      <div v-if="pointExpanded === item.id" class="inn-paper-detail"><b>资料定位</b><span>{{ item.outlet }} · {{ item.identifierLabel }} {{ item.identifier }}</span></div>
+                    </div>
+                  </article>
                 </section>
                 <section v-else-if="pointSource === 'policy' || pointSource === 'internal'" class="inn-evidence-ledger" :class="`is-${pointSource}`">
-                  <article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-evidence-ledger-row" :class="{ 'is-selected': item.selected }"><label class="inn-evidence-ledger-select"><input v-model="item.selected" type="checkbox" :aria-label="`选择${item.title}`" /><span>{{ String(index + 1).padStart(2, '0') }}</span></label><div class="inn-evidence-ledger-body"><header><button type="button" @click="togglePointDetail(item.id)">{{ item.title }}</button><div class="inn-evidence-ledger-header-meta"><span class="inn-evidence-ledger-type" :class="[`is-${pointSource}`, { 'is-personal': pointSource === 'internal' && internalKnowledgeTag(item) === '个人知识' }]">{{ pointSource === 'policy' ? '政策文件' : internalKnowledgeTag(item) }}</span><span class="inn-evidence-ledger-status">{{ item.selected ? '已入选' : '待选择' }}</span></div></header><p>{{ item.excerpt }}</p><dl><div v-for="fact in researchFacts(pointSource, item, index)" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div></dl><div v-if="pointExpanded === item.id" class="inn-evidence-ledger-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></div></article>
+<article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-evidence-ledger-row"><span class="inn-evidence-ledger-order">{{ researchDisplayOrder('point', index) }}</span><div class="inn-evidence-ledger-body"><header><button type="button" @click="togglePointDetail(item.id)">{{ item.title }}</button><div class="inn-evidence-ledger-header-meta"><span class="inn-evidence-ledger-type" :class="[`is-${pointSource}`, { 'is-personal': pointSource === 'internal' && internalKnowledgeTag(item) === '个人知识' }]">{{ pointSource === 'policy' ? '政策文件' : internalKnowledgeTag(item) }}</span></div></header><p>{{ item.excerpt }}</p><dl><div v-for="fact in researchFacts(pointSource, item, index)" :key="fact.label"><dd>{{ fact.value }}</dd></div></dl><div v-if="pointExpanded === item.id" class="inn-evidence-ledger-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></div></article>
                 </section>
-                <section v-else class="inn-recall-results"><article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-recall-result" :class="[{ 'is-selected': item.selected }, `inn-recall-result-${pointSource}`]"><header><span class="inn-recall-order">{{ String(index + 1).padStart(2, '0') }}</span><div class="inn-recall-title"><div class="inn-recall-record-type"><b>{{ sourceMeta[pointSource].recordLabel }}</b><em v-if="item.highlight" class="inn-recall-key">{{ item.highlightLabel }} {{ item.highlight }}</em></div><h3><button type="button" @click="togglePointDetail(item.id)">{{ item.title }}</button></h3><div class="inn-recall-tags"><span v-for="tag in sourceMeta[pointSource].tags.slice(index % 3, index % 3 + 3)" :key="tag">{{ tag }}</span></div></div><label class="inn-recall-selection"><input v-model="item.selected" type="checkbox" /><span>{{ item.selected ? '已入选' : '待选择' }}</span></label></header><p><b>摘要</b>{{ item.excerpt }}</p><dl class="inn-recall-facts"><div v-for="fact in researchFacts(pointSource, item, index)" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div></dl><footer><span>{{ item.source }}</span><span>{{ item.meta }}</span></footer><div v-if="pointExpanded === item.id" class="inn-recall-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></article></section>
+                <section v-else class="inn-recall-results"><article v-for="(item, index) in displayPointItems" :key="item.id" class="inn-recall-result" :class="[{ 'is-selected': item.selected }, `inn-recall-result-${pointSource}`]"><header><span class="inn-recall-order">{{ researchDisplayOrder('point', index) }}</span><div class="inn-recall-title"><div class="inn-recall-record-type"><b>{{ sourceMeta[pointSource].recordLabel }}</b><em v-if="item.highlight" class="inn-recall-key">{{ item.highlightLabel }} {{ item.highlight }}</em></div><h3><button type="button" @click="togglePointDetail(item.id)">{{ item.title }}</button></h3><div class="inn-recall-tags"><span v-for="tag in sourceMeta[pointSource].tags.slice(index % 3, index % 3 + 3)" :key="tag">{{ tag }}</span></div></div><label class="inn-recall-selection"><input v-model="item.selected" type="checkbox" /><span>{{ item.selected ? '已入选' : '待选择' }}</span></label></header><p><b>摘要</b>{{ item.excerpt }}</p><dl class="inn-recall-facts"><div v-for="fact in researchFacts(pointSource, item, index)" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd></div></dl><footer><span>{{ item.source }}</span><span>{{ item.meta }}</span></footer><div v-if="pointExpanded === item.id" class="inn-recall-detail"><b>摘要</b><p>{{ item.excerpt }}</p></div></article></section>
                 <nav v-if="pointSourceIsPaged" class="inn-recall-pagination" aria-label="检索结果分页">
                   <span>共 {{ researchResultTotal('point') }} {{ researchResultUnit(pointSource) }}</span>
                   <div><button type="button" aria-label="上一页" :disabled="pointPage === 1" @click="setPointPage(pointPage - 1)">‹</button><template v-for="entry in pointPaginationEntries" :key="entry"><i v-if="entry === '…'">…</i><button v-else type="button" :class="{ active: pointPage === entry }" @click="setPointPage(entry)">{{ entry }}</button></template><button type="button" aria-label="下一页" :disabled="pointPage === pointPageCount" @click="setPointPage(pointPage + 1)">›</button></div>
@@ -982,12 +1620,25 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
               </section>
             </section>
 
-            <section v-if="stage === 'report'" class="inn-wf-section inn-wf-report inn-wf-source-report">
-              <iframe class="inn-source-report-frame" title="煤炭资源开采过程高矿化度涌水问题研究立项审查报告" src="/innovation-review-report.html" />
+            <section v-if="stage === 'report'" class="inn-wf-section inn-wf-report">
+              <div class="inn-vue-report-layout" :class="{ 'outline-collapsed': reportOutlineCollapsed }">
+                <aside class="inn-vue-report-outline" aria-label="报告目录">
+                  <header>
+                    <div v-if="!reportOutlineCollapsed"><span>{{ currentReport.version }}</span><strong>报告目录</strong></div>
+                    <button type="button" :aria-label="reportOutlineCollapsed ? '展开目录' : '收起目录'" @click="reportOutlineCollapsed = !reportOutlineCollapsed">{{ reportOutlineCollapsed ? '展开目录' : '收起目录' }}</button>
+                  </header>
+                  <nav v-show="!reportOutlineCollapsed">
+                    <button v-for="section in currentReport.outline" :key="section.id" type="button" @click="openReportSection(section.id)">{{ section.label }}</button>
+                  </nav>
+                </aside>
+                <article class="inn-vue-report-document inn-vue-report-document-full" tabindex="-1">
+                  <div class="inn-source-report-html" v-html="currentReport.documentHtml"></div>
+                </article>
+              </div>
             </section>
 
             <section v-if="false && stage === 'report'" class="inn-wf-section inn-wf-report">
-              <header class="inn-wf-report-tools"><button class="inn-wf-back" type="button" @click="move('research')">返回</button><button class="primary-btn" type="button" @click="exportReport"><Download :size="15" />导出 PDF</button></header>
+              <header class="inn-wf-report-tools"><button class="inn-wf-back" type="button" @click="move('research')">上一步</button><button class="primary-btn" type="button" @click="exportReport"><Download :size="15" />导出 PDF</button></header>
               <article class="inn-full-report">
                 <header class="inn-simple-report-title"><h2>{{ profile.name }}</h2><p>创新性分析报告　·　V1.0　·　MW-2026.08.14</p></header>
                 <nav class="inn-report-outline"><span>项目概况</span><span>技术主题</span><span>专利与论文</span><span>逐点对比</span><span>政策与评级</span><span>证据附录</span></nav>
@@ -1004,13 +1655,60 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
                 <section class="inn-full-section"><h3>附录：检索主题卡与证据留痕</h3><table class="inn-report-table"><thead><tr><th>卡片 ID</th><th>对象</th><th>查询主题/条件</th><th>时间范围与筛选</th><th>留痕内容</th></tr></thead><tbody><tr v-for="(topic, index) in scopeTopics" :key="topic"><td>Q-00{{ index + 1 }}</td><td>专利 / 论文 / 政策</td><td>{{ topic }}：问题 + 技术手段 + 目标/效果</td><td>专利/论文近 10 年；政策近 3 年</td><td>查询版本、样本量、原文入口、评分依据与人工调整记录</td></tr></tbody></table><p class="inn-simple-disclaimer">本报告由中煤深圳院 AI 创新平台基于项目材料与本报告载明的数据范围生成，用于科研立项与技术研判辅助；不构成专利查新、自由实施、法律意见、市场预测或工程验收结论。</p></section>
               </article>
             </section>
-            <footer v-if="stage !== 'report'" class="inn-wf-actions"><div class="inn-wf-action-context"><span>下一环节</span><b>{{ nextStageLabel }}</b></div><div class="inn-wf-action-buttons"><button class="inn-wf-back" type="button" @click="previousStage">返回</button><button class="primary-btn" type="button" @click="nextStage">{{ stage === 'research' ? '确认并生成报告' : '确认并进入下一步' }}</button></div></footer>
-            <footer v-else class="inn-source-report-actions"><button class="inn-source-report-back" type="button" @click="move('research')">返回</button><button class="primary-btn" type="button" @click="exportReport"><Download :size="15" />导出 PDF</button></footer>
+            <footer v-if="stage !== 'report'" class="inn-wf-actions"><div class="inn-wf-action-context"><span>下一步</span><b>{{ nextStageLabel }}</b></div><div class="inn-wf-action-buttons"><button class="inn-wf-back" type="button" @click="previousStage">上一步</button><button class="primary-btn" type="button" @click="nextStage">{{ nextStageActionLabel }}</button></div></footer>
+            <footer v-else class="inn-source-report-actions"><button class="inn-source-report-back" type="button" @click="navigateResearchPanel('point')">上一步</button><button class="primary-btn" type="button" @click="exportReport"><Download :size="15" />导出 PDF</button></footer>
           </article>
         </main>
+        <div
+          v-if="stage === 'research'"
+          class="inn-wf-research-scroll-spacer"
+          :style="{ height: `${researchScrollRange}px` }"
+          aria-hidden="true"
+        ></div>
       </div>
     </section>
     <Teleport to="body">
+      <div v-if="researchAddModal" class="inn-add-modal-backdrop" @click.self="closeResearchAddModal">
+        <section class="inn-add-modal" role="dialog" aria-modal="true" aria-labelledby="research-add-title">
+          <header class="inn-add-modal-header">
+            <div><span>{{ researchAddLabel() }}</span><h2 id="research-add-title">新增资料</h2></div>
+            <button type="button" aria-label="关闭" title="关闭" @click="closeResearchAddModal"><X :size="20" /></button>
+          </header>
+          <form class="inn-add-search" @submit.prevent="searchResearchAdd">
+            <input v-model="researchAddQuery" aria-label="语义检索内容" placeholder="输入检索内容" />
+            <button type="submit"><Search :size="17" />检索</button>
+          </form>
+          <div class="inn-add-modal-content">
+            <section class="inn-add-results">
+              <header><b>检索结果</b><span v-if="researchAddSearched">{{ researchAddResults.length }} 条</span></header>
+              <div v-if="researchAddSearched" class="inn-add-result-list">
+                <article v-for="item in researchAddResults" :key="item.id" :class="{ selected: researchAddSelectedIds.includes(item.id) }" @click="toggleResearchAddCandidate(item.id)">
+                  <input :checked="researchAddSelectedIds.includes(item.id)" type="checkbox" :aria-label="`选择${item.title}`" @click.stop @change="toggleResearchAddCandidate(item.id)" />
+                  <div><header><b>{{ item.title }}</b><em>{{ item.relevance || item.highlight || item.year || '相关' }}</em></header><span>{{ item.code || item.identifier || item.meta }}</span><p>{{ patentPreviewAbstract(item) || item.excerpt || item.match }}</p><footer><i v-for="tag in item.classifications || item.keywords || item.tags || []" :key="tag">{{ tag }}</i></footer></div>
+                </article>
+              </div>
+            </section>
+            <aside class="inn-add-selection-panel">
+              <header><b>已选 {{ researchAddSelection.length }} 条</b></header>
+              <div v-if="researchAddSelection.length" class="inn-add-selection-list">
+                <article v-for="item in researchAddSelection" :key="item.id">
+                  <span>{{ item.title }}</span>
+                </article>
+              </div>
+            </aside>
+          </div>
+          <footer class="inn-add-modal-footer"><button type="button" @click="closeResearchAddModal">取消</button><button class="primary" type="button" :disabled="!researchAddSelection.length" @click="addResearchSelections">添加到列表</button></footer>
+        </section>
+      </div>
+      <div v-if="pointTop5Modal" class="inn-top5-modal-backdrop" @click.self="pointTop5Modal = false">
+        <section class="inn-top5-modal" role="dialog" aria-modal="true" aria-labelledby="point-top5-title">
+          <header><div><span>创新点 {{ pointTab + 1 }} · {{ sourceMeta[pointSource].label }}</span><h2 id="point-top5-title">TOP {{ pointTop5Count }}/5</h2></div><button type="button" aria-label="关闭" title="关闭" @click="pointTop5Modal = false"><X :size="20" /></button></header>
+          <div class="inn-top5-modal-list"><article v-for="item in pointTop5Items" :key="item.id"><Flag :size="16" /><span>{{ item.title }}</span><button type="button" @click="togglePointTop5(item)">取消标注</button></article></div>
+          <footer><button type="button" @click="pointTop5Modal = false">关闭</button></footer>
+        </section>
+      </div>
+      <aside v-if="themeTopicPreview" :id="`technology-topic-preview-${themeTopicPreview.index}`" class="inn-theme-topic-preview" role="tooltip" :style="{ left: `${themeTopicPreview.left}px`, top: `${themeTopicPreview.top}px` }"><span>技术主题 {{ themeTopicPreview.index + 1 }}</span><strong>{{ themeTopicPreview.topic }}</strong></aside>
+      <aside v-if="pointTopicPreview" :id="`innovation-point-preview-${pointTopicPreview.index}`" class="inn-point-topic-preview" role="tooltip" :style="{ left: `${pointTopicPreview.left}px`, top: `${pointTopicPreview.top}px` }"><span>创新点 {{ pointTopicPreview.index + 1 }}</span><strong>{{ pointTopicPreview.point }}</strong></aside>
       <aside v-if="patentPreview" class="inn-patent-preview" :class="`is-${patentPreview.type}`" :style="{ left: `${patentPreview.left}px`, top: `${patentPreview.top}px` }" @mouseenter="keepPatentPreviewOpen" @mouseleave="schedulePatentPreviewClose">
         <template v-if="patentPreview.type === 'title'">
           <header><span>{{ patentPreviewLabel(patentPreview.item) }}</span><b>{{ patentPreview.item.title }}</b></header>
@@ -1018,11 +1716,36 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
           <dl><div><dt>法律状态</dt><dd>{{ patentPreview.item.legalStatus }}</dd></div><div><dt>申请日</dt><dd>{{ patentPreview.item.filingDate }}</dd></div><div class="wide"><dt>当前申请人/权利人</dt><dd>{{ patentPreview.item.assignee }}</dd></div><div class="wide"><dt>公开日</dt><dd>{{ patentPreview.item.publicationDate }}</dd></div></dl>
           <footer><span v-for="classification in patentPreview.item.classifications" :key="classification">{{ classification }}</span></footer>
         </template>
+        <template v-else-if="patentPreview.type === 'paper-title'">
+          <header><span>论文摘要</span><b>{{ patentPreview.item.title }}</b></header>
+          <p>{{ researchExcerpt(patentPreview.item) }}</p>
+          <dl><div class="wide"><dt>作者</dt><dd>{{ patentPreview.item.authors }}</dd></div><div class="wide"><dt>期刊 / 会议</dt><dd>{{ patentPreview.item.outlet }}</dd></div><div><dt>{{ patentPreview.item.identifierLabel }}</dt><dd>{{ patentPreview.item.identifier }}</dd></div><div><dt>发表年</dt><dd>{{ patentPreview.item.year }}</dd></div></dl>
+          <footer><span v-for="keyword in patentPreview.item.keywords" :key="keyword">{{ keyword }}</span></footer>
+        </template>
         <template v-else>
           <header><span>公开(公告)号</span><strong>{{ patentPreview.item.code }}</strong></header>
           <dl><div><dt>法律状态</dt><dd>{{ patentPreview.item.legalStatus }}</dd></div><div><dt>申请日</dt><dd>{{ patentPreview.item.filingDate }}</dd></div><div class="wide"><dt>当前申请人/权利人</dt><dd>{{ patentPreview.item.assignee }}</dd></div><div class="wide"><dt>公开日</dt><dd>{{ patentPreview.item.publicationDate }}</dd></div></dl>
         </template>
       </aside>
+    </Teleport>
+    <Teleport to="body">
+      <div v-if="reportSelectionOpen" class="inn-report-choice-backdrop" @click.self="reportSelectionOpen = false">
+        <section class="inn-report-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="report-choice-title">
+          <header><div><span>报告生成</span><h2 id="report-choice-title">选择报告版本</h2></div><button type="button" aria-label="关闭" @click="reportSelectionOpen = false"><X :size="20" /></button></header>
+          <div class="inn-report-choice-options" role="radiogroup" aria-label="报告版本">
+            <button type="button" role="radio" :aria-checked="selectedReportScope === 'research'" :class="{ active: selectedReportScope === 'research' }" @click="selectedReportScope = 'research'"><b>研发版</b><span>查新结果与建议书完善事项</span></button>
+            <button type="button" role="radio" :aria-checked="selectedReportScope === 'review'" :class="{ active: selectedReportScope === 'review' }" @click="selectedReportScope = 'review'"><b>评审版</b><span>评分依据与专家审查建议</span></button>
+            <button type="button" role="radio" :aria-checked="selectedReportScope === 'both'" :class="{ active: selectedReportScope === 'both' }" @click="selectedReportScope = 'both'"><b>同时生成</b><span>生成研发版与评审版报告</span></button>
+          </div>
+          <section v-if="selectedReportScope !== 'research'" class="inn-report-template-selection" aria-label="评审模板">
+            <header><span>评审模板</span></header>
+            <div role="radiogroup" aria-label="选择评审模板">
+              <button v-for="template in reviewReportTemplates" :key="template" type="button" role="radio" :aria-checked="selectedReviewTemplate === template" :class="{ active: selectedReviewTemplate === template }" @click="selectedReviewTemplate = template">模板 {{ template }}</button>
+            </div>
+          </section>
+          <footer><button type="button" class="inn-wf-back" @click="reportSelectionOpen = false">取消</button><button type="button" class="primary-btn" @click="confirmReportGeneration">生成报告</button></footer>
+        </section>
+      </div>
     </Teleport>
   </section>
 </template>
@@ -1105,6 +1828,7 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
 .inn-analysis-topic-card>label{display:grid;gap:5px;padding:11px 14px 13px}
 .inn-analysis-topic-card>label>span{color:#5d8495;font-size:12px}
 .inn-analysis-topic-card>label textarea{min-height:64px;border:0;border-radius:8px;background:#fff;padding:9px 10px;color:#355e75;font-size:13px;line-height:1.65}
+.inn-analysis-topic-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#dce9ee}.inn-analysis-topic-body label{display:grid;gap:6px;min-width:0;background:#fff;padding:11px 14px 13px}.inn-analysis-topic-body label>span{color:#5d8495;font-size:12px;font-weight:800}.inn-analysis-topic-body .inn-analysis-topic-basis{grid-column:1/-1;background:#fbfdfe}.inn-analysis-topic-body textarea{box-sizing:border-box;width:100%;min-height:64px;border:0;border-radius:8px;background:#f5f9fb;padding:9px 10px;color:#355e75;font-family:"Microsoft YaHei",sans-serif;font-size:13px;line-height:1.65;resize:vertical}.inn-analysis-topic-body .inn-analysis-topic-basis textarea{background:#fff}.inn-analysis-topic-body .inn-analysis-readonly-copy{min-height:42px;margin:0;color:#355e75;font-size:13px;font-weight:600;line-height:1.65}
 .inn-analysis-point-list{gap:12px}
 .inn-analysis-point-card{display:block;overflow:hidden;padding:0;border-radius:13px;background:#f3f8fa;box-shadow:none}
 .inn-analysis-point-card>header{display:block;background:linear-gradient(100deg,#e4f4f8,#eef8fb);padding:10px 16px}
@@ -1126,17 +1850,15 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
 .inn-analysis-point-body textarea{min-height:64px;border:0;border-radius:8px;padding:9px 10px;background:#fff;color:#365e73;font-size:13px;line-height:1.65}
 .inn-analysis-point-body .inn-analysis-point-primary>span{color:#1478a7}
 .inn-analysis-point-body .inn-analysis-point-context>span{color:#138b88}
-.inn-analysis-point-body .inn-analysis-point-differentiation>span{color:#69799b}
 .inn-analysis-point-body .inn-analysis-point-metric>span{color:#a8751d}
 .inn-analysis-point-context textarea{background:#f8fcfb}
-.inn-analysis-point-differentiation textarea{background:#fafbfe}
 .inn-analysis-point-metric textarea{background:#fffbf4;color:#805d1d}
 @media(max-width:1439px){.inn-analysis-point-body{grid-template-columns:1.15fr 1fr}.inn-analysis-point-primary{grid-column:auto}}
-@media(min-width:1440px){.inn-wf-analysis-page{gap:20px}.inn-analysis-section{gap:11px}.inn-analysis-topic-grid{gap:13px}.inn-analysis-topic-card>header{grid-template-columns:38px minmax(0,1fr);padding:12px 17px}.inn-analysis-topic-card>header>i{width:30px;height:30px;font-size:11px}.inn-analysis-topic-card>header textarea{min-height:28px;font-size:clamp(16px,.9vw,19px)}.inn-analysis-topic-card>label{padding:13px 17px 16px}.inn-analysis-topic-card>label>span{font-size:13px}.inn-analysis-topic-card>label textarea{min-height:72px;padding:11px 12px;font-size:clamp(14px,.82vw,17px)}.inn-analysis-point-list{gap:15px}.inn-analysis-point-card>header{padding:11px 20px}.inn-analysis-point-title{grid-template-columns:31px minmax(0,1fr);gap:10px}.inn-analysis-point-card .inn-analysis-point-title>i{width:31px;padding-top:4px;font-size:12px}.inn-analysis-point-card .inn-analysis-point-title textarea{min-height:28px;font-size:clamp(17px,1vw,21px)}.inn-analysis-point-body{gap:12px;padding:15px 20px 18px}.inn-analysis-point-body label>span{font-size:12px}.inn-analysis-point-body textarea{min-height:75px;padding:11px 12px;font-size:clamp(14px,.8vw,17px)}}
-@media(max-width:720px){.inn-wf-analysis-page{gap:14px}.inn-analysis-topic-grid,.inn-analysis-point-body{grid-template-columns:1fr}.inn-analysis-topic-card>header{grid-template-columns:32px minmax(0,1fr);padding:12px}.inn-analysis-topic-card>label{padding:10px 12px 12px}.inn-analysis-topic-card>label textarea{min-height:64px}.inn-analysis-point-card>header{padding:12px 13px}.inn-analysis-point-body{grid-template-columns:1fr;padding:11px 13px 13px}.inn-analysis-point-primary{grid-column:auto}.inn-analysis-point-body textarea{min-height:64px}}
+@media(min-width:1440px){.inn-wf-analysis-page{gap:20px}.inn-analysis-section{gap:11px}.inn-analysis-topic-grid{gap:13px}.inn-analysis-topic-card>header{grid-template-columns:38px minmax(0,1fr);padding:12px 17px}.inn-analysis-topic-card>header>i{width:30px;height:30px;font-size:11px}.inn-analysis-topic-card>header textarea{min-height:28px;font-size:clamp(16px,.9vw,19px)}.inn-analysis-topic-body label{padding:13px 17px 16px}.inn-analysis-topic-body label>span{font-size:13px}.inn-analysis-topic-body textarea,.inn-analysis-topic-body .inn-analysis-readonly-copy{font-size:clamp(14px,.82vw,17px)}.inn-analysis-point-list{gap:15px}.inn-analysis-point-card>header{padding:11px 20px}.inn-analysis-point-title{grid-template-columns:31px minmax(0,1fr);gap:10px}.inn-analysis-point-card .inn-analysis-point-title>i{width:31px;padding-top:4px;font-size:12px}.inn-analysis-point-card .inn-analysis-point-title textarea{min-height:28px;font-size:clamp(17px,1vw,21px)}.inn-analysis-point-body{gap:12px;padding:15px 20px 18px}.inn-analysis-point-body label>span{font-size:12px}.inn-analysis-point-body textarea{min-height:75px;padding:11px 12px;font-size:clamp(14px,.8vw,17px)}}
+@media(max-width:720px){.inn-wf-analysis-page{gap:14px}.inn-analysis-topic-grid,.inn-analysis-topic-body,.inn-analysis-point-body{grid-template-columns:1fr}.inn-analysis-topic-card>header{grid-template-columns:32px minmax(0,1fr);padding:12px}.inn-analysis-topic-body label{padding:10px 12px 12px}.inn-analysis-topic-body textarea{min-height:64px}.inn-analysis-point-card>header{padding:12px 13px}.inn-analysis-point-body{grid-template-columns:1fr;padding:11px 13px 13px}.inn-analysis-point-primary{grid-column:auto}.inn-analysis-point-body textarea{min-height:64px}}
 .inn-wf-card-project{height:auto;min-height:calc(100vh - 96px);overflow:visible}.inn-wf-card-project .inn-wf-section{flex:0 0 auto;overflow:visible}.inn-project-section-head{min-height:20px;padding-top:14px;padding-bottom:13px;background:#f7fbfc}.inn-project-section-head span{font-size:16px}.inn-project-overview-fields{padding-top:14px}.inn-project-content-divider{margin-top:14px;padding-top:13px}.inn-project-overview .inn-project-confirm-grid{padding-top:10px;padding-bottom:16px}.inn-project-confirm-item{padding:12px}.inn-project-confirm-item textarea{min-height:82px;padding-top:8px;line-height:1.65}.inn-project-target-grid article{min-height:96px;padding:12px 14px}.inn-project-details-toggle>span{display:block}.inn-project-details-toggle b{font-size:14px}@media(max-width:720px){.inn-wf-card-project{min-height:calc(100vh - 48px)}.inn-wf-card-project .inn-wf-section{overflow:visible}.inn-project-content-divider{display:block}.inn-project-confirm-item textarea{min-height:84px}}
 .inn-wf-card-project .inn-wf-stage-copy>span{font-size:12px}.inn-wf-card-project .inn-wf-stage-copy h2{font-size:25px}.inn-wf-card-project .inn-project-section-head span{font-size:18px}.inn-wf-card-project .inn-wf-field>span{font-size:13px}.inn-wf-card-project .inn-project-overview .inn-wf-field input{font-size:16px}.inn-wf-card-project .inn-project-content-divider b{font-size:14px}.inn-wf-card-project .inn-project-confirm-head>i{font-size:11px}.inn-wf-card-project .inn-project-confirm-head b{font-size:16px}.inn-wf-card-project .inn-project-confirm-item textarea{font-size:15px;line-height:1.72}.inn-wf-card-project .inn-project-target-grid article>span{font-size:14px}.inn-wf-card-project .inn-project-target-grid small{font-size:12px}.inn-wf-card-project .inn-project-target-grid b{font-size:14px}.inn-wf-card-project .inn-project-target-grid strong{font-size:19px}.inn-wf-card-project .inn-project-details-toggle b{font-size:16px}.inn-wf-card-project .inn-project-details .inn-wf-field textarea{font-size:15px;line-height:1.72}@media(min-width:1440px){.inn-wf-card-project .inn-wf-stage-copy>span{font-size:13px}.inn-wf-card-project .inn-wf-stage-copy h2{font-size:clamp(28px,1.6vw,34px)}.inn-wf-card-project .inn-project-section-head span{font-size:clamp(19px,1.1vw,22px)}.inn-wf-card-project .inn-wf-field>span{font-size:14px}.inn-wf-card-project .inn-project-overview .inn-wf-field input{font-size:clamp(17px,.96vw,20px)}.inn-wf-card-project .inn-project-content-divider b{font-size:15px}.inn-wf-card-project .inn-project-confirm-head b{font-size:clamp(17px,.95vw,19px)}.inn-wf-card-project .inn-project-confirm-item textarea{font-size:clamp(15px,.84vw,17px)}.inn-wf-card-project .inn-project-target-grid article>span{font-size:clamp(14px,.8vw,16px)}.inn-wf-card-project .inn-project-target-grid small{font-size:13px}.inn-wf-card-project .inn-project-target-grid b{font-size:15px}.inn-wf-card-project .inn-project-target-grid strong{font-size:clamp(19px,1.05vw,22px)}.inn-wf-card-project .inn-project-details-toggle b{font-size:18px}.inn-wf-card-project .inn-project-details .inn-wf-field textarea{font-size:clamp(15px,.84vw,17px)}}@media(max-width:720px){.inn-wf-card-project .inn-wf-stage-copy>span{font-size:11px}.inn-wf-card-project .inn-wf-stage-copy h2{font-size:23px}.inn-wf-card-project .inn-project-section-head span{font-size:18px}.inn-wf-card-project .inn-wf-field>span{font-size:12px}.inn-wf-card-project .inn-project-overview .inn-wf-field input{font-size:15px}.inn-wf-card-project .inn-project-content-divider b{font-size:13px}.inn-wf-card-project .inn-project-confirm-head b{font-size:15px}.inn-wf-card-project .inn-project-confirm-item textarea{font-size:14px}.inn-wf-card-project .inn-project-target-grid article>span{font-size:13px}.inn-wf-card-project .inn-project-target-grid small{font-size:11px}.inn-wf-card-project .inn-project-target-grid b{font-size:13px}.inn-wf-card-project .inn-project-target-grid strong{font-size:18px}.inn-wf-card-project .inn-project-details-toggle b{font-size:16px}.inn-wf-card-project .inn-project-details .inn-wf-field textarea{font-size:14px}}
-.inn-wf-card-project .inn-project-confirm-grid{align-items:stretch}.inn-wf-card-project .inn-project-confirm-item{align-content:start}.inn-wf-card-project .inn-project-confirm-item textarea{height:auto;min-height:0;overflow:hidden;resize:vertical}.inn-wf-card-project .inn-project-route-item textarea{height:auto;min-height:0}
+.inn-wf-card-project .inn-project-confirm-grid{align-items:stretch}.inn-wf-card-project .inn-project-background-grid{padding-top:11px;padding-bottom:0}.inn-wf-card-project .inn-project-background-item{grid-column:1/-1}.inn-wf-card-project .inn-project-confirm-item{align-content:start}.inn-wf-card-project .inn-project-confirm-item textarea{height:auto;min-height:0;overflow:hidden;resize:vertical}.inn-wf-card-project .inn-project-route-item textarea{height:auto;min-height:0}
 .inn-wf-card-project .inn-project-target-grid article>input,.inn-wf-card-project .inn-project-target-grid article>div input{box-sizing:border-box;width:100%;border:0;outline:0;background:transparent;font-family:"Microsoft YaHei",sans-serif;font-weight:800}.inn-wf-card-project .inn-project-target-grid article>input{overflow:hidden;padding:0;color:#456b81;font-size:14px;text-overflow:ellipsis;white-space:nowrap}.inn-wf-card-project .inn-project-target-grid article>div input{margin-top:2px;padding:0;color:#6f8796;font-size:14px}.inn-wf-card-project .inn-project-target-grid article>div+div input{color:#127eac;font-size:19px}.inn-wf-card-project .inn-project-target-grid article:focus-within{position:relative;z-index:1;background:#f8fcfd;box-shadow:inset 0 0 0 1px #91c5d8}.inn-wf-card-project .inn-project-target-grid article input:focus{color:#0c6f9e}@media(min-width:1440px){.inn-wf-card-project .inn-project-target-grid article>input{font-size:clamp(14px,.8vw,16px)}.inn-wf-card-project .inn-project-target-grid article>div input{font-size:15px}.inn-wf-card-project .inn-project-target-grid article>div+div input{font-size:clamp(19px,1.05vw,22px)}}@media(max-width:720px){.inn-wf-card-project .inn-project-target-grid article>input{font-size:13px}.inn-wf-card-project .inn-project-target-grid article>div input{font-size:13px}.inn-wf-card-project .inn-project-target-grid article>div+div input{font-size:18px}}
 .inn-wf-card-project .inn-project-targets .inn-project-section-head{padding-top:12px;padding-bottom:11px}
 .inn-wf-card-project .inn-project-target-grid article{min-height:88px;gap:6px;padding:11px 14px}
@@ -1198,4 +1920,1288 @@ function exportReport() { ui.notify('已生成《煤炭资源开采过程高矿�
 .inn-analysis-header-actions{gap:10px}.inn-analysis-header-actions .inn-wf-stage-metrics{box-sizing:border-box;height:56px;border-color:#cfe2eb;border-radius:10px;background:#cfe2eb}.inn-analysis-header-actions .inn-wf-stage-metrics div{display:grid;align-content:center;padding:7px 10px;background:#f8fcfd}.inn-analysis-header-actions .inn-project-edit-toggle{box-sizing:border-box;align-self:auto;min-width:88px;height:56px;min-height:56px;border-color:#9cc9db;border-radius:10px;background:#f8fcfd;padding:0 18px;box-shadow:none}.inn-analysis-header-actions .inn-project-edit-toggle:hover{border-color:#4a9fbe;background:#f1f9fc;box-shadow:none}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-header-actions .inn-project-edit-toggle{border-color:#147dad;background:#147dad;box-shadow:0 5px 12px rgba(18,110,157,.18)}@media(max-width:720px){.inn-analysis-header-actions{gap:9px}.inn-analysis-header-actions .inn-wf-stage-metrics,.inn-analysis-header-actions .inn-project-edit-toggle{height:50px;min-height:50px;border-radius:9px}.inn-analysis-header-actions .inn-project-edit-toggle{min-width:84px}}
 .inn-wf-nav .inn-wf-subnav button{min-height:34px;padding:7px 8px;font-size:14px;line-height:1.35}@media(min-width:1440px){.inn-wf-nav .inn-wf-subnav button{font-size:15px}}@media(max-width:980px){.inn-wf-nav .inn-wf-subnav button{min-height:34px;font-size:14px}}@media(max-width:720px){.inn-wf-nav .inn-wf-subnav button{font-size:14px}}
 .inn-patent-preview.is-title{width:min(420px,calc(100vw - 32px))}.inn-patent-preview.is-title dl{margin-top:10px}.inn-patent-preview.is-title footer{margin-top:9px}.inn-patent-status.is-实质审查,.inn-patent-status.is-授权一案双申,.inn-patent-status.is-授权一案双申质押{background:#fff6e7;color:#9a6c1f}.inn-patent-status.is-驳回,.inn-patent-status.is-驳回一案双申,.inn-patent-status.is-撤回-视为撤回,.inn-patent-status.is-撤回-视为撤回一案双申,.inn-patent-status.is-未缴年费{background:#f0f3f5;color:#6d7f8a}
+.inn-simple-manual-dialog{display:grid;min-height:336px;grid-template-rows:minmax(0,1fr) auto;background:#fff}.inn-simple-manual-input{display:grid;min-height:0;grid-template-rows:auto minmax(0,1fr);gap:9px;padding:19px 21px 13px;color:#426b83;font-size:14px;font-weight:800}.inn-simple-manual-input textarea{box-sizing:border-box;width:100%;min-height:232px;resize:vertical;border:0;outline:0;background:transparent;color:#234c66;font:600 16px/1.75 "Microsoft YaHei",sans-serif}.inn-simple-manual-input textarea::placeholder{color:#8ba2b0;font-weight:500}.inn-simple-manual-dialog:focus-within{background:#fcfeff}.inn-simple-manual-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #deebf1;padding:12px 16px 12px 21px;color:#7892a2;font-size:14px;font-weight:700}.inn-simple-manual-dialog .inn-simple-start{min-width:144px;min-height:42px;border-color:#117eaf;background:#117eaf;font-size:14px}.inn-simple-manual-dialog .inn-simple-start:hover:not(:disabled){border-color:#0d6b96;background:#0d6b96}.inn-simple-manual-dialog .inn-simple-start:disabled{cursor:not-allowed;opacity:.48}.inn-simple-manual-dialog .inn-simple-start:active:not(:disabled){transform:translateY(1px)}@media(max-width:720px){.inn-simple-manual-dialog{min-height:304px}.inn-simple-manual-input{padding:16px 16px 10px}.inn-simple-manual-input textarea{min-height:210px;font-size:15px}.inn-simple-manual-dialog footer{padding:11px 14px 11px 16px}.inn-simple-manual-dialog .inn-simple-start{min-width:132px;min-height:40px}}
+.inn-wf-back{min-height:40px;border:1px solid #cbdde6;border-radius:8px;background:#fff;padding:0 16px;color:#617d8e;font-size:13px;font-weight:700}.inn-wf-back:hover{border-color:#8fc2d6;background:#f2fafc;color:#1676a2}@media(min-width:1440px){.inn-wf-back{font-size:15px}}
+.inn-project-source-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:11px 19px 0}.inn-project-source-item{display:grid;gap:5px;min-width:0;border:1px solid #e1ebef;border-radius:10px;background:#f7fbfc;padding:11px 13px}.inn-project-source-item>span{color:#688493;font-size:13px;font-weight:800}.inn-project-source-item textarea{box-sizing:border-box;width:100%;min-height:0;border:0;outline:0;background:transparent;color:#264c65;font-family:"Microsoft YaHei",sans-serif;font-size:15px;font-weight:700;line-height:1.65;resize:vertical}.inn-project-source-target-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:transparent;padding:0}.inn-project-source-target-grid article{min-height:0;gap:8px;background:#f5f9fb}.inn-project-source-target-grid article textarea{box-sizing:border-box;width:100%;min-height:0;border:0;border-top:1px solid #e1ebef;outline:0;background:transparent;padding:9px 0 0;color:#355d74;font-family:"Microsoft YaHei",sans-serif;font-size:14px;font-weight:600;line-height:1.68;resize:vertical}.inn-wf-card-project:not(.is-project-editing) .inn-project-source-item,.inn-wf-card-project:not(.is-project-editing) .inn-project-source-target-grid article{pointer-events:none}.inn-wf-card-project:not(.is-project-editing) .inn-project-source-item textarea,.inn-wf-card-project:not(.is-project-editing) .inn-project-source-target-grid textarea{caret-color:transparent;cursor:default}@media(max-width:980px){.inn-project-source-list{grid-template-columns:1fr}}@media(max-width:720px){.inn-project-source-list,.inn-project-source-target-grid{grid-template-columns:1fr}.inn-project-source-list{padding-right:14px;padding-left:14px}.inn-project-source-item{padding:11px 12px}.inn-project-source-item>span{font-size:12px}.inn-project-source-item textarea{font-size:14px}.inn-project-source-target-grid article textarea{font-size:14px}}@media(min-width:1440px){.inn-project-source-item textarea{font-size:clamp(16px,.9vw,19px)}.inn-project-source-target-grid article textarea{font-size:clamp(15px,.84vw,17px)}}
+/* 信息确认：保留阅读层级，移除不必要的容器感。 */
+.inn-wf-card-project .inn-wf-project-page{gap:24px;padding:26px 28px;background:#fff}
+.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{border:0;border-radius:0;background:transparent;padding:0;box-shadow:none}
+.inn-wf-card-project .inn-project-section-head{min-height:0;margin:0 0 14px;border-bottom:1px solid #dfeaf0;background:transparent;padding:0 0 10px}
+.inn-wf-card-project .inn-project-section-head span{color:#1d4d6b;font-size:18px;font-weight:800}
+.inn-wf-card-project .inn-project-overview-fields{gap:12px;padding:0}
+.inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project .inn-project-objectives .inn-wf-field{border:1px solid #dce8ee;border-radius:10px;background:#f8fbfc;padding:12px 14px}
+.inn-wf-card-project .inn-project-overview .inn-wf-field>span,.inn-wf-card-project .inn-project-objectives .inn-wf-field>span{color:#638198;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-overview .inn-wf-field input{height:26px;color:#1e4d6c;font-size:16px;font-weight:700}
+.inn-wf-card-project .inn-project-confirm-grid,.inn-wf-card-project .inn-project-objectives-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inn-wf-card-project .inn-project-confirm-item{min-height:0;border-color:#dce8ee;border-radius:10px;background:#f8fbfc;padding:12px 14px}
+.inn-wf-card-project .inn-project-confirm-item>span{color:#638198;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{min-height:0;padding:0;color:#284f68;font-size:15px;font-weight:600;line-height:1.72}
+.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{margin-top:5px}
+.inn-wf-card-project .inn-project-objectives-grid .wide{grid-column:auto}
+.inn-wf-card-project:not(.is-project-editing) .inn-project-objectives .inn-wf-field{pointer-events:none;border-color:#e1ebef;background:#fbfdfe;box-shadow:none}
+.inn-wf-card-project:not(.is-project-editing) .inn-project-objectives .inn-wf-field textarea{caret-color:transparent;cursor:default}
+.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field{border-color:#b9d9e5;background:#fff}
+@media(max-width:980px){.inn-wf-card-project .inn-wf-project-page{padding:22px}.inn-wf-card-project .inn-project-confirm-grid,.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:1fr}}
+@media(max-width:720px){.inn-wf-card-project .inn-wf-project-page{gap:20px;padding:16px}.inn-wf-card-project .inn-project-section-head{margin-bottom:12px;padding-bottom:9px}.inn-wf-card-project .inn-project-section-head span{font-size:17px}.inn-wf-card-project .inn-project-overview-fields{gap:10px}.inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project .inn-project-objectives .inn-wf-field,.inn-wf-card-project .inn-project-confirm-item{padding:11px 12px}.inn-wf-card-project .inn-project-overview .inn-wf-field input{font-size:15px}.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{font-size:14px}}
+
+/* 信息确认：以两组工作区承载信息，减少碎片化输入框。 */
+.inn-wf-card-project{background:#f4f8fa}
+.inn-wf-card-project .inn-wf-project-page{gap:18px;padding:24px 26px 28px;background:#f4f8fa}
+.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{overflow:visible;border:1px solid #dbe7ed;border-radius:14px;background:#fff;padding:18px 20px 20px;box-shadow:0 9px 22px rgba(20,67,91,.045)}
+.inn-wf-card-project .inn-project-section-head{position:relative;min-height:0;margin:0 0 16px;border:0;background:transparent;padding:0 0 11px}
+.inn-wf-card-project .inn-project-section-head:after{position:absolute;right:0;bottom:0;left:0;height:1px;background:#e5edf1;content:""}
+.inn-wf-card-project .inn-project-section-head span{color:#183f5b;font-size:18px;font-weight:800;letter-spacing:-.025em}
+.inn-wf-card-project .inn-project-identity{display:grid;grid-template-columns:minmax(0,1.16fr) minmax(300px,.84fr);align-items:start;gap:14px}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field{display:grid;align-content:center;min-height:0;border:1px solid #cfe3eb;border-radius:10px;background:#edf7fa;padding:14px 16px}
+.inn-wf-card-project .inn-project-name-field>span{color:#53768c;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-name-field input{height:32px;margin-top:5px;color:#173f5c;font-size:18px;font-weight:800;letter-spacing:-.02em}
+.inn-wf-card-project .inn-project-meta-fields{display:grid;grid-template-rows:repeat(2,auto);align-content:start;gap:10px}
+.inn-wf-card-project .inn-project-meta-fields .inn-wf-field{min-height:0;border:1px solid #e1ebef;border-radius:10px;background:#fbfdfe;padding:11px 14px}
+.inn-wf-card-project .inn-project-meta-fields .inn-wf-field>span{color:#688397;font-size:12px;font-weight:800}
+.inn-wf-card-project .inn-project-meta-fields .inn-wf-field input{height:25px;color:#2b536c;font-size:15px;font-weight:700}
+.inn-wf-card-project .inn-project-confirm-grid{align-items:start;margin-top:16px;border-top:1px solid #e6eef2;padding-top:16px}
+.inn-wf-card-project .inn-project-confirm-item{align-content:start;gap:8px;border:1px solid #e0eaee;border-radius:10px;background:#f8fbfc;padding:14px 15px}
+.inn-wf-card-project .inn-project-confirm-item>span,.inn-wf-card-project .inn-project-objectives .inn-wf-field>span{color:#52758b;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{min-height:0;margin:0;padding:0;color:#2d536b;font-size:14px;font-weight:600;line-height:1.72;overflow:hidden;resize:vertical}
+.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:14px}
+.inn-wf-card-project .inn-project-objectives .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field{border:1px solid #e0eaee;border-radius:10px;background:#f8fbfc;padding:14px 15px}
+.inn-wf-card-project .inn-project-overview .inn-wf-field:focus-within,.inn-wf-card-project .inn-project-objectives .inn-wf-field:focus-within,.inn-wf-card-project .inn-project-confirm-item:focus-within{border-color:#61acc9;background:#fff;box-shadow:0 0 0 3px rgba(57,150,190,.12)}
+@media(max-width:980px){.inn-wf-card-project .inn-wf-project-page{padding:20px}.inn-wf-card-project .inn-project-identity,.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:1fr}.inn-wf-card-project .inn-project-meta-fields{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none}}
+@media(max-width:720px){.inn-wf-card-project .inn-wf-project-page{gap:14px;padding:14px}.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{border-radius:12px;padding:15px}.inn-wf-card-project .inn-project-section-head{margin-bottom:13px;padding-bottom:9px}.inn-wf-card-project .inn-project-section-head span{font-size:17px}.inn-wf-card-project .inn-project-identity{gap:10px}.inn-wf-card-project .inn-project-overview .inn-project-name-field{min-height:96px;padding:14px}.inn-wf-card-project .inn-project-name-field input{font-size:16px}.inn-wf-card-project .inn-project-meta-fields{grid-template-columns:1fr;gap:8px}.inn-wf-card-project .inn-project-confirm-grid,.inn-wf-card-project .inn-project-objectives-grid{gap:10px;margin-top:13px;padding-top:13px}.inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project .inn-project-objectives .inn-wf-field{padding:12px}.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{font-size:14px}}
+
+/* 信息确认：阅读态为主，悬停或聚焦时才明确显示可编辑边界。 */
+.inn-wf-card-project{background:#fff}
+.inn-wf-card-project .inn-wf-project-page{gap:0;padding:20px 28px 24px;background:#fff}
+.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{overflow:visible;border:0;border-radius:0;background:transparent;padding:0;box-shadow:none}
+.inn-wf-card-project .inn-project-section-head{display:flex;align-items:center;justify-content:flex-start;min-height:26px;margin:0 0 12px;border:0;background:transparent;padding:0}
+.inn-wf-card-project .inn-project-section-head:before{width:3px;height:19px;margin-right:9px;border-radius:2px;background:#1684b5;content:""}
+.inn-wf-card-project .inn-project-section-head:after{display:none}
+.inn-wf-card-project .inn-project-section-head span{color:#183f5b;font-size:18px;font-weight:800;letter-spacing:-.02em}
+.inn-wf-card-project .inn-project-identity{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1.2fr) minmax(0,.9fr);align-items:stretch;gap:0;border-top:1px solid #e2ebef;border-bottom:1px solid #e2ebef}
+.inn-wf-card-project .inn-project-overview .inn-wf-field{min-height:56px;border:0;border-radius:0;background:transparent;padding:7px 14px}
+.inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field{border-left:1px solid #e2ebef}
+.inn-wf-card-project .inn-project-overview .inn-wf-field>span{color:#668296;font-size:14px;font-weight:800}
+.inn-wf-card-project .inn-project-overview .inn-wf-field input,.inn-wf-card-project .inn-project-overview .inn-wf-field textarea{box-sizing:border-box;width:100%;margin-top:2px;border:1px solid transparent;border-radius:8px;background:transparent;padding:6px 10px;color:#244c66;font-family:inherit;font-size:14px;font-weight:700;letter-spacing:-.015em;line-height:1.48;outline:0;overflow:hidden;resize:none;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field{display:grid;align-content:center;min-height:56px;padding:7px 14px}
+.inn-wf-card-project .inn-project-overview .inn-project-identity textarea{min-height:0;height:auto}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{color:#173f5c;font-size:15px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-grid{align-items:start;gap:16px;margin-top:12px;border:0;padding:0}
+.inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project .inn-project-objectives .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field{gap:6px;border:0;border-radius:0;background:transparent;padding:0;box-shadow:none}
+.inn-wf-card-project .inn-project-confirm-item>span,.inn-wf-card-project .inn-project-objectives .inn-wf-field>span{color:#436b83;font-size:15px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{min-height:0;border:1px solid transparent;border-radius:8px;background:transparent;padding:9px 10px;color:#294f67;font-family:inherit;font-size:14px;font-weight:600;line-height:1.66;outline:0;overflow:hidden;resize:none;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-objectives{margin-top:22px;border-top:0;padding-top:0}
+.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);align-items:stretch;gap:0;border-top:1px solid #e2ebef}
+.inn-wf-card-project .inn-project-objectives .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field{align-content:start;min-height:0;padding:11px 14px}
+.inn-wf-card-project .inn-project-objectives .inn-wf-field+.inn-wf-field{border-left:0}
+.inn-wf-card-project .inn-project-identity textarea:hover,.inn-wf-card-project .inn-project-confirm-item textarea:hover,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea:hover{border-color:#c8e0e9;background:#f6fafb;box-shadow:0 1px 2px rgba(21,73,98,.03)}
+.inn-wf-card-project .inn-project-identity textarea:focus,.inn-wf-card-project .inn-project-confirm-item textarea:focus,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea:focus{border-color:#62aeca;background:#fff;box-shadow:0 0 0 3px rgba(54,147,188,.11)}
+/* 覆盖历史的“整页编辑态”外框：始终可编辑，但只在字段交互时出现边界。 */
+.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field:hover,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field:focus-within,.inn-wf-card-project.is-project-editing .inn-project-confirm-item:hover,.inn-wf-card-project.is-project-editing .inn-project-confirm-item:focus-within,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field:hover,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-wf-field:focus-within{background:transparent!important;box-shadow:none!important}
+.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{border-color:transparent!important}
+@media(min-width:981px) and (max-width:1500px){.inn-wf-card-project .inn-project-identity{grid-template-columns:repeat(2,minmax(0,1fr))}.inn-wf-card-project .inn-project-name-field{grid-column:1/-1;border-bottom:1px solid #e2ebef}.inn-wf-card-project.is-project-editing .inn-project-overview .inn-project-name-field{border-bottom-color:#e2ebef!important}.inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field{border-left:0}.inn-wf-card-project .inn-project-overview .inn-project-meta-field+.inn-project-meta-field{border-left:1px solid #e2ebef}}
+@media(max-width:980px){.inn-wf-card-project .inn-wf-project-page{padding:19px 22px}.inn-wf-card-project .inn-project-identity{grid-template-columns:minmax(0,1.2fr) 1fr}.inn-wf-card-project .inn-project-name-field{grid-column:1/-1;border-bottom:1px solid #e2ebef}.inn-wf-card-project.is-project-editing .inn-project-overview .inn-project-name-field{border-bottom-color:#e2ebef!important}.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:1fr}.inn-wf-card-project .inn-project-objectives .inn-wf-field+.inn-wf-field{border-top:1px solid #e2ebef;border-left:0}}
+@media(max-width:720px){.inn-wf-card-project .inn-wf-project-page{padding:16px 14px 20px}.inn-wf-card-project .inn-project-section-head{margin-bottom:10px}.inn-wf-card-project .inn-project-section-head span{font-size:17px}.inn-wf-card-project .inn-project-identity,.inn-wf-card-project .inn-project-confirm-grid,.inn-wf-card-project .inn-project-objectives-grid{grid-template-columns:1fr;gap:12px}.inn-wf-card-project .inn-project-identity,.inn-wf-card-project .inn-project-objectives-grid{gap:0}.inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project .inn-project-overview .inn-project-name-field{min-height:0;padding:10px 9px}.inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field{border-top-color:#e7eef1;border-left-color:transparent}.inn-wf-card-project .inn-project-overview .inn-project-name-field{border-bottom-color:#e7eef1}.inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{font-size:15px}.inn-wf-card-project .inn-project-confirm-grid{margin-top:13px}.inn-wf-card-project .inn-project-objectives{margin-top:18px;padding-top:0}.inn-wf-card-project .inn-project-objectives .inn-wf-field{padding:10px 9px}.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{padding:8px 9px;font-size:14px}}
+.inn-wf-card-project .inn-project-overview .inn-wf-field textarea,.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-objectives .inn-wf-field textarea{font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:15px;font-weight:600;line-height:1.72;color:#2d536b;letter-spacing:0}
+@media(min-width:1440px){.inn-wf-card-project .inn-wf-project-page{font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-synthesis:none}.inn-wf-card-project .inn-project-section-head span{font-size:20px;font-weight:800;letter-spacing:-.015em}.inn-wf-card-project .inn-project-overview .inn-wf-field>span{font-size:15px;font-weight:700}.inn-wf-card-project .inn-project-confirm-item>span,.inn-wf-card-project .inn-project-objectives .inn-wf-field>span{font-size:16px;font-weight:700}}
+
+/* 流程内容独立滚动，操作栏始终停靠在当前工作区底部。 */
+.inn-wf-card-project,.inn-wf-card-analysis,.inn-wf-card-research{height:calc(100dvh - 36px);min-height:620px;overflow:hidden}
+.inn-wf-card-project .inn-wf-section,.inn-wf-card-analysis .inn-wf-section,.inn-wf-card-research .inn-wf-section{flex:1 1 auto;min-height:0;overflow-y:auto}
+.inn-wf-card-project .inn-wf-actions,.inn-wf-card-analysis .inn-wf-actions,.inn-wf-card-research .inn-wf-actions{position:relative;z-index:1;flex:0 0 auto}
+@media(max-width:980px){.inn-wf-card-project,.inn-wf-card-analysis,.inn-wf-card-research{height:calc(100dvh - 250px);min-height:560px}}
+@media(max-width:720px){.inn-wf-card-project,.inn-wf-card-analysis,.inn-wf-card-research{height:calc(100dvh - 320px);min-height:520px}}
+
+/* 流程导航折叠为贴边把手，避免形成空白侧栏。 */
+.inn-wf-nav .inn-wf-nav-collapse{border:0!important;background:transparent;box-shadow:none;color:#39728e;transition:background-color .16s ease,color .16s ease,transform .16s ease}
+.inn-wf-nav .inn-wf-nav-collapse:hover{border-color:transparent;background:#edf8fb;color:#147cae}
+.inn-wf-nav .inn-wf-nav-collapse:focus-visible{outline:0;background:#edf8fb;box-shadow:0 0 0 3px rgba(22,136,186,.18)}
+@media(min-width:981px){
+  .inn-wf-layout.report-flow-collapsed{grid-template-columns:0 minmax(0,1fr);gap:0}
+  .inn-wf-nav.collapsed{position:sticky;top:calc(50dvh - 26px);z-index:3;display:block;width:0;min-height:0;height:0;overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse{position:absolute;top:0;left:0;width:30px;min-height:52px;border:0!important;border-radius:0 10px 10px 0;background:#eaf5f9;box-shadow:0 6px 16px rgba(26,97,126,.10);color:#147cae;font-size:24px;transform:translateX(-5px)}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse:hover{background:#d9eff6;transform:translateX(-1px)}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse:focus-visible{box-shadow:0 0 0 3px rgba(22,136,186,.18),0 6px 16px rgba(26,97,126,.10)}
+}
+.inn-wf-card-analysis{background:#f7fafc}.inn-wf-card-analysis .inn-wf-analysis-page{gap:22px;background:linear-gradient(180deg,#f7fafc 0%,#fff 68%)}.inn-wf-card-analysis .inn-analysis-section{gap:11px}.inn-wf-card-analysis .inn-analysis-section-head{min-height:42px;padding:0 2px}.inn-wf-card-analysis .inn-analysis-section-head>span{color:#173f5c;font-size:18px;font-weight:800;letter-spacing:-.02em}.inn-analysis-page-edit{min-width:78px;min-height:38px;border:1px solid #9cc9db;border-radius:8px;background:#f8fcfd;padding:0 16px;color:#1375a2;font-family:"Microsoft YaHei",sans-serif;font-size:14px;font-weight:800;cursor:pointer}.inn-analysis-page-edit:hover{border-color:#4a9fbe;background:#f1f9fc}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-page-edit{border-color:#147dad;background:#147dad;color:#fff;box-shadow:0 4px 10px rgba(18,110,157,.16)}.inn-wf-card-analysis .inn-analysis-topic-grid{gap:14px}.inn-wf-card-analysis .inn-analysis-topic-card{display:block;overflow:hidden;border:1px solid #cfe3ec;border-radius:14px;background:#fff;box-shadow:0 7px 20px rgba(23,78,105,.045)}.inn-wf-card-analysis .inn-analysis-topic-card>header{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;gap:10px;border-bottom:1px solid #dcecf2;background:linear-gradient(100deg,#e8f6fa 0%,#f6fbfd 100%);padding:13px 16px}.inn-wf-card-analysis .inn-analysis-topic-card>header>i{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:#188abd;padding:0;color:#fff;font-size:11px;font-style:normal;font-weight:800}.inn-wf-card-analysis .inn-analysis-topic-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#dfeaf0}.inn-wf-card-analysis .inn-analysis-topic-body label{display:grid;gap:5px;min-width:0;background:#fff;padding:12px 14px 14px}.inn-wf-card-analysis .inn-analysis-topic-body .inn-analysis-topic-basis{grid-column:1/-1;background:#fbfdfe}.inn-wf-card-analysis .inn-analysis-topic-body label>span,.inn-wf-card-analysis .inn-analysis-point-body label>span{color:#5b8093;font-size:12px;font-weight:800}.inn-wf-card-analysis .inn-analysis-point-list{gap:13px}.inn-wf-card-analysis .inn-analysis-point-card{display:block;overflow:hidden;border:1px solid #cfe3ec;border-radius:14px;background:#fff;box-shadow:0 7px 20px rgba(23,78,105,.04)}.inn-wf-card-analysis .inn-analysis-point-card>header{padding:13px 16px 9px;background:#fff}.inn-wf-card-analysis .inn-analysis-point-title{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:start;gap:10px}.inn-wf-card-analysis .inn-analysis-point-card .inn-analysis-point-title>i{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:#e6f4f9;padding:0;color:#1680ae;font-size:11px;font-style:normal;font-weight:800}.inn-wf-card-analysis .inn-analysis-point-body{display:grid;grid-template-columns:1.12fr 1fr;gap:0;border-top:1px solid #e0ebf0;background:#fff;padding:0}.inn-wf-card-analysis .inn-analysis-point-body label{display:grid;gap:5px;min-width:0;padding:12px 16px 14px}.inn-wf-card-analysis .inn-analysis-point-body label+label{border-left:1px solid #e0ebf0}.inn-wf-card-analysis .inn-analysis-readonly-title{display:block;color:#1e4b67;font-size:16px;font-weight:800;line-height:1.55}.inn-wf-card-analysis .inn-analysis-readonly-copy{margin:0;color:#3c6277;font-size:14px;font-weight:600;line-height:1.72}.inn-wf-card-analysis.is-analysis-editing{background:#f0f8fb}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card{border-color:#96c8db;box-shadow:0 8px 22px rgba(20,109,151,.09)}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-body label,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-body label{background:#fafdfe}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card textarea{box-sizing:border-box;width:100%;border:1px solid #c9e0e9;border-radius:8px;background:#fff;padding:9px 10px;color:#284f65;box-shadow:inset 0 1px 2px rgba(26,93,122,.035);font-family:"Microsoft YaHei",sans-serif;font-size:14px;font-weight:600;line-height:1.65}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-title textarea{min-height:38px;border-color:#b7d9e5;font-size:16px;font-weight:800;resize:vertical}.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-body textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-body textarea{min-height:70px;resize:vertical}@media(min-width:1440px){.inn-wf-card-analysis .inn-analysis-section-head>span{font-size:clamp(19px,1vw,22px)}.inn-wf-card-analysis .inn-analysis-readonly-title{font-size:clamp(16px,.88vw,19px)}.inn-wf-card-analysis .inn-analysis-readonly-copy{font-size:clamp(14px,.76vw,16px)}}@media(max-width:720px){.inn-wf-card-analysis .inn-wf-analysis-page{gap:17px}.inn-wf-card-analysis .inn-analysis-section-head>span{font-size:17px}.inn-wf-card-analysis .inn-analysis-topic-grid,.inn-wf-card-analysis .inn-analysis-topic-body,.inn-wf-card-analysis .inn-analysis-point-body{grid-template-columns:1fr}.inn-wf-card-analysis .inn-analysis-topic-card>header{padding:12px 13px}.inn-wf-card-analysis .inn-analysis-topic-body label{padding:11px 13px 13px}.inn-wf-card-analysis .inn-analysis-point-card>header{padding:12px 13px 8px}.inn-wf-card-analysis .inn-analysis-point-body label{padding:11px 13px 13px}.inn-wf-card-analysis .inn-analysis-point-body label+label{border-top:1px solid #e0ebf0;border-left:0}.inn-wf-card-analysis .inn-analysis-readonly-title{font-size:15px}.inn-wf-card-analysis .inn-analysis-readonly-copy{font-size:14px}.inn-analysis-page-edit{min-height:36px;padding:0 14px}}
+
+/* 窄屏使用单行流程条，替代占用较大的流程卡片。 */
+.inn-wf-nav h1 small{display:none}
+.inn-wf-nav.collapsed h1{display:none}
+@media(max-width:980px){
+  .inn-wf-shell{padding:10px 14px 18px}
+  .inn-wf-layout,.inn-wf-layout.report-flow-collapsed{grid-template-columns:minmax(0,1fr);gap:10px}
+  .inn-wf-nav,.inn-wf-nav.collapsed{position:sticky;top:8px;z-index:4;display:flex;width:auto;min-height:54px;height:auto;align-items:center;overflow:visible;border:1px solid #d7e6ed;border-radius:12px;background:#fff;box-shadow:0 5px 16px rgba(21,75,99,.06)}
+  .inn-wf-nav h1,.inn-wf-nav.collapsed h1{display:flex;min-width:112px;flex:0 0 auto;flex-direction:column;gap:2px;margin:0;border:0;border-right:1px solid #e4edf1;padding:0 13px;color:#173f5e;font-size:16px;letter-spacing:-.025em;line-height:1.25;white-space:nowrap}
+  .inn-wf-nav h1 small{display:block;color:#728c9d;font-size:12px;font-weight:700;letter-spacing:0}
+  .inn-wf-nav .inn-wf-nav-collapse,.inn-wf-nav.collapsed .inn-wf-nav-collapse{position:static;order:3;display:grid;width:36px;min-height:40px;flex:0 0 36px;place-items:center;border:0!important;border-radius:8px;background:transparent;box-shadow:none;color:#39728e;font-size:24px;transform:none}
+  .inn-wf-nav .inn-wf-nav-collapse:hover,.inn-wf-nav.collapsed .inn-wf-nav-collapse:hover{background:#edf8fb;color:#147cae;transform:none}
+  .inn-wf-nav>div{order:2;display:flex!important;min-width:0;flex:1;align-items:center;gap:3px;overflow-x:auto;overflow-y:hidden;padding:5px;scroll-snap-type:x proximity;scrollbar-width:none}
+  .inn-wf-nav>div::-webkit-scrollbar{display:none}
+  .inn-wf-nav.collapsed>div{display:none!important}
+  .inn-wf-nav>div>button{position:relative;display:grid;width:auto;min-height:40px;flex:0 0 auto;grid-template-columns:24px minmax(0,1fr);gap:7px;border-radius:7px;padding:7px 9px;color:#547587;font-size:14px;letter-spacing:-.015em;line-height:1.3;scroll-snap-align:start;white-space:nowrap}
+  .inn-wf-nav>div>button i{width:22px;height:22px;font-size:11px}
+  .inn-wf-nav>div>button.active{background:#edf8fb;color:#126f9f}
+  .inn-wf-nav>div>button.active::before{display:none}
+  .inn-wf-nav>div>button.active i{border-color:#1688c0;background:#1688c0;color:#fff}
+  .inn-wf-nav .inn-wf-subnav{display:none}
+  .inn-wf-card,.inn-wf-card-project,.inn-wf-card-analysis,.inn-wf-card-research{height:calc(100dvh - 112px);min-height:520px}
+}
+@media(max-width:720px){
+  .inn-wf-shell{padding:8px 8px 16px}
+  .inn-wf-nav,.inn-wf-nav.collapsed{top:6px;min-height:52px;border-radius:10px}
+  .inn-wf-nav h1,.inn-wf-nav.collapsed h1{min-width:102px;padding:0 10px;font-size:15px}
+  .inn-wf-nav h1 small{font-size:12px}
+  .inn-wf-nav>div>button{min-height:38px;padding:7px 8px;font-size:14px}
+  .inn-wf-card,.inn-wf-card-project,.inn-wf-card-analysis,.inn-wf-card-research{height:calc(100dvh - 100px);min-height:470px}
+}
+/* 项目分析：字段始终可编辑，仅在悬停或聚焦时显露编辑边界。 */
+.inn-wf-card-analysis .inn-analysis-topic-card,
+.inn-wf-card-analysis .inn-analysis-point-card{transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card:hover,
+.inn-wf-card-analysis .inn-analysis-point-card:hover{border-color:#d7e8ee;box-shadow:0 7px 18px rgba(22,91,121,.045)}
+.inn-wf-card-analysis .inn-analysis-topic-card:focus-within,
+.inn-wf-card-analysis .inn-analysis-point-card:focus-within{border-color:#d7e8ee;box-shadow:0 7px 18px rgba(22,91,121,.045)}
+.inn-wf-card-analysis .inn-analysis-topic-card>header textarea,
+.inn-wf-card-analysis .inn-analysis-topic-body textarea,
+.inn-wf-card-analysis .inn-analysis-point-card textarea{box-sizing:border-box;width:100%;border:0;border-bottom:2px solid transparent;border-radius:5px 5px 0 0;outline:0;background:transparent;padding:6px 8px;color:#2c5268;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.7;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>header textarea,
+.inn-wf-card-analysis .inn-analysis-point-title textarea{min-height:34px;max-height:none;padding:2px 5px;color:#1e4b67;font-size:16px;font-weight:800;line-height:1.55;resize:none}
+.inn-wf-card-analysis .inn-analysis-topic-body textarea,
+.inn-wf-card-analysis .inn-analysis-point-body textarea{min-height:66px}
+.inn-wf-card-analysis .inn-analysis-topic-card:hover textarea,
+.inn-wf-card-analysis .inn-analysis-point-card:hover textarea{border-bottom-color:#c8e1eb;background:#f7fbfc}
+.inn-wf-card-analysis .inn-analysis-topic-card textarea:focus,
+.inn-wf-card-analysis .inn-analysis-point-card textarea:focus{border-bottom-color:#1688b9;background:#f4fafc;box-shadow:none}
+@media(min-width:1440px){
+  .inn-wf-card-analysis .inn-analysis-topic-card>header textarea,
+  .inn-wf-card-analysis .inn-analysis-point-title textarea{font-size:clamp(16px,.9vw,19px)}
+  .inn-wf-card-analysis .inn-analysis-topic-body textarea,
+  .inn-wf-card-analysis .inn-analysis-point-body textarea{font-size:clamp(14px,.8vw,16px)}
+}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-analysis-topic-card>header textarea,
+  .inn-wf-card-analysis .inn-analysis-point-title textarea{font-size:15px}
+  .inn-wf-card-analysis .inn-analysis-topic-body textarea,
+  .inn-wf-card-analysis .inn-analysis-point-body textarea{min-height:74px;font-size:14px}
+}
+
+/* 主题与创新技术点：默认只呈现用户需要确认的对象。 */
+.inn-wf-card-analysis .inn-analysis-section-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.inn-wf-card-analysis .inn-analysis-add{min-height:34px;border:1px solid #bdd9e5;border-radius:8px;background:#fff;padding:0 12px;color:#147aa5;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:800;cursor:pointer;transition:border-color .16s ease,background-color .16s ease,color .16s ease}
+.inn-wf-card-analysis .inn-analysis-add:hover{border-color:#6fb1ca;background:#f2fafc;color:#0b709e}
+.inn-wf-card-analysis .inn-analysis-add:focus-visible{outline:0;border-color:#64adca;box-shadow:0 0 0 3px rgba(48,145,184,.11)}
+.inn-wf-card-analysis .inn-analysis-topic-card>header{min-height:58px;border-bottom:0;padding:13px 16px}
+.inn-wf-card-analysis .inn-analysis-point-card>header{min-height:58px;padding:13px 16px}
+.inn-wf-card-analysis .inn-analysis-topic-card.is-empty,
+.inn-wf-card-analysis .inn-analysis-point-card.is-empty{border-style:dashed;border-color:#9dc7d8;background:#fbfdfe;box-shadow:none}
+.inn-wf-card-analysis .inn-analysis-topic-card textarea::placeholder,
+.inn-wf-card-analysis .inn-analysis-point-card textarea::placeholder{color:#7d9aa9;font-weight:700}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-analysis-section-head{gap:10px}
+  .inn-wf-card-analysis .inn-analysis-add{min-height:32px;padding:0 10px;font-size:14px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>header,
+  .inn-wf-card-analysis .inn-analysis-point-card>header{min-height:54px;padding:12px 13px}
+}
+
+/* 数据检索由两步组成：技术主题相关数据完成后进入创新点相关数据。 */
+.inn-wf-nav>div>button.active{background:transparent;color:#174e6a}
+.inn-wf-nav>div>button.active::before{display:none}
+.inn-wf-nav>div>button.active i{border-color:#1688b9;background:#1688b9;box-shadow:0 4px 9px rgba(18,125,169,.16);color:#fff}
+.inn-wf-nav .inn-wf-subnav{position:relative;display:grid;gap:0;margin:1px 0 9px 36px;border-left:0;padding:2px 0}
+.inn-wf-nav .inn-wf-subnav::before{position:absolute;top:25px;bottom:25px;left:10px;width:1px;background:#d7e6ed;content:""}
+.inn-wf-nav .inn-wf-subnav button{position:relative;z-index:1;display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;gap:9px;width:100%;min-height:46px;border:0;border-radius:0;background:transparent;padding:5px 0;color:#8aa0af;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:800;line-height:1.4;text-align:left;cursor:pointer}
+.inn-wf-nav .inn-wf-subnav button::after{display:none!important}
+.inn-wf-nav .inn-wf-subnav button i{display:grid;width:20px;height:20px;place-items:center;border:1px solid #c9dde6;border-radius:50%;background:#fff;color:#7594a4;font:800 9px/1 Arial;font-style:normal;letter-spacing:0}
+.inn-wf-nav .inn-wf-subnav button span{display:block;width:max-content;max-width:100%;padding:2px 0;color:inherit}
+.inn-wf-nav .inn-wf-subnav button .inn-wf-subnav-label{display:flex;width:auto;flex-wrap:wrap;column-gap:4px;row-gap:0}
+.inn-wf-nav .inn-wf-subnav button .inn-wf-subnav-label b{color:inherit;font:inherit;white-space:nowrap}
+.inn-wf-nav .inn-wf-subnav button:hover{color:#4c7486}
+.inn-wf-nav .inn-wf-subnav button:hover i{border-color:#8fc2d5;color:#317895}
+.inn-wf-nav .inn-wf-subnav button.active{color:#174e6a}
+.inn-wf-nav .inn-wf-subnav button.active i{border-color:#1688b9;background:#1688b9;box-shadow:0 4px 9px rgba(18,125,169,.15);color:#fff}
+.inn-wf-nav .inn-wf-subnav button.done{color:#52737f}
+.inn-wf-nav .inn-wf-subnav button.done i{border-color:#72c9aa;background:#effaf5;color:#238164}
+@media(min-width:1440px){.inn-wf-nav .inn-wf-subnav button{font-size:15px}}
+@media(max-width:980px){.inn-wf-nav .inn-wf-subnav{display:none}}
+
+/* 四类资料共享同一查看方式：卡片用于读摘要，表格用于比较字段与批量筛选。 */
+.inn-wf-research-page .inn-recall-list-actions{gap:10px}
+.inn-wf-research-page .inn-recall-controls{grid-template-columns:auto minmax(0,1fr) auto}
+.inn-wf-research-page .inn-recall-view-switch{display:inline-grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;flex:0 0 auto;overflow:hidden;border:1px solid #d6e4eb;border-radius:7px;background:#f5f9fb;padding:2px}
+.inn-wf-research-page .inn-recall-view-switch button{min-width:0!important;min-height:28px!important;border:0!important;border-radius:5px!important;background:transparent!important;padding:0 10px!important;color:#678091!important;font-size:13px!important;font-weight:800!important;line-height:1;box-shadow:none!important}
+.inn-wf-research-page .inn-recall-view-switch button:hover{background:#edf6f9!important;color:#176f99!important}
+.inn-wf-research-page .inn-recall-view-switch button.active{background:#fff!important;color:#126f9e!important;box-shadow:0 1px 3px rgba(24,74,101,.13)!important}
+.inn-wf-research-page .inn-recall-view-switch button:focus-visible{position:relative;z-index:1;outline:2px solid #65b0ce;outline-offset:-2px}
+.inn-wf-card-research .inn-research-table-wrap{overflow:auto;border-top:1px solid #dce8ee;background:#fff}
+.inn-wf-card-research .inn-research-table{width:100%;min-width:1040px;border-collapse:separate;border-spacing:0;color:#385f75;font-size:14px;table-layout:fixed}
+.inn-wf-card-research .inn-research-table th{height:42px;border-bottom:1px solid #cfdfe7;background:#eff6f9;padding:0 12px;color:#507489;font-size:13px;font-weight:800;text-align:left;white-space:nowrap}
+.inn-wf-card-research .inn-research-table th:first-child,.inn-wf-card-research .inn-research-table td:first-child{width:42px;padding-right:0;padding-left:14px;text-align:center}
+.inn-wf-card-research .inn-research-table th:nth-child(2),.inn-wf-card-research .inn-research-table td:nth-child(2){width:56px;text-align:center}
+.inn-wf-card-research .inn-research-table th:nth-child(3){width:30%}
+.inn-wf-card-research .inn-research-table th:last-child,.inn-wf-card-research .inn-research-table td:last-child{width:82px;text-align:center}
+.inn-wf-card-research .inn-research-table td{overflow:hidden;border-bottom:1px solid #e1ebf0;padding:12px;color:#46687b;font-weight:600;line-height:1.5;text-overflow:ellipsis;vertical-align:middle;white-space:nowrap}
+.inn-wf-card-research .inn-research-table tbody tr{transition:background-color .16s ease}
+.inn-wf-card-research .inn-research-table tbody tr:hover{background:#f8fcfd}
+.inn-wf-card-research .inn-research-table tbody tr.is-selected{background:#f4fbfd;box-shadow:inset 3px 0 0 #1688ba}
+.inn-wf-card-research .inn-research-table input{width:16px;height:16px;margin:0;accent-color:#1687b8;cursor:pointer}
+.inn-wf-card-research .inn-research-table-title{padding-right:18px!important;white-space:normal!important}
+.inn-wf-card-research .inn-research-table-title button{display:block;width:100%;overflow:hidden;border:0;background:transparent;padding:0;color:#173f5b;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:800;line-height:1.55;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.inn-wf-card-research .inn-research-table-title button:hover,.inn-wf-card-research .inn-research-table-title button:focus-visible{outline:0;color:#087cad;text-decoration:underline;text-decoration-color:#a6d3e2;text-underline-offset:3px}
+.inn-wf-card-research .inn-research-table-title>span{display:block;overflow:hidden;margin-top:3px;color:#7890a0;font-size:12px;font-weight:500;line-height:1.45;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-research-table td>b{display:inline-block;border-radius:5px;background:#f1f4f6;padding:3px 6px;color:#768b98;font-size:12px;line-height:1.2;white-space:nowrap}
+.inn-wf-card-research .inn-research-table td>b.selected{background:#e7f7f1;color:#217a62}
+.inn-wf-card-research .inn-research-table-detail td{border-bottom:1px solid #dce8ed!important;background:#fbfdfe;padding:10px 16px 12px!important;white-space:normal!important}
+.inn-wf-card-research .inn-research-table-detail b{margin-right:9px;color:#17759d;font-size:13px}
+.inn-wf-card-research .inn-research-table-detail span{color:#557286;font-size:13px;font-weight:600;line-height:1.65}
+/* 政策与内部知识的卡片模式采用独立证据卡，和字段比较表有明确区分。 */
+.inn-wf-card-research .inn-evidence-ledger{display:grid;gap:10px;overflow:visible;border:0;background:#f6fafc;padding:12px}
+.inn-wf-card-research .inn-evidence-ledger-row{overflow:hidden;border:1px solid #dce8ee;border-radius:10px;background:#fff;box-shadow:0 3px 10px rgba(24,68,91,.03)}
+.inn-wf-card-research .inn-evidence-ledger-row:hover{border-color:#bfdce7;background:#fff}
+.inn-wf-card-research .inn-evidence-ledger-row.is-selected{background:#f8fcfd;box-shadow:inset 3px 0 0 #1688ba,0 5px 15px rgba(21,93,122,.06)}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row.is-selected{background:#fffdf8;box-shadow:inset 3px 0 0 #c69539,0 5px 15px rgba(122,92,32,.05)}
+.inn-wf-card-research .inn-evidence-ledger-select{background:#f8fbfc}
+@media(min-width:1440px){
+  .inn-wf-research-page .inn-recall-view-switch button{font-size:14px!important}
+  .inn-wf-card-research .inn-research-table{font-size:15px}
+  .inn-wf-card-research .inn-research-table th{font-size:14px}
+  .inn-wf-card-research .inn-research-table-title button{font-size:15px}
+}
+@media(min-width:981px) and (max-width:1400px){
+  .inn-wf-research-page .inn-recall-controls{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+  .inn-wf-research-page .inn-recall-list-summary{grid-column:1;grid-row:2}
+  .inn-wf-research-page .inn-recall-list-actions{grid-column:2;grid-row:1 / span 2}
+}
+@media(max-width:720px){
+  .inn-wf-research-page .inn-recall-list-actions{align-items:center;flex-wrap:wrap;width:100%}
+  .inn-wf-research-page .inn-recall-view-switch{order:-1;width:100%}
+  .inn-wf-research-page .inn-recall-view-switch button{min-height:32px!important;font-size:14px!important}
+  .inn-wf-card-research .inn-research-table{min-width:920px}
+  .inn-wf-card-research .inn-research-table th{height:40px;font-size:13px}
+  .inn-wf-card-research .inn-research-table td{padding-top:10px;padding-bottom:10px;font-size:14px}
+  .inn-wf-card-research .inn-evidence-ledger{gap:8px;padding:10px}
+}
+
+/* 收起态为独立流程入口，预留轨道避免压住报告目录。 */
+@media(min-width:981px){
+  .inn-wf-layout.report-flow-collapsed{grid-template-columns:44px minmax(0,1fr)}
+  .inn-wf-nav.collapsed{top:calc(50dvh - 44px);display:grid;width:44px;min-height:88px;height:88px;place-items:center}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse{position:static;display:grid;width:34px;min-height:88px;place-items:center;border:0!important;border-radius:0 14px 14px 0;background:#eaf5f9;box-shadow:0 8px 20px rgba(26,97,126,.10);padding:0;color:#147cae;transform:none}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse>span:first-child{display:grid;width:20px;height:24px;place-items:center;font-size:0;line-height:1;transition:transform .16s ease}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse>span:first-child:before{width:10px;height:10px;border:solid currentColor;border-width:0 3px 3px 0;border-radius:1px;content:"";transform:rotate(-45deg)}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse:hover{background:#d9eff6;box-shadow:0 10px 22px rgba(26,97,126,.14);color:#147cae;transform:none}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse:hover>span:first-child{transform:translateX(2px)}
+  .inn-wf-nav.collapsed .inn-wf-nav-collapse:focus-visible{box-shadow:0 0 0 3px rgba(22,136,186,.18),0 8px 20px rgba(26,97,126,.10)}
+}
+@media(max-width:980px){
+  .inn-wf-nav .inn-wf-nav-collapse>span:first-child{font-size:24px;line-height:1}
+}
+
+/* 检索控制区固定为两行：资料来源在上，浏览与筛选操作在下。 */
+.inn-wf-research-page .inn-recall-controls{display:block;min-height:0;padding:0}
+.inn-wf-research-page .inn-recall-type-tabs{display:flex;width:max-content;max-width:100%;gap:3px;border-radius:8px;background:#f1f7f9;padding:3px}
+.inn-wf-research-page .inn-recall-type-tabs button{display:inline-flex;min-width:0;min-height:32px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;padding:0 13px;color:#668195;font-size:14px;font-weight:800;white-space:nowrap}
+.inn-wf-research-page .inn-recall-type-tabs button.active{background:#fff;color:#0e719f;box-shadow:0 2px 7px rgba(24,75,100,.06)}
+.inn-wf-research-page .inn-recall-toolbar{display:flex;align-items:center;gap:12px;min-width:0;border-top:1px solid #e1ebf0;background:#fff;padding:9px 12px}
+.inn-wf-research-page .inn-recall-view-switch{display:grid;grid-template-columns:auto 32px 32px;align-items:center;gap:0;flex:0 0 auto;overflow:visible;border:0;border-radius:0;background:transparent;padding:0}
+.inn-wf-research-page .inn-recall-view-switch>span{margin-right:7px;color:#648092;font-size:14px;font-weight:800;white-space:nowrap}
+.inn-wf-research-page .inn-recall-view-switch button{display:grid;place-items:center;width:32px;min-width:32px!important;min-height:32px!important;border:1px solid #d4e3ea!important;border-radius:0!important;background:#fff!important;padding:0!important;color:#6c8796!important}
+.inn-wf-research-page .inn-recall-view-switch button:first-of-type{border-radius:7px 0 0 7px!important}
+.inn-wf-research-page .inn-recall-view-switch button+button{margin-left:-1px;border-radius:0 7px 7px 0!important}
+.inn-wf-research-page .inn-recall-view-switch button:hover{position:relative;z-index:1;background:#f2fafc!important;color:#176f99!important}
+.inn-wf-research-page .inn-recall-view-switch button.active{position:relative;z-index:1;border-color:#75b7d1!important;background:#eaf7fb!important;color:#1178a6!important;box-shadow:none!important}
+.inn-wf-research-page .inn-recall-list-summary{flex:0 1 auto;gap:4px;margin:0;overflow:hidden;white-space:nowrap}
+.inn-wf-research-page .inn-recall-list-summary strong{font-size:18px}
+.inn-wf-research-page .inn-recall-list-summary b{font-size:14px}
+.inn-wf-research-page .inn-recall-list-summary span{margin-left:4px;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.inn-wf-research-page .inn-recall-list-actions{display:flex;align-items:center;flex:0 0 auto;flex-wrap:nowrap;width:auto;margin-left:auto;gap:7px}
+.inn-wf-research-page .inn-recall-list-actions button{min-width:60px;padding:0 10px}
+.inn-wf-research-page .inn-recall-list-actions select{width:102px}
+@media(min-width:1440px){
+  .inn-wf-research-page .inn-recall-toolbar{padding-right:16px;padding-left:16px}
+  .inn-wf-research-page .inn-recall-view-switch>span{font-size:15px}
+  .inn-wf-research-page .inn-recall-list-summary strong{font-size:20px}
+  .inn-wf-research-page .inn-recall-list-summary b,.inn-wf-research-page .inn-recall-list-summary span{font-size:15px}
+}
+@media(max-width:720px){
+  .inn-wf-research-page .inn-recall-type-tabs{padding:3px}
+  .inn-wf-research-page .inn-recall-type-tabs button{min-height:32px;padding:0 12px;font-size:14px}
+  .inn-wf-research-page .inn-recall-toolbar{gap:6px;padding:8px}
+  .inn-wf-research-page .inn-recall-view-switch{order:0;width:auto;grid-template-columns:auto 30px 30px}
+  .inn-wf-research-page .inn-recall-view-switch>span{margin-right:4px;font-size:12px;letter-spacing:-.04em}
+  .inn-wf-research-page .inn-recall-view-switch button{width:30px;min-width:30px!important;min-height:30px!important}
+  .inn-wf-research-page .inn-recall-list-summary{flex:0 0 auto;overflow:visible}
+  .inn-wf-research-page .inn-recall-list-summary strong{font-size:16px}
+  .inn-wf-research-page .inn-recall-list-summary b,.inn-wf-research-page .inn-recall-list-summary span{font-size:13px}
+  .inn-wf-research-page .inn-recall-list-summary span{margin-left:2px}
+  .inn-wf-research-page .inn-recall-list-actions{width:auto!important;gap:5px}
+  .inn-wf-research-page .inn-recall-list-actions button{min-width:48px;padding:0 7px}
+  .inn-wf-research-page .inn-recall-list-actions select{width:76px;padding-right:20px;padding-left:6px}
+}
+@media(max-width:520px){
+  .inn-wf-research-page .inn-recall-toolbar{overflow-x:auto;scrollbar-width:thin}
+  .inn-wf-research-page .inn-recall-toolbar>*{flex:0 0 auto}
+}
+
+/* 数据检索与项目分析共用工作区：外框固定，操作栏在框内吸底。 */
+.inn-wf-card-research{height:calc(100dvh - 36px)!important;min-height:620px;overflow:hidden;border:1px solid #d7e5ed;border-radius:14px;background:#fff;box-shadow:0 8px 22px #1d50600a}
+.inn-wf-card-research .inn-wf-research-page{display:block;flex:1 1 auto;min-height:0;overflow:hidden;background:#fff;padding:0}
+.inn-wf-card-research .inn-wf-research-page>.inn-wf-point-recall{min-height:0;overflow:visible;border:0;border-radius:0;box-shadow:none}
+.inn-wf-card-research .inn-wf-actions{position:relative;z-index:1;flex:0 0 auto;background:#fbfdfe;box-shadow:0 -8px 20px rgba(27,77,103,.06)}
+.inn-wf-research-scroll-spacer{grid-column:1/-1;height:0;pointer-events:none}
+@media(min-width:981px){.inn-wf-layout:has(.inn-wf-card-research) .inn-wf-main{position:sticky;top:22px;align-self:start}}
+@media(max-width:980px){.inn-wf-card-research{height:calc(100dvh - 100px)!important;min-height:560px}}
+@media(max-width:720px){.inn-wf-card-research{height:calc(100dvh - 100px)!important;min-height:470px}}
+
+/* 表格列表直接铺入工作区，取消资料列表自身的外框与留白。 */
+.inn-wf-card-research .inn-patent-topic-list{background:#fff;padding:0}
+.inn-wf-card-research .inn-patent-table-wrap,.inn-wf-card-research .inn-research-table-wrap{overflow-x:auto;overflow-y:visible;border:0;border-radius:0;background:transparent;box-shadow:none}
+
+/* 技术主题只承担切换职责，不再用整块浅底制造无效占位。 */
+.inn-wf-research-page .inn-patent-topic-tabs{display:flex;align-items:stretch;gap:20px;border-bottom:1px solid #dce8ee;border-radius:0;background:transparent;padding:0 16px}
+.inn-wf-research-page .inn-patent-topic-tabs button{min-width:0;min-height:44px;flex:0 1 auto;border:0;border-radius:0;background:transparent;padding:0 4px;color:#6b8290}
+.inn-wf-research-page .inn-patent-topic-tabs .inn-patent-topic-title{max-width:min(42vw,460px);font-size:15px;font-weight:800;line-height:1.4}
+.inn-wf-research-page .inn-patent-topic-tabs button:hover{background:transparent;color:#1776a0}
+.inn-wf-research-page .inn-patent-topic-tabs button.active{background:transparent;color:#153f5a;box-shadow:inset 0 -3px 0 #1686b8}
+@media(min-width:1440px){
+  .inn-wf-research-page .inn-patent-topic-tabs{gap:24px;padding:0 20px}
+  .inn-wf-research-page .inn-patent-topic-tabs .inn-patent-topic-title{font-size:16px}
+}
+@media(max-width:720px){
+  .inn-wf-research-page .inn-patent-topic-tabs{display:grid;grid-template-columns:1fr;gap:0;padding:0 10px}
+  .inn-wf-research-page .inn-patent-topic-tabs button{min-height:40px;max-width:none;padding:0 4px}
+  .inn-wf-research-page .inn-patent-topic-tabs .inn-patent-topic-title{max-width:100%;font-size:14px}
+}
+
+/* 宽屏将资料来源与技术主题收敛到同一行，保留明确的左右关系。 */
+@media(min-width:981px){
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs){display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs{grid-column:2;grid-row:1;align-self:stretch;min-width:0;justify-content:flex-end;gap:12px;border-bottom:0;padding:0 14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs button{min-width:0;min-height:48px;padding:0 6px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs .inn-patent-topic-title{max-width:min(15vw,250px)}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-recall-controls{display:contents}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs{grid-column:1;grid-row:1;align-self:end;justify-self:start;height:48px;gap:0;margin-left:14px;border-radius:0;background:transparent;padding:0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button{position:relative;min-height:48px;border-radius:0;background:transparent;padding:0 12px;color:#6b8290;font-size:14px;box-shadow:none}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button:hover{background:transparent;color:#1776a0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button.active{background:transparent;color:#153f5a;box-shadow:inset 0 -3px 0 #1686b8}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-toolbar{grid-column:1/-1;grid-row:2;border-top:1px solid #e1ebf0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-list,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-card-list,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-research-table-wrap,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-paper-list,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-evidence-ledger,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-recall-results,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-recall-pagination{grid-column:1/-1}
+}
+
+/* 创新点与技术主题采用同一检索头部结构：资料来源在左，检索对象在右。 */
+.inn-wf-research-page .inn-point-topic-tabs{display:flex;align-items:stretch;gap:20px;border-bottom:1px solid #dce8ee;border-radius:0;background:transparent;padding:0 16px}
+.inn-wf-research-page .inn-point-topic-tabs button{min-width:0;min-height:44px;flex:0 1 auto;border:0;border-radius:0;background:transparent;padding:0 4px;color:#6b8290;text-align:left}
+.inn-wf-research-page .inn-point-topic-tabs .inn-point-topic-title{display:block;max-width:min(42vw,460px);overflow:hidden;color:inherit;font-size:15px;font-weight:800;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-research-page .inn-point-topic-tabs button:hover{background:transparent;color:#1776a0}
+.inn-wf-research-page .inn-point-topic-tabs button.active{background:transparent;color:#153f5a;box-shadow:inset 0 -3px 0 #1686b8}
+.inn-point-topic-preview,.inn-theme-topic-preview{position:fixed;z-index:10001;box-sizing:border-box;width:min(420px,calc(100vw - 32px));border:1px solid #b7d8e5;border-radius:8px;background:#fff;padding:10px 13px 11px;color:#315a70;box-shadow:0 12px 26px rgba(18,71,98,.18);pointer-events:none}.inn-point-topic-preview:before,.inn-theme-topic-preview:before{position:absolute;top:-3px;left:14px;width:22px;height:3px;border-radius:2px;background:#1688ba;content:""}.inn-point-topic-preview span,.inn-theme-topic-preview span{display:block;color:#6e8b9b;font-size:12px;font-weight:800;line-height:1.3}.inn-point-topic-preview strong,.inn-theme-topic-preview strong{display:block;margin-top:4px;color:#173f5e;font-size:14px;font-weight:800;line-height:1.55;overflow-wrap:anywhere}
+@media(min-width:1440px){.inn-wf-research-page .inn-point-topic-tabs{gap:24px;padding:0 20px}.inn-wf-research-page .inn-point-topic-tabs .inn-point-topic-title{font-size:16px}}
+@media(max-width:720px){.inn-wf-research-page .inn-point-topic-tabs{display:grid;grid-template-columns:1fr;gap:0;padding:0 10px}.inn-wf-research-page .inn-point-topic-tabs button{min-height:40px;max-width:none;padding:0 4px}.inn-wf-research-page .inn-point-topic-tabs .inn-point-topic-title{max-width:100%;font-size:14px}}
+@media(min-width:981px){
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs){display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs{grid-column:2;grid-row:1;align-self:stretch;min-width:0;justify-content:flex-end;gap:12px;border-bottom:0;padding:0 14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs button{min-width:0;min-height:48px;padding:0 6px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs .inn-point-topic-title{max-width:min(15vw,250px)}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-recall-controls{display:contents}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs{grid-column:1;grid-row:1;align-self:end;justify-self:start;height:48px;gap:0;margin-left:14px;border-radius:0;background:transparent;padding:0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button{position:relative;min-height:48px;border-radius:0;background:transparent;padding:0 12px;color:#6b8290;font-size:14px;box-shadow:none}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button:hover{background:transparent;color:#1776a0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button.active{background:transparent;color:#153f5a;box-shadow:inset 0 -3px 0 #1686b8}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-toolbar{grid-column:1/-1;grid-row:2;border-top:1px solid #e1ebf0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>:not(.inn-point-topic-tabs):not(.inn-recall-controls){grid-column:1/-1}
+}
+/* 创新点独立成一行，资料类型与检索操作收敛到下一行。 */
+@media(min-width:981px){
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs){grid-template-columns:minmax(0,1fr)}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs{grid-column:1;grid-row:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;width:100%;padding:0 14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs button{width:100%;min-width:0;padding:0 8px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-point-topic-tabs .inn-point-topic-title{max-width:100%}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-recall-controls{grid-column:1;grid-row:2;display:grid!important;grid-template-columns:auto minmax(0,1fr);align-items:center;border-top:1px solid #e1ebf0;border-bottom:0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs{grid-column:1;grid-row:1;align-self:center;margin-left:14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-toolbar{grid-column:2;grid-row:1;min-width:0;border-top:0}
+}
+/* 专利表采用紧凑行距，优先在同一屏内保留更多可比较字段。 */
+.inn-wf-card-research .inn-patent-table{width:100%;min-width:1180px;table-layout:fixed}
+.inn-wf-card-research .inn-patent-table th{height:38px;padding:8px 8px;font-size:13px}
+.inn-wf-card-research .inn-patent-table th:nth-child(3){width:58px}
+.inn-wf-card-research .inn-patent-table th:nth-child(4){width:104px}
+.inn-wf-card-research .inn-patent-table th:nth-child(5){width:160px;min-width:0}
+.inn-wf-card-research .inn-patent-table th:nth-child(6){width:68px}
+.inn-wf-card-research .inn-patent-table th:nth-child(7){width:160px;min-width:0}
+.inn-wf-card-research .inn-patent-table th:nth-child(8){width:128px;min-width:0}
+.inn-wf-card-research .inn-patent-table th:nth-child(9),.inn-wf-card-research .inn-patent-table th:nth-child(10){width:88px}
+.inn-wf-card-research .inn-patent-table td{padding:8px;font-size:14px;line-height:1.35}
+.inn-wf-card-research .inn-patent-table tbody>tr:not(.inn-patent-table-detail)>td{height:26px}
+.inn-wf-card-research .inn-patent-table td:nth-child(5) .inn-patent-title{font-size:14px;line-height:1.4}
+.inn-wf-card-research .inn-patent-status{padding:3px 6px;font-size:11px}
+.inn-wf-card-research .inn-patent-assignee{font-size:13px;line-height:1.35;-webkit-line-clamp:1}
+.inn-wf-card-research .inn-patent-classifications{flex-wrap:nowrap;gap:3px;overflow:hidden}
+.inn-wf-card-research .inn-patent-classifications span{overflow:hidden;padding:2px 5px;font-size:11px;text-overflow:ellipsis}
+.inn-wf-card-research .inn-patent-table time{font-size:12px}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-patent-table{width:1120px;min-width:1120px}
+  .inn-wf-card-research .inn-patent-table th{height:36px;padding:7px}
+  .inn-wf-card-research .inn-patent-table td{padding:7px}
+}
+
+/* 表头选择框与数据行选择框共用同一列的尺寸与对齐方式。 */
+.inn-wf-card-research .inn-patent-table th:first-child,.inn-wf-card-research .inn-patent-table td:first-child{padding-right:0;padding-left:0;text-align:center}
+.inn-wf-card-research .inn-patent-table th:first-child input,.inn-wf-card-research .inn-patent-table td:first-child input{display:block;width:16px;height:16px;margin:0 auto;accent-color:#1685ac;cursor:pointer}
+.inn-wf-card-research .inn-patent-table tr.is-selected td:first-child,.inn-wf-card-research .inn-research-table tbody tr.is-selected{box-shadow:none}
+.inn-wf-card-research .inn-patent-table input[type="checkbox"],.inn-wf-card-research .inn-research-table input[type="checkbox"]{box-sizing:border-box;min-width:16px;min-height:16px;padding:0;border:0;box-shadow:none}
+.inn-wf-card-research .inn-patent-table input[type="checkbox"]:focus,.inn-wf-card-research .inn-research-table input[type="checkbox"]:focus{border-color:transparent;box-shadow:none}
+/* 专利卡片沿用论文列表的单层信息结构，便于快速扫读和比较。 */
+.inn-wf-card-research .inn-patent-card-list{display:grid;gap:0;background:transparent;padding:4px 14px 12px}
+.inn-wf-card-research .inn-patent-card{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;min-width:0;border:0;border-bottom:1px solid #e3edf1;background:transparent;padding:11px 4px}
+.inn-wf-card-research .inn-patent-card:first-child{padding-top:12px}
+.inn-wf-card-research .inn-patent-card:last-child{border-bottom:0}
+.inn-wf-card-research .inn-patent-card.is-selected{box-shadow:inset 3px 0 0 #1b9ac1}
+.inn-wf-card-research .inn-patent-card-index{display:grid;align-content:start;justify-items:center;gap:7px;padding-top:3px}
+.inn-wf-card-research .inn-patent-card-index input{width:16px;height:16px;margin:0;accent-color:#1688ba;cursor:pointer}
+.inn-wf-card-research .inn-patent-card-index b{color:#2380a7;font-family:"DIN Alternate","Arial",sans-serif;font-size:14px;line-height:1}
+.inn-wf-card-research .inn-patent-card-body{display:grid;min-width:0;gap:7px}
+.inn-wf-card-research .inn-patent-card-body>header{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.inn-wf-card-research .inn-patent-card-body>header button{min-width:0;flex:1;border:0;background:transparent;padding:0;color:#1d4b66;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:15px;font-weight:800;line-height:1.5;text-align:left;cursor:pointer}
+.inn-wf-card-research .inn-patent-card-body>header button:hover,.inn-wf-card-research .inn-patent-card-body>header button:focus-visible{outline:0;color:#087cad;text-decoration:underline;text-decoration-color:#a6d3e2;text-underline-offset:3px}
+.inn-wf-card-research .inn-patent-card-body>header>span{flex:0 0 auto;color:#4e8674;font-size:13px;font-weight:800;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;color:#637f90;font-size:13px;line-height:1.35}
+.inn-wf-card-research .inn-patent-card-meta b{color:#285f7d;font-family:"DIN Alternate","Arial",sans-serif;font-size:13px;letter-spacing:.015em}
+.inn-wf-card-research .inn-patent-card-meta em,.inn-wf-card-research .inn-patent-card-meta i{border-radius:4px;padding:2px 6px;font-size:12px;font-style:normal;font-weight:800;line-height:1.2}
+.inn-wf-card-research .inn-patent-card-meta em{background:#e9f6fa;color:#087cac}
+.inn-wf-card-research .inn-patent-card-meta i{background:#f0f3f5;color:#6d7f8a}
+.inn-wf-card-research .inn-patent-card-meta i.is-授权,.inn-wf-card-research .inn-patent-card-meta i.is-有效{background:#eaf7f1;color:#217d5e}
+.inn-wf-card-research .inn-patent-card-meta i.is-审中{background:#fff6e7;color:#9a6c1f}
+.inn-wf-card-research .inn-patent-card-body footer{display:flex;align-items:center;flex-wrap:wrap;gap:5px 8px;border-top:1px solid #edf2f4;padding-top:7px}
+.inn-wf-card-research .inn-patent-card-body footer>span{border-radius:4px;background:#edf6fa;padding:3px 6px;color:#42718a;font-size:12px;font-weight:700;line-height:1.2}
+.inn-wf-card-research .inn-patent-card-body footer small{min-width:120px;flex:1 1 220px;overflow:hidden;color:#587384;font-size:13px;font-weight:600;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-body footer time{color:#738d9b;font-family:"DIN Alternate","Arial",sans-serif;font-size:12px;font-weight:700;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-detail{display:flex;gap:8px;border-top:1px dashed #d7e6eb;padding-top:7px;color:#597588;font-size:13px;line-height:1.55}
+.inn-wf-card-research .inn-patent-card-detail b{flex:0 0 auto;color:#17769c;font-size:13px}
+@media(min-width:1440px){
+  .inn-wf-card-research .inn-patent-card{padding-top:12px;padding-bottom:12px}
+  .inn-wf-card-research .inn-patent-card-body>header button{font-size:16px}
+}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-patent-card-list{padding:2px 10px 10px}
+  .inn-wf-card-research .inn-patent-card{grid-template-columns:25px minmax(0,1fr);gap:8px;padding:10px 2px}
+  .inn-wf-card-research .inn-patent-card-body>header{gap:8px}
+  .inn-wf-card-research .inn-patent-card-body>header button{font-size:14px;line-height:1.48}
+  .inn-wf-card-research .inn-patent-card-body footer small{flex-basis:100%;order:2}
+  .inn-wf-card-research .inn-patent-card-body footer time{order:3}
+}
+/* 专利卡片采用三行记录结构：核心判断、摘要、来源字段分别对齐。 */
+.inn-wf-card-research .inn-patent-card-list{width:100%;min-width:0;box-sizing:border-box}
+.inn-wf-card-research .inn-patent-card{display:grid;grid-template-columns:26px 36px minmax(220px,1fr) 134px 56px 58px;column-gap:10px;row-gap:8px;align-items:start;width:100%;box-sizing:border-box;padding:12px 4px}
+.inn-wf-card-research .inn-patent-card-select{grid-column:1;grid-row:1;display:grid;place-items:center;padding-top:3px}
+.inn-wf-card-research .inn-patent-card-select input{width:16px;height:16px;margin:0;accent-color:#1688ba;cursor:pointer}
+.inn-wf-card-research .inn-patent-card-order{grid-column:2;grid-row:1;padding-top:4px;color:#2380a7;font-family:"DIN Alternate","Arial",sans-serif;font-size:14px;line-height:1}
+.inn-wf-card-research .inn-patent-card-title{grid-column:3;grid-row:1;min-width:0;border:0;background:transparent;padding:0;color:#1d4b66;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:15px;font-weight:800;line-height:1.5;text-align:left;cursor:pointer}
+.inn-wf-card-research .inn-patent-card-title:hover,.inn-wf-card-research .inn-patent-card-title:focus-visible{outline:0;color:#087cad;text-decoration:underline;text-decoration-color:#a6d3e2;text-underline-offset:3px}
+.inn-wf-card-research .inn-patent-card-code{grid-column:4;grid-row:1;padding-top:3px;overflow:hidden;color:#285f7d;font-family:"DIN Alternate","Arial",sans-serif;font-size:13px;letter-spacing:.01em;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-relevance,.inn-wf-card-research .inn-patent-card-status{grid-row:1;align-self:start;border-radius:4px;padding:3px 5px;font-size:12px;font-style:normal;font-weight:800;line-height:1.2;text-align:center;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-relevance{grid-column:5;margin-top:1px;background:#e9f6fa;color:#087cac}
+.inn-wf-card-research .inn-patent-card-status{grid-column:6;margin-top:1px;background:#f0f3f5;color:#6d7f8a}
+.inn-wf-card-research .inn-patent-card-status.is-授权,.inn-wf-card-research .inn-patent-card-status.is-有效{background:#eaf7f1;color:#217d5e}
+.inn-wf-card-research .inn-patent-card-status.is-审中{background:#fff6e7;color:#9a6c1f}
+.inn-wf-card-research .inn-patent-card-summary{grid-column:3/-1;display:-webkit-box;overflow:hidden;margin:0;color:#5f7888;font-size:13px;font-weight:500;line-height:1.55;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.inn-wf-card-research .inn-patent-card-summary::before{content:"专利摘要";margin-right:8px;color:#2b7696;font-size:12px;font-weight:800}
+.inn-wf-card-research .inn-patent-card-facts{grid-column:3/-1;display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,1.35fr) 118px 118px;gap:10px;border-top:1px solid #edf2f4;padding-top:8px}
+.inn-wf-card-research .inn-patent-card-facts>div,.inn-wf-card-research .inn-patent-card-facts>time{display:flex;min-width:0;align-items:center;gap:6px;color:#587384;font-style:normal;line-height:1.3}
+.inn-wf-card-research .inn-patent-card-facts small{flex:0 0 auto;color:#7a94a2;font-size:11px;font-weight:700}
+.inn-wf-card-research .inn-patent-card-facts b{min-width:0;overflow:hidden;color:#567487;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:12px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-patent-card-classifications{flex-wrap:wrap}
+.inn-wf-card-research .inn-patent-card-classifications span{border-radius:4px;background:#edf6fa;padding:3px 6px;color:#42718a;font-size:12px;font-weight:700;line-height:1.2}
+.inn-wf-card-research .inn-patent-card-detail{grid-column:3/-1;display:flex;gap:8px;margin-top:-1px;border-top:1px dashed #d7e6eb;padding-top:7px;color:#597588;font-size:13px;line-height:1.55}
+.inn-wf-card-research .inn-patent-card-detail b{flex:0 0 auto;color:#17769c;font-size:13px}
+@media(min-width:1440px){
+  .inn-wf-card-research .inn-patent-card{grid-template-columns:26px 38px minmax(300px,1fr) 142px 58px 62px;column-gap:12px;padding-top:13px;padding-bottom:13px}
+  .inn-wf-card-research .inn-patent-card-title{font-size:16px}
+}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-patent-card{grid-template-columns:22px 28px minmax(0,1fr) 100px 44px 46px;column-gap:5px;row-gap:7px;padding:10px 2px}
+  .inn-wf-card-research .inn-patent-card-order{font-size:13px}
+  .inn-wf-card-research .inn-patent-card-title{font-size:14px;line-height:1.48}
+  .inn-wf-card-research .inn-patent-card-code{font-size:12px}
+  .inn-wf-card-research .inn-patent-card-relevance,.inn-wf-card-research .inn-patent-card-status{padding:3px 2px;font-size:11px}
+  .inn-wf-card-research .inn-patent-card-summary{font-size:12px}
+  .inn-wf-card-research .inn-patent-card-facts{grid-template-columns:1fr 1fr;gap:7px 10px;padding-top:7px}
+  .inn-wf-card-research .inn-patent-card-facts>div,.inn-wf-card-research .inn-patent-card-facts>time{gap:4px}
+  .inn-wf-card-research .inn-patent-card-facts b{font-size:12px}
+}
+/* 卡片模式不模拟表格列宽，字段沿论文卡片的阅读方向自然收拢。 */
+.inn-wf-card-research .inn-patent-card{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;width:100%;padding:12px 4px}
+.inn-wf-card-research .inn-patent-card-select{grid-column:1;grid-row:1;align-self:start;padding-top:4px}
+.inn-wf-card-research .inn-patent-card-body{grid-column:2;display:grid;min-width:0;gap:8px}
+.inn-wf-card-research .inn-patent-card-body>header{display:flex;min-width:0;align-items:flex-start;flex-wrap:wrap;gap:5px 10px}
+.inn-wf-card-research .inn-patent-card-order{display:block;flex:0 0 auto;padding-top:4px;color:#2380a7;font-family:"DIN Alternate","Arial",sans-serif;font-size:14px;line-height:1}
+.inn-wf-card-research .inn-patent-card-title{flex:0 1 auto;min-width:180px;max-width:calc(100% - 220px);color:#1d4b66;font-size:15px;line-height:1.5}
+.inn-wf-card-research .inn-patent-card-body>header .inn-patent-card-title{flex:0 1 auto}
+.inn-wf-card-research .inn-patent-card-code{display:block;flex:0 1 auto;max-width:136px;padding-top:3px;font-size:13px}
+.inn-wf-card-research .inn-patent-card-relevance,.inn-wf-card-research .inn-patent-card-status{display:block;flex:0 0 auto;align-self:start;grid-column:auto;grid-row:auto;margin-top:1px;padding:3px 6px;font-size:12px}
+.inn-wf-card-research .inn-patent-card-summary{grid-column:auto;display:-webkit-box;margin:0;font-size:13px;line-height:1.55}
+.inn-wf-card-research .inn-patent-card-facts{grid-column:auto;display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:0;border-top:1px solid #edf2f4;padding-top:8px}
+.inn-wf-card-research .inn-patent-card-facts>div,.inn-wf-card-research .inn-patent-card-facts>time{flex:0 1 auto;max-width:290px;gap:6px}
+.inn-wf-card-research .inn-patent-card-body .inn-patent-card-facts small{min-width:0;flex:0 0 auto;order:initial}
+.inn-wf-card-research .inn-patent-card-body .inn-patent-card-facts time{order:initial}
+.inn-wf-card-research .inn-patent-card-facts time.is-filing,.inn-wf-card-research .inn-patent-card-facts time.is-publication{gap:4px;border-radius:4px;padding:3px 6px}
+.inn-wf-card-research .inn-patent-card-facts time.is-filing{background:#eff7fb}
+.inn-wf-card-research .inn-patent-card-facts time.is-filing small,.inn-wf-card-research .inn-patent-card-facts time.is-filing b{color:#2a789c}
+.inn-wf-card-research .inn-patent-card-facts time.is-publication{background:#f3f7f1}
+.inn-wf-card-research .inn-patent-card-facts time.is-publication small,.inn-wf-card-research .inn-patent-card-facts time.is-publication b{color:#5d806a}
+.inn-wf-card-research .inn-patent-card-classifications{max-width:250px}
+.inn-wf-card-research .inn-patent-card-detail{grid-column:auto;margin:0}
+@media(min-width:1440px){
+  .inn-wf-card-research .inn-patent-card{padding-top:13px;padding-bottom:13px}
+  .inn-wf-card-research .inn-patent-card-title{font-size:16px}
+}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-patent-card{grid-template-columns:22px minmax(0,1fr);gap:8px;padding:10px 2px}
+  .inn-wf-card-research .inn-patent-card-body{gap:7px}
+  .inn-wf-card-research .inn-patent-card-body>header{gap:4px 7px}
+  .inn-wf-card-research .inn-patent-card-title{min-width:150px;max-width:calc(100% - 160px);font-size:14px;line-height:1.48}
+  .inn-wf-card-research .inn-patent-card-code{max-width:100px;font-size:12px}
+  .inn-wf-card-research .inn-patent-card-relevance,.inn-wf-card-research .inn-patent-card-status{padding:3px 4px;font-size:11px}
+  .inn-wf-card-research .inn-patent-card-facts{gap:6px 10px;padding-top:7px}
+  .inn-wf-card-research .inn-patent-card-facts>div,.inn-wf-card-research .inn-patent-card-facts>time{max-width:calc(50% - 5px);gap:4px}
+}
+@media(min-width:981px){.inn-wf-nav .inn-wf-subnav button .inn-wf-subnav-label{column-gap:0}}
+
+/* 四类资料统一按“勾选、序号、标题、字段”的左向阅读顺序排布。 */
+.inn-wf-card-research .inn-research-table th:last-child,.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td:last-child{display:none}
+.inn-wf-card-research .inn-research-table th,.inn-wf-card-research .inn-research-table td,.inn-wf-card-research .inn-patent-table th,.inn-wf-card-research .inn-patent-table td{vertical-align:top;text-align:left}
+.inn-wf-card-research .inn-research-table th:first-child,.inn-wf-card-research .inn-research-table td:first-child,.inn-wf-card-research .inn-patent-table th:first-child,.inn-wf-card-research .inn-patent-table td:first-child{vertical-align:top;text-align:center}
+.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td:first-child input,.inn-wf-card-research .inn-patent-table tbody tr:not(.inn-patent-table-detail)>td:first-child input{margin-top:2px}
+.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td:nth-child(2),.inn-wf-card-research .inn-patent-table tbody tr:not(.inn-patent-table-detail)>td:nth-child(2){padding-top:10px;color:#167ead;font-weight:800;vertical-align:top}
+.inn-wf-card-research .inn-paper-item{align-items:start}
+.inn-wf-card-research .inn-paper-item-index{align-self:start;padding-top:2px}
+.inn-wf-card-research .inn-paper-status,.inn-wf-card-research .inn-evidence-ledger-status,.inn-wf-card-research .inn-recall-selection span{display:none}
+.inn-wf-card-research .inn-paper-item-body>header,.inn-wf-card-research .inn-evidence-ledger-body>header{justify-content:flex-start;align-items:flex-start}
+.inn-wf-card-research .inn-paper-item-body>header,.inn-wf-card-research .inn-evidence-ledger-header-meta{gap:7px}
+.inn-wf-card-research .inn-paper-item-body dl,.inn-wf-card-research .inn-evidence-ledger-body dl{justify-content:flex-start}
+.inn-wf-card-research .inn-evidence-ledger-row{display:grid;grid-template-columns:26px 36px minmax(0,1fr);align-items:start}
+.inn-wf-card-research .inn-evidence-ledger-select{display:contents}
+.inn-wf-card-research .inn-evidence-ledger-select input{grid-column:1;grid-row:1;align-self:start;width:16px;height:16px;margin:3px 0 0;accent-color:#1688ba}
+.inn-wf-card-research .inn-evidence-ledger-select span{grid-column:2;grid-row:1;padding-top:3px;color:#2380a7;font-family:"DIN Alternate","Arial",sans-serif;font-size:14px;font-weight:800;line-height:1}
+.inn-wf-card-research .inn-evidence-ledger-body{grid-column:3;min-width:0}
+.inn-wf-card-research .inn-evidence-ledger-header-meta{margin-left:0}
+.inn-wf-card-research .inn-evidence-ledger-body>dl{display:flex;flex-wrap:wrap;gap:6px 16px}
+.inn-wf-card-research .inn-evidence-ledger-body>dl>div,.inn-wf-card-research .inn-evidence-ledger-body>dl>div:first-child{display:flex;align-items:baseline;gap:6px;padding:0;border-left:0}
+.inn-wf-card-research .inn-evidence-ledger-body dd{margin:0}
+.inn-wf-card-research .inn-patent-card-select{padding-top:0}
+.inn-wf-card-research .inn-paper-item-index{padding-top:1px}
+.inn-wf-card-research .inn-paper-title-row>b{position:relative;top:1px;padding-top:0}
+.inn-wf-card-research .inn-evidence-ledger-body{padding-top:0}
+.inn-wf-card-research .inn-evidence-ledger-select input{margin-top:0}
+.inn-wf-card-research input[type="checkbox"]{display:block;box-sizing:border-box;width:16px!important;min-width:16px!important;max-width:16px!important;height:16px!important;min-height:16px!important;max-height:16px!important;margin:0!important;padding:0!important;line-height:0!important;vertical-align:top!important}
+.inn-wf-card-research .inn-patent-card-select,.inn-wf-card-research .inn-paper-item-index{line-height:0}
+.inn-wf-card-research .inn-paper-title-row button>span{justify-content:flex-start}
+.inn-wf-card-research .inn-paper-title-row strong{flex:0 1 auto;max-width:min(68%,760px)}
+.inn-wf-card-research .inn-paper-title-row em{margin-left:0}
+.inn-wf-card-research .inn-recall-result>header{grid-template-columns:26px 36px minmax(0,1fr)}
+.inn-wf-card-research .inn-recall-selection{grid-column:1;grid-row:1;align-self:start;line-height:0}
+.inn-wf-card-research .inn-recall-order{grid-column:2;grid-row:1;align-self:start}
+.inn-wf-card-research .inn-recall-title{grid-column:3;grid-row:1;min-width:0}
+.inn-wf-card-research .inn-patent-table th:nth-child(3){width:260px;min-width:260px}
+.inn-wf-card-research .inn-patent-table th:nth-child(5){width:58px;min-width:58px}
+.inn-wf-card-research .inn-patent-table td:nth-child(3) .inn-patent-title{display:block;box-sizing:border-box;width:100%;overflow:hidden;border:0;background:transparent;padding:0;color:#1f4b67;font:800 14px/1.4 "Microsoft YaHei",sans-serif;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.inn-wf-card-research .inn-patent-table td:nth-child(5)>b{display:inline-block;border-radius:5px;background:#e9f6fa;padding:3px 6px;color:#087cac;font-family:"DIN Alternate","Arial",sans-serif;font-size:12px;line-height:1.2}
+.inn-wf-card-research .inn-patent-table tbody>tr:not(.inn-patent-table-detail)>td:nth-child(2){padding-top:8px}
+.inn-wf-card-research .inn-patent-table th:first-child,.inn-wf-card-research .inn-patent-table td:first-child,.inn-wf-card-research .inn-research-table th:first-child,.inn-wf-card-research .inn-research-table td:first-child{box-sizing:border-box;width:58px!important;padding-left:20px!important;padding-right:6px!important;text-align:left!important}
+.inn-wf-card-research .inn-evidence-ledger{display:grid;gap:12px;overflow:auto;border:0;background:#f4f8fa;padding:16px}
+.inn-wf-card-research .inn-evidence-ledger-row{grid-template-columns:26px 36px minmax(0,1fr);overflow:hidden;align-items:start;border:1px solid #d7e5eb;border-radius:12px;background:#fff;padding:14px 16px;box-shadow:0 4px 12px rgba(21,69,92,.035)}
+.inn-wf-card-research .inn-evidence-ledger-row:hover{border-color:#aaceda;background:#fff;box-shadow:0 8px 18px rgba(21,69,92,.065)}
+.inn-wf-card-research .inn-evidence-ledger-row.is-selected{background:#f8fcfd;box-shadow:inset 3px 0 0 #188ab7,0 5px 15px rgba(21,69,92,.06)}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row{border-color:#ead8ad;background:#fffdfa}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row:hover{border-color:#d6b568;background:#fffdf8}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row.is-selected{background:#fffcf5;box-shadow:inset 3px 0 0 #c69539,0 5px 15px rgba(122,92,32,.06)}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row{border-color:#bde0d2;background:#fbfefd}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row:hover{border-color:#7fc5ac;background:#fff}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row.is-selected{background:#f6fcf9;box-shadow:inset 3px 0 0 #2b9a78,0 5px 15px rgba(30,113,82,.06)}
+.inn-wf-card-research .inn-evidence-ledger-body{display:grid;gap:9px;padding:0}
+.inn-wf-card-research .inn-evidence-ledger-body>header{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:7px 10px}
+.inn-wf-card-research .inn-evidence-ledger-body>header>button{flex:0 1 auto;color:#183f5c;font-size:16px;line-height:1.45}
+.inn-wf-card-research .inn-evidence-ledger-header-meta{display:flex;flex:0 0 auto;margin:1px 0 0;gap:6px}
+.inn-wf-card-research .inn-evidence-ledger-type{padding:4px 7px;font-size:11px}
+.inn-wf-card-research .inn-evidence-ledger-body>p{display:block;margin:0;color:#587382;font-size:14px;line-height:1.7}
+.inn-wf-card-research .inn-evidence-ledger-body>dl{gap:6px 8px;margin:1px 0 0;border-top:1px solid #e5edf0;padding-top:9px}
+.inn-wf-card-research .inn-evidence-ledger-body>dl>div,.inn-wf-card-research .inn-evidence-ledger-body>dl>div:first-child{border:0;border-radius:6px;background:#f2f6f8;padding:5px 8px}
+.inn-wf-card-research .inn-evidence-ledger-body dt{color:#708b9a;font-size:11px}
+.inn-wf-card-research .inn-evidence-ledger-body dd{color:#365d72;font-size:13px;line-height:1.45}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div{background:#fff6e7}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body dt{color:#94703a}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body dd{color:#765b31}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div{background:#edf8f3}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body dt{color:#4d896f}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body dd{color:#2e6952}
+.inn-wf-card-research .inn-paper-item-body{display:flex;flex-wrap:wrap;align-content:start;gap:9px}
+.inn-wf-card-research .inn-paper-item-body>header{order:1;flex:1 0 100%}
+.inn-wf-card-research .inn-paper-item-body>p{order:2;flex:1 0 100%}
+.inn-wf-card-research .inn-paper-item-body>dl{order:3;flex:0 1 auto;margin:0}
+.inn-wf-card-research .inn-paper-item-body>footer{order:3;display:flex;flex:0 1 auto;align-items:center;border:0;margin:0;padding:0}
+.inn-wf-card-research .inn-paper-item{gap:12px;padding:16px 17px}
+.inn-wf-card-research .inn-paper-title-row{gap:10px}
+.inn-wf-card-research .inn-paper-title-row>b{font-size:17px;line-height:1.45}
+.inn-wf-card-research .inn-paper-title-row strong{font-size:16px;line-height:1.55}
+.inn-wf-card-research .inn-paper-title-row em{padding:4px 7px;font-size:13px}
+.inn-wf-card-research .inn-paper-item-body{gap:11px}
+.inn-wf-card-research .inn-paper-item dl{gap:7px 9px}
+.inn-wf-card-research .inn-paper-item dl div{padding:5px 8px}
+.inn-wf-card-research .inn-paper-item dt{font-size:12px}
+.inn-wf-card-research .inn-paper-item dd{font-size:14px;line-height:1.45}
+.inn-wf-card-research .inn-paper-item>div p{font-size:14px;line-height:1.75}
+.inn-wf-card-research .inn-paper-item>div p b{font-size:13px}
+.inn-wf-card-research .inn-paper-item footer{gap:6px}
+.inn-wf-card-research .inn-paper-item footer span{padding:4px 7px;font-size:12px}
+.inn-wf-card-research .inn-paper-item-body>p{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.inn-wf-card-research .inn-paper-item-body>dl{min-width:0;flex:0 1 auto;overflow:visible}
+.inn-wf-card-research .inn-paper-item-body>footer{flex:0 1 auto;flex-wrap:wrap;white-space:normal}
+@media(min-width:1440px){.inn-wf-card-research .inn-paper-title-row strong{font-size:17px}.inn-wf-card-research .inn-paper-item>div p{font-size:15px}.inn-wf-card-research .inn-paper-item dd{font-size:14px}}
+@media(max-width:720px){.inn-wf-card-research .inn-evidence-ledger{gap:9px;padding:10px}.inn-wf-card-research .inn-evidence-ledger-row{grid-template-columns:22px 31px minmax(0,1fr);padding:12px}.inn-wf-card-research .inn-evidence-ledger-body>header>button{font-size:15px}.inn-wf-card-research .inn-evidence-ledger-body>dl{display:grid;grid-template-columns:1fr}.inn-wf-card-research .inn-evidence-ledger-body>dl>div,.inn-wf-card-research .inn-evidence-ledger-body>dl>div:first-child{display:flex;gap:6px}}
+@media(max-width:720px){.inn-wf-card-research .inn-evidence-ledger-row{grid-template-columns:22px 31px minmax(0,1fr)}.inn-wf-card-research .inn-evidence-ledger-select span{font-size:13px}}
+.inn-wf-card-research .inn-patent-table thead th,.inn-wf-card-research .inn-research-table thead th{box-sizing:border-box;height:44px;border-top:1px solid #c9dce6;border-bottom:1px solid #d8e5eb;background:#fff!important;color:#456a80;font-size:14px;font-weight:800;letter-spacing:.01em;line-height:1.3;vertical-align:middle!important}
+.inn-wf-card-research .inn-patent-table thead th{padding:0 8px}.inn-wf-card-research .inn-research-table thead th{padding:0 12px}
+.inn-wf-card-research .inn-wf-point-recall{--inn-list-selection:#1688ba}.inn-wf-card-research .inn-wf-point-recall.is-paper{--inn-list-selection:#2b9686}.inn-wf-card-research .inn-wf-point-recall.is-policy{--inn-list-selection:#bd8b2e}.inn-wf-card-research .inn-wf-point-recall.is-internal{--inn-list-selection:#2f8b70}
+.inn-wf-card-research .inn-patent-table tbody tr.is-selected,.inn-wf-card-research .inn-research-table tbody tr.is-selected{background:transparent!important;box-shadow:none!important}
+.inn-wf-card-research .inn-patent-table tbody tr.is-selected>td,.inn-wf-card-research .inn-research-table tbody tr.is-selected>td{background:transparent!important}
+.inn-wf-card-research .inn-patent-table tbody tr.is-selected>td:first-child,.inn-wf-card-research .inn-research-table tbody tr.is-selected>td:first-child{box-shadow:inset 3px 0 0 var(--inn-list-selection)!important}
+.inn-wf-card-research .inn-research-table-title{white-space:nowrap!important}
+.inn-wf-card-research .inn-research-table-title>span{display:none}
+.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td{height:48px;vertical-align:middle!important}
+.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td:nth-child(2){padding-top:12px;vertical-align:middle!important}
+.inn-wf-card-research .inn-patent-table th:first-child,.inn-wf-card-research .inn-patent-table td:first-child,.inn-wf-card-research .inn-research-table th:first-child,.inn-wf-card-research .inn-research-table td:first-child{width:42px!important;padding-left:14px!important;padding-right:2px!important}
+.inn-wf-card-research .inn-patent-table th:nth-child(2),.inn-wf-card-research .inn-patent-table td:nth-child(2),.inn-wf-card-research .inn-research-table th:nth-child(2),.inn-wf-card-research .inn-research-table td:nth-child(2){width:44px!important;padding-right:6px!important;padding-left:6px!important}
+.inn-wf-card-research .inn-evidence-ledger{gap:9px;overflow:visible;background:#f8fbfb;padding:13px}
+.inn-wf-card-research .inn-evidence-ledger-row{border:1px solid #deece9;border-radius:10px;background:#fff!important;padding:13px 14px;box-shadow:0 2px 7px rgba(26,89,76,.025)}
+.inn-wf-card-research .inn-evidence-ledger-row:hover{border-color:#9bd3c5;background:#fff!important;box-shadow:0 8px 18px rgba(21,93,75,.08)}
+.inn-wf-card-research .inn-evidence-ledger-row.is-selected{background:#fff!important;box-shadow:inset 3px 0 0 #188ab7!important}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row,.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row{border-color:#deece9;background:#fff!important}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row:hover,.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row:hover{border-color:#9bd3c5;background:#fff!important}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-row.is-selected{background:#fff!important;box-shadow:inset 3px 0 0 #c69539!important}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row.is-selected{background:#fff!important;box-shadow:inset 3px 0 0 #2b9a78!important}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div,.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div{background:#f2f6f8}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body dt,.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body dt{color:#708b9a}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body dd,.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body dd{color:#365d72}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-select input{accent-color:#2b9a78}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(1){background:#eef6fb}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(1) dt{color:#5b7f94}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(1) dd{color:#2e607a}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(2){background:#fff6e7}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(2) dt{color:#9a7440}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(2) dd{color:#775a2b}
+.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(3){background:#eef8f3}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(3) dt{color:#4c8a70}.inn-wf-card-research .inn-evidence-ledger.is-policy .inn-evidence-ledger-body>dl>div:nth-child(3) dd{color:#27634e}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(1){background:#f3f1fb}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(1) dt{color:#7567a3}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(1) dd{color:#594a86}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(2){background:#edf8f5}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(2) dt{color:#4b8873}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(2) dd{color:#2d6955}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(3){background:#eef6fb}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(3) dt{color:#5b7f94}.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-body>dl>div:nth-child(3) dd{color:#2e607a}
+.inn-wf-card-research .inn-wf-point-recall.is-internal{--inn-list-selection:#7460ad}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row:hover{border-color:#c5b7e3;box-shadow:0 8px 18px rgba(92,70,148,.08)}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-row.is-selected{box-shadow:inset 3px 0 0 #7460ad!important}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-select input{accent-color:#7460ad}
+.inn-wf-card-research .inn-evidence-ledger.is-internal .inn-evidence-ledger-select span{color:#7460ad}
+.inn-wf-card-research .inn-evidence-ledger-type.is-internal{background:#f1edfb;color:#69539f}
+.inn-wf-card-research .inn-evidence-ledger-type.is-internal.is-personal{background:#faeff9;color:#99558e}
+.inn-wf-card-research .inn-paper-item-body{display:grid;grid-template-rows:auto auto auto auto;gap:11px}
+.inn-wf-card-research .inn-paper-item-body>header,.inn-wf-card-research .inn-paper-item-body>.inn-paper-biblio,.inn-wf-card-research .inn-paper-item-body>p,.inn-wf-card-research .inn-paper-item-body>.inn-paper-footer{order:initial;min-width:0;margin:0}
+.inn-wf-card-research .inn-paper-title-row button>span{gap:8px}
+.inn-wf-card-research .inn-paper-citation{flex:0 0 auto;border-radius:5px;background:#fff6e8;padding:4px 7px;color:#a36f16;font-size:12px;font-style:normal;font-weight:800;line-height:1.2;white-space:nowrap}
+.inn-wf-card-research .inn-paper-biblio{display:flex;flex-wrap:wrap;gap:7px 9px;overflow:visible}
+.inn-wf-card-research .inn-paper-item-body>p{display:-webkit-box;overflow:hidden;white-space:normal;text-overflow:clip;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.inn-wf-card-research .inn-paper-footer{display:flex;align-items:center;gap:10px;border-top:1px solid #edf3f1;padding-top:8px}
+.inn-wf-card-research .inn-paper-keywords{display:flex;flex:0 0 auto;flex-wrap:wrap;gap:6px}
+.inn-wf-card-research .inn-paper-footer .inn-paper-keywords span{border-radius:4px;background:#edf7f3;padding:4px 7px;color:#2b786b;font-size:12px;font-weight:700;line-height:1.2}
+.inn-wf-card-research .inn-paper-affiliation{min-width:0;overflow:hidden;color:#547485;font-size:13px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:720px){.inn-wf-card-research .inn-paper-item-body{gap:10px}.inn-wf-card-research .inn-paper-biblio{display:grid;grid-template-columns:1fr}.inn-wf-card-research .inn-paper-footer{align-items:flex-start;flex-direction:column;gap:8px}.inn-wf-card-research .inn-paper-affiliation{white-space:normal}.inn-wf-card-research .inn-paper-item-body>p{-webkit-line-clamp:3}}
+/* 专利与其余三类资料共用相同的卡片边界、交互反馈与字号层级；字段布局保持专利专属结构。 */
+.inn-wf-card-research .inn-patent-card-list{display:grid;gap:9px;background:#f8fbfb;padding:13px}
+.inn-wf-card-research .inn-patent-card{grid-template-columns:26px minmax(0,1fr);gap:12px;overflow:hidden;border:1px solid #deece9;border-radius:10px;background:#fff;padding:16px 17px;box-shadow:0 2px 7px rgba(26,89,76,.025);transition:border-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-research .inn-patent-card:hover{border-color:#9bd3c5;box-shadow:0 8px 18px rgba(21,93,75,.08)}
+.inn-wf-card-research .inn-patent-card.is-selected{border-left:3px solid #188ab7;padding-left:15px;box-shadow:0 2px 7px rgba(26,89,76,.025)}
+.inn-wf-card-research .inn-patent-card.is-selected:hover{box-shadow:0 8px 18px rgba(21,93,75,.08)}
+.inn-wf-card-research .inn-patent-card-body{gap:11px}
+.inn-wf-card-research .inn-patent-card-title{font-size:16px;line-height:1.55}
+.inn-wf-card-research .inn-patent-card-summary{font-size:14px;line-height:1.75}
+.inn-wf-card-research .inn-patent-card-facts small{font-size:12px}
+.inn-wf-card-research .inn-patent-card-facts b{font-size:14px;line-height:1.45}
+.inn-wf-card-research .inn-patent-card-classifications span{padding:4px 7px;font-size:12px}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-patent-card-list{gap:9px;padding:10px}
+  .inn-wf-card-research .inn-patent-card{grid-template-columns:22px minmax(0,1fr);padding:12px}
+  .inn-wf-card-research .inn-patent-card.is-selected{padding-left:10px}
+  .inn-wf-card-research .inn-patent-card-title{font-size:15px}
+  .inn-wf-card-research .inn-patent-card-summary{font-size:14px}
+}
+/* 第三行字段保留低饱和分组色，便于快速辨认不同类型信息。 */
+.inn-wf-card-research .inn-patent-card-facts>div:nth-child(2){border-radius:5px;background:#f4f1fb;padding:4px 7px}
+.inn-wf-card-research .inn-patent-card-facts>div:nth-child(2) small{color:#7865a1}
+.inn-wf-card-research .inn-patent-card-facts>div:nth-child(2) b{color:#604d84}
+.inn-wf-card-research .inn-patent-card-classifications span{background:#eaf6fb;color:#2d7899}
+.inn-wf-card-research .inn-patent-card-facts time.is-filing{background:#eaf5fb}
+.inn-wf-card-research .inn-patent-card-facts time.is-publication{background:#edf8f2}
+.inn-wf-card-research .inn-patent-title,.inn-wf-card-research .inn-patent-card-title,.inn-wf-card-research .inn-paper-title-row>a,.inn-wf-card-research .inn-research-table-title>a{color:#1d4b66;text-decoration:none}
+.inn-wf-card-research a.inn-patent-title,.inn-wf-card-research a.inn-patent-card-title{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-paper-title-row>a{min-width:0;flex:1 1 auto}
+.inn-wf-card-research .inn-paper-title-row>a>span{display:flex;align-items:center;gap:8px;min-width:0}
+.inn-wf-card-research .inn-paper-title-row>a:hover strong,.inn-wf-card-research .inn-paper-title-row>a:focus-visible strong,.inn-wf-card-research .inn-research-table-title>a:hover,.inn-wf-card-research .inn-research-table-title>a:focus-visible{outline:0;color:#087cad;text-decoration:underline;text-decoration-color:#a6d3e2;text-underline-offset:3px}
+.inn-wf-card-research .inn-research-table-title>a{display:block;width:100%;overflow:hidden;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:800;line-height:1.55;text-overflow:ellipsis;white-space:nowrap}
+
+/* 数据检索新增：检索、排序和插入均在同一弹窗内完成。 */
+.inn-recall-list-actions .inn-recall-add{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-color:#8fc7dc;background:#eef8fc;color:#117aa8}
+.inn-recall-list-actions .inn-recall-add:hover{border-color:#4ca7c8;background:#e3f4fa;color:#0c6f9c}
+.inn-recall-order-lock{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:34px;border:1px solid #d5e3e8;border-radius:7px;background:#f3f7f8;padding:0 11px;color:#66808f;font-size:14px;font-weight:800;white-space:nowrap}
+.inn-add-modal-backdrop{position:fixed;z-index:10020;inset:0;display:grid;place-items:center;padding:24px;background:rgba(17,48,65,.32);backdrop-filter:blur(2px)}
+.inn-add-modal{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;width:min(1060px,calc(100vw - 40px));max-height:calc(100vh - 48px);overflow:hidden;border:1px solid #c9e0ea;border-radius:14px;background:#fff;box-shadow:0 24px 64px rgba(10,48,66,.25)}
+.inn-add-modal-header{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:1px solid #e1edf2;padding:20px 24px 17px}.inn-add-modal-header span{display:block;color:#247ba1;font-size:14px;font-weight:800}.inn-add-modal-header h2{margin:3px 0 0;color:#153f5d;font-size:24px;line-height:1.25}.inn-add-modal-header>button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d3e4eb;border-radius:8px;background:#fff;color:#5c7c8e;cursor:pointer}.inn-add-modal-header>button:hover{border-color:#9dc8da;background:#f4fafc;color:#147aa5}
+.inn-add-search{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;border-bottom:1px solid #e4edf1;padding:14px 24px}.inn-add-search input,.inn-add-placement>input{box-sizing:border-box;min-width:0;height:40px;border:1px solid #cddfe7;border-radius:8px;background:#fbfdfe;padding:0 12px;color:#244d66;font-family:"Microsoft YaHei",sans-serif;font-size:15px;outline:0}.inn-add-search input:focus,.inn-add-placement>input:focus{border-color:#55a9c9;box-shadow:0 0 0 3px rgba(56,151,190,.12)}.inn-add-search button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:88px;border:1px solid #137daa;border-radius:8px;background:#137daa;color:#fff;font-family:"Microsoft YaHei",sans-serif;font-size:15px;font-weight:800;cursor:pointer}.inn-add-search button:hover{background:#0d6e9b}
+.inn-add-modal-content{display:grid;grid-template-columns:minmax(0,1fr) 310px;min-height:0;background:#f8fbfc}.inn-add-results{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;border-right:1px solid #e1ebef;background:#fff}.inn-add-results>header,.inn-add-selection-panel>header{display:flex;align-items:center;justify-content:space-between;min-height:50px;border-bottom:1px solid #e5edf1;padding:0 20px;color:#244b63}.inn-add-results>header b,.inn-add-selection-panel>header b{font-size:16px}.inn-add-results>header span{color:#648294;font-size:14px;font-weight:700}.inn-add-result-list{overflow:auto;padding:6px 14px 14px}.inn-add-result-list article{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;border-bottom:1px solid #e8f0f3;padding:14px 8px;cursor:pointer;transition:background-color .14s ease}.inn-add-result-list article:hover{background:#f6fbfd}.inn-add-result-list article.selected{background:#eff8fb;box-shadow:inset 3px 0 0 #1687b7}.inn-add-result-list article>input{width:16px;height:16px;margin:4px 0 0;accent-color:#1687b7}.inn-add-result-list article>div{min-width:0}.inn-add-result-list article header{display:flex;align-items:flex-start;gap:9px}.inn-add-result-list article header b{min-width:0;overflow:hidden;color:#1b4b66;font-size:15px;line-height:1.5;text-overflow:ellipsis;white-space:nowrap}.inn-add-result-list article header em{flex:0 0 auto;border-radius:5px;background:#e8f5f9;padding:3px 6px;color:#087da9;font-family:"DIN Alternate","Arial",sans-serif;font-size:12px;font-style:normal;font-weight:900}.inn-add-result-list article>div>span{display:block;margin-top:3px;color:#5c7b8d;font-family:"DIN Alternate","Arial",sans-serif;font-size:13px;font-weight:800}.inn-add-result-list article p{display:-webkit-box;overflow:hidden;margin:6px 0 0;color:#587484;font-size:14px;line-height:1.58;-webkit-box-orient:vertical;-webkit-line-clamp:2}.inn-add-result-list article footer{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.inn-add-result-list article footer i{border-radius:4px;background:#eef6f9;padding:3px 6px;color:#3b7088;font-size:12px;font-style:normal;font-weight:700}
+.inn-add-selection-panel{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;background:#f8fbfc}.inn-add-selection-list{display:grid;align-content:start;gap:6px;overflow:auto;padding:10px 12px}.inn-add-selection-list article{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:7px;align-items:center;border:1px solid #dbe8ed;border-radius:8px;background:#fff;padding:8px;cursor:grab}.inn-add-selection-list article:active{cursor:grabbing}.inn-add-selection-list article>b{width:25px;height:25px;display:grid;place-items:center;border-radius:6px;background:#e7f4f8;color:#197ba6;font-family:"DIN Alternate","Arial",sans-serif;font-size:12px}.inn-add-selection-list article>span{overflow:hidden;color:#315b72;font-size:14px;font-weight:700;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}.inn-add-selection-list article>div{display:flex;gap:2px}.inn-add-selection-list article button{display:grid;place-items:center;width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:#547688;cursor:pointer}.inn-add-selection-list article button:hover:not(:disabled){background:#eef7fa;color:#1379a6}.inn-add-selection-list article button:disabled{opacity:.35;cursor:default}
+.inn-add-placement{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px;margin:0;border:0;border-top:1px solid #e1ebef;padding:14px}.inn-add-placement legend{grid-column:1/-1;padding:0;color:#315c73;font-size:14px;font-weight:800}.inn-add-placement label{display:flex;align-items:center;gap:6px;color:#547384;font-size:14px;font-weight:700;cursor:pointer}.inn-add-placement label input{width:15px;height:15px;margin:0;accent-color:#1686b5}.inn-add-placement>input,.inn-add-placement small{grid-column:1/-1}.inn-add-placement>input{height:36px;background:#fff;font-size:14px}.inn-add-placement small{color:#b06f2d;font-size:12px;font-weight:700}
+.inn-add-modal-footer{display:flex;justify-content:flex-end;gap:9px;border-top:1px solid #e1ebef;background:#fff;padding:14px 24px}.inn-add-modal-footer button{min-width:92px;min-height:38px;border:1px solid #cfdee6;border-radius:8px;background:#fff;color:#557589;font-family:"Microsoft YaHei",sans-serif;font-size:14px;font-weight:800;cursor:pointer}.inn-add-modal-footer button.primary{border-color:#137daa;background:#137daa;color:#fff}.inn-add-modal-footer button.primary:hover:not(:disabled){background:#0d6e9b}.inn-add-modal-footer button:disabled{opacity:.45;cursor:default}
+@media(max-width:780px){.inn-add-modal-backdrop{align-items:start;overflow:auto;padding:12px}.inn-add-modal{width:100%;max-height:none;min-height:calc(100vh - 24px)}.inn-add-modal-header,.inn-add-search,.inn-add-modal-footer{padding-right:16px;padding-left:16px}.inn-add-modal-content{grid-template-columns:1fr}.inn-add-results{min-height:390px;border-right:0;border-bottom:1px solid #e1ebef}.inn-add-selection-panel{min-height:260px}.inn-add-placement{grid-template-columns:1fr 1fr}}
+
+/* 项目分析使用静态阅读态与明确编辑态，避免把输入框当作内容本身。 */
+.inn-wf-card-analysis .inn-wf-analysis-page{gap:26px;background:#f7fafc}
+.inn-wf-card-analysis .inn-analysis-section{gap:13px}
+.inn-wf-card-analysis .inn-analysis-section-head{min-height:38px;border-bottom:1px solid #dce9ee;padding:0 0 11px}
+.inn-wf-card-analysis .inn-analysis-section-head>span{color:#173f5c;font-size:19px;font-weight:800;letter-spacing:-.025em}
+.inn-wf-card-analysis .inn-analysis-section-actions{display:flex;align-items:center;gap:8px}
+.inn-wf-card-analysis .inn-analysis-edit-toggle,.inn-wf-card-analysis .inn-analysis-add{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;border:1px solid #b9d8e4;border-radius:8px;background:#fff;padding:0 13px;color:#176f99;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:14px;font-weight:800;line-height:1;cursor:pointer;transition:border-color .16s ease,background-color .16s ease,color .16s ease,transform .16s ease}
+.inn-wf-card-analysis .inn-analysis-edit-toggle:hover,.inn-wf-card-analysis .inn-analysis-add:hover{border-color:#5ba8c7;background:#f1f9fc;color:#0d638d}
+.inn-wf-card-analysis .inn-analysis-edit-toggle:active,.inn-wf-card-analysis .inn-analysis-add:active{transform:translateY(1px)}
+.inn-wf-card-analysis .inn-analysis-edit-toggle:focus-visible,.inn-wf-card-analysis .inn-analysis-add:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(27,136,179,.16)}
+.inn-wf-card-analysis .inn-analysis-topic-grid,.inn-wf-card-analysis .inn-analysis-point-list{gap:14px}
+.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-topic-card,.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-point-card{overflow:hidden;border:1px solid #d6e5eb;border-radius:12px;background:#fff;box-shadow:0 4px 12px rgba(21,78,106,.045);transition:border-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-topic-card:hover,.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-point-card:hover{border-color:#c5dce6;box-shadow:0 7px 18px rgba(21,78,106,.07)}
+.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-topic-card>header,.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-point-card>header{min-height:0;border-bottom:1px solid #e4eef2;background:#f7fbfc;padding:14px 16px}
+.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-topic-card>header>i,.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-point-card .inn-analysis-point-title>i{width:28px;height:28px;border-radius:7px;background:#e4f3f8;color:#147ba8;font-size:11px}
+.inn-wf-card-analysis .inn-analysis-topic-card h3,.inn-wf-card-analysis .inn-analysis-point-card h3{margin:0;color:#1b4965;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:17px;font-weight:800;letter-spacing:-.015em;line-height:1.5}
+.inn-wf-card-analysis .inn-analysis-topic-card>p,.inn-wf-card-analysis .inn-analysis-point-card>p{margin:0;padding:14px 16px 16px;color:#486b7f;font-size:15px;font-weight:600;line-height:1.8}
+.inn-wf-card-analysis.is-analysis-editing{background:#eef8fb}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-edit-toggle{border-color:#147eae;background:#147eae;color:#fff;box-shadow:0 4px 10px rgba(18,104,147,.16)}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card{overflow:hidden;border:1px solid #94c6d9;border-radius:12px;background:#fff;box-shadow:0 5px 15px rgba(18,95,132,.07)}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>header,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card>header{min-height:0;border-bottom:1px solid #d9eaf0;background:#eef8fb;padding:13px 16px}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card>textarea{display:block;box-sizing:border-box;width:100%;min-height:0!important;border:0;border-top:1px solid #e2edf1;border-radius:0;background:#fff;padding:12px 16px 15px;color:#284f67;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;font-weight:600;line-height:1.75;resize:none;box-shadow:none}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-title textarea{min-height:32px;border:0;border-bottom:0;background:transparent;padding:1px 3px;color:#1b4965;font-size:17px;font-weight:800;line-height:1.5;box-shadow:none}
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card textarea:focus,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card textarea:focus{outline:0;background:#f8fcfd;box-shadow:inset 0 0 0 1px #7ebcd4}
+.inn-wf-card-analysis .inn-analysis-tag-panel{margin-top:3px;border-top:1px solid #dce9ee;padding-top:14px}
+.inn-wf-card-analysis .inn-analysis-tag-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.inn-wf-card-analysis .inn-analysis-tag-panel>header>span:first-child{color:#315b73;font-size:16px;font-weight:800}
+.inn-wf-card-analysis .inn-analysis-tag-panel>header>span:last-child{color:#7791a0;font-size:13px;font-weight:700}
+.inn-wf-card-analysis .inn-analysis-branch-tags{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0;padding:0}
+.inn-wf-card-analysis .inn-analysis-branch-tags>span,.inn-wf-card-analysis .inn-analysis-tag-editor,.inn-wf-card-analysis .inn-analysis-tag-create{box-sizing:border-box;min-width:0;min-height:56px;border:1px solid #d4e6ed;border-radius:9px;background:#f2f8fa;color:#28647f}
+.inn-wf-card-analysis .inn-analysis-branch-tags>span{display:flex;align-items:center;padding:11px 13px;border-left:3px solid #1885b4;font-size:16px;font-weight:800;line-height:1.45}
+.inn-wf-card-analysis .inn-analysis-tag-editor{display:grid;grid-template-columns:minmax(0,1fr) 30px;align-items:center;gap:6px;background:#fff;padding:0 7px 0 12px}
+.inn-wf-card-analysis .inn-analysis-tag-editor input,.inn-wf-card-analysis .inn-analysis-tag-create input{box-sizing:border-box;min-width:0;width:100%;border:0;outline:0;background:transparent;color:#28546c;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:16px;font-weight:800;line-height:1.4}
+.inn-wf-card-analysis .inn-analysis-tag-editor:focus-within,.inn-wf-card-analysis .inn-analysis-tag-create:focus-within{border-color:#67aecb;box-shadow:0 0 0 3px rgba(25,132,176,.12)}
+.inn-wf-card-analysis .inn-analysis-tag-editor button{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:#f2f7f9;color:#668594;cursor:pointer}
+.inn-wf-card-analysis .inn-analysis-tag-editor button:hover{background:#e5f3f8;color:#0d749f}
+.inn-wf-card-analysis .inn-analysis-tag-create{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px;background:#fbfdfe;padding:0 8px 0 12px}
+.inn-wf-card-analysis .inn-analysis-tag-create button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:34px;border:0;border-radius:6px;background:#e1f2f8;padding:0 9px;color:#1378a4;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:14px;font-weight:800;cursor:pointer}
+.inn-wf-card-analysis .inn-analysis-tag-create button:hover{background:#d3edf6;color:#0d6f9b}
+@media(max-width:1080px){.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-wf-analysis-page{gap:20px}
+  .inn-wf-card-analysis .inn-analysis-section-head{align-items:flex-start;gap:10px}
+  .inn-wf-card-analysis .inn-analysis-section-head>span{font-size:18px}
+  .inn-wf-card-analysis .inn-analysis-section-actions{gap:6px}
+  .inn-wf-card-analysis .inn-analysis-edit-toggle,.inn-wf-card-analysis .inn-analysis-add{min-height:34px;padding:0 10px;font-size:14px}
+  .inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-topic-card>header,.inn-wf-card-analysis:not(.is-analysis-editing) .inn-analysis-point-card>header,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>header,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card>header{padding:12px 13px}
+  .inn-wf-card-analysis .inn-analysis-topic-card h3,.inn-wf-card-analysis .inn-analysis-point-card h3,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-title textarea{font-size:16px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>p,.inn-wf-card-analysis .inn-analysis-point-card>p,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card>textarea,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card>textarea{padding-right:13px;padding-left:13px;font-size:14px}
+  .inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:1fr}
+  .inn-wf-card-analysis .inn-analysis-branch-tags>span,.inn-wf-card-analysis .inn-analysis-tag-editor,.inn-wf-card-analysis .inn-analysis-tag-create{min-height:52px}
+  .inn-wf-card-analysis .inn-analysis-branch-tags>span,.inn-wf-card-analysis .inn-analysis-tag-editor input,.inn-wf-card-analysis .inn-analysis-tag-create input{font-size:15px}
+}
+
+/* 报告页直接读取 Vue 数据，不再依赖外部 HTML。 */
+.inn-wf-card-report .inn-wf-report{display:flex;min-height:0;overflow:hidden;background:#f3f7f9;padding:0}
+.inn-vue-report-layout{display:grid;flex:1 1 auto;grid-template-columns:218px minmax(0,1fr);min-width:0;min-height:0;overflow:hidden}
+.inn-vue-report-outline{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden;border-right:1px solid #dce8ed;background:#fbfdfe}
+.inn-vue-report-outline>header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;border-bottom:1px solid #e2edf1;padding:20px 16px 16px}
+.inn-vue-report-outline>header>div{display:grid;gap:5px;min-width:0}.inn-vue-report-outline>header span{color:#7790a0;font-size:12px;font-weight:700}.inn-vue-report-outline>header strong{color:#173f5c;font-size:19px;line-height:1.2}
+.inn-vue-report-outline>header button{flex:0 0 auto;border:0;background:transparent;padding:2px 0;color:#167ea9;font-family:"Microsoft YaHei",sans-serif;font-size:12px;font-weight:800;cursor:pointer}.inn-vue-report-outline>header button:hover{color:#075f8c;text-decoration:underline;text-underline-offset:3px}
+.inn-vue-report-outline nav{display:grid;min-height:0;align-content:start;gap:2px;overflow-y:auto;overscroll-behavior:contain;padding:10px}.inn-vue-report-outline nav button{min-height:36px;border:0;border-radius:7px;background:transparent;padding:7px 9px;color:#547285;font-family:"Microsoft YaHei",sans-serif;font-size:13px;font-weight:700;line-height:1.45;text-align:left;cursor:pointer}.inn-vue-report-outline nav button:hover{background:#edf7fa;color:#167aa4}.inn-vue-report-outline nav button:focus-visible{outline:2px solid #6fb5d1;outline-offset:1px}
+.inn-vue-report-layout.outline-collapsed{grid-template-columns:74px minmax(0,1fr)}.inn-vue-report-layout.outline-collapsed .inn-vue-report-outline>header{justify-content:center;padding:16px 8px}.inn-vue-report-layout.outline-collapsed .inn-vue-report-outline>header button{line-height:1.5;writing-mode:vertical-rl}
+.inn-vue-report-document{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;background:#f5f8f9;padding:24px 28px 54px;scroll-behavior:smooth}
+.inn-vue-report-outline nav,.inn-vue-report-document{-ms-overflow-style:none;scrollbar-width:none}.inn-vue-report-outline nav::-webkit-scrollbar,.inn-vue-report-document::-webkit-scrollbar{width:0;height:0;display:none}
+.inn-vue-report-cover,.inn-vue-report-verdict,.inn-vue-report-overview,.inn-vue-report-section{max-width:1120px;margin-right:auto;margin-left:auto}
+.inn-vue-report-cover{position:relative;overflow:hidden;border-radius:12px;background:linear-gradient(138deg,#244f78,#173e63);padding:34px 40px 28px;color:#fff;box-shadow:0 10px 24px rgba(22,63,91,.14)}
+.inn-vue-report-cover:after{position:absolute;right:-84px;bottom:-108px;width:290px;height:290px;border:30px solid rgba(129,209,221,.13);border-radius:50%;content:"";pointer-events:none}.inn-vue-report-cover>span{position:relative;z-index:1;display:block;color:#c4e1ed;font-size:14px;font-weight:700}.inn-vue-report-cover h2{position:relative;z-index:1;max-width:880px;margin:22px 0 14px;color:#fff;font-size:clamp(26px,2vw,38px);font-weight:800;letter-spacing:-.03em;line-height:1.32}.inn-vue-report-cover p{position:relative;z-index:1;max-width:850px;margin:0;color:#e1eef4;font-size:15px;line-height:1.8}.inn-vue-report-cover>small{position:relative;z-index:1;display:block;margin-top:10px;color:#b8d1df;font-size:12px;line-height:1.65}
+.inn-vue-report-cover dl{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin:25px 0 0;background:rgba(207,233,244,.22)}.inn-vue-report-cover dl>div{min-width:0;background:rgba(255,255,255,.09);padding:12px 14px}.inn-vue-report-cover dt{color:#b9d3df;font-size:12px}.inn-vue-report-cover dd{margin:5px 0 0;color:#fff;font-size:15px;font-weight:800;line-height:1.4}
+.inn-vue-report-verdict{display:grid;grid-template-columns:156px minmax(0,1fr);margin-top:16px;overflow:hidden;border:1px solid #dbe8ed;border-radius:11px;background:#fff}.inn-vue-report-grade{display:grid;align-content:center;justify-items:center;gap:3px;min-height:164px;background:#eef8f5;padding:20px;text-align:center}.inn-vue-report-grade>b{color:#168b70;font:800 52px/1 Arial}.inn-vue-report-grade>span{color:#547e75;font-size:13px;font-weight:800}.inn-vue-report-grade>strong{color:#1d5e59;font-size:16px}.inn-vue-report-grade>strong small{margin-left:3px;color:#7d9d98;font-size:12px;font-weight:700}.inn-vue-report-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#e4edf0}.inn-vue-report-metrics>div{display:grid;align-content:center;gap:5px;min-width:0;background:#fff;padding:17px 14px}.inn-vue-report-metrics span{color:#718897;font-size:12px;font-weight:700}.inn-vue-report-metrics b{overflow:hidden;color:#1d4d69;font-size:17px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}.inn-vue-report-metrics small{overflow:hidden;color:#7891a0;font-size:12px;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}
+.inn-vue-report-overview{margin-top:16px;border-left:3px solid #1787b2;background:#eff8fb;padding:15px 18px}.inn-vue-report-overview h3{margin:0;color:#1d5270;font-size:17px}.inn-vue-report-overview p{margin:7px 0 0;color:#4f6d7f;font-size:14px;line-height:1.75}
+.inn-vue-report-section{scroll-margin-top:14px;margin-top:28px}.inn-vue-report-section-head{margin-bottom:14px;border-bottom:1px solid #dbe7ec;padding-bottom:12px}.inn-vue-report-section-head>span{display:block;margin-bottom:5px;color:#1685af;font-size:12px;font-weight:800}.inn-vue-report-section-head h3{margin:0;color:#173f5c;font-size:22px;line-height:1.35}.inn-vue-report-section-head p{margin:6px 0 0;color:#728999;font-size:14px;line-height:1.65}
+.inn-vue-report-blocks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inn-vue-report-block{min-width:0;border:1px solid #dce8ed;border-radius:9px;background:#fff;padding:15px 16px}.inn-vue-report-block h4{margin:0;color:#315e79;font-size:16px}.inn-vue-report-block>p{margin:9px 0 0;color:#46687b;font-size:14px;line-height:1.78}.inn-vue-report-block dl{display:grid;gap:8px;margin:10px 0 0}.inn-vue-report-block dl>div{display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px}.inn-vue-report-block dt{color:#7290a0;font-size:13px;font-weight:700}.inn-vue-report-block dd{margin:0;color:#3e6175;font-size:14px;font-weight:700;line-height:1.6}
+.inn-vue-report-points{display:grid;gap:10px}.inn-vue-report-points article{border-left:3px solid #2494b9;border-radius:9px;background:#fff;padding:14px 16px;box-shadow:0 2px 7px rgba(28,80,99,.035)}.inn-vue-report-points article.warning{border-left-color:#c79338;background:#fffdf8}.inn-vue-report-points article>header{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:10px}.inn-vue-report-points i{display:grid;place-items:center;width:30px;height:30px;border-radius:7px;background:#e4f5fa;color:#147ca8;font:800 12px/1 Arial;font-style:normal}.inn-vue-report-points h4{margin:0;color:#1b4e6d;font-size:17px;line-height:1.4}.inn-vue-report-points header>b{border-radius:6px;background:#e9f7f2;padding:4px 7px;color:#198163;font-size:14px}.inn-vue-report-points .warning header>b{background:#fff0d4;color:#9b6815}.inn-vue-report-points p{margin:9px 0 0;color:#4e6e80;font-size:14px;line-height:1.75}.inn-vue-report-points footer{margin-top:10px;border-top:1px solid #e5eef1;padding-top:9px;color:#42748b;font-size:13px;font-weight:800}
+.inn-vue-report-table-wrap{overflow:auto;margin-top:12px;border:1px solid #dbe7ec;border-radius:9px;background:#fff}.inn-vue-report-table-wrap table{width:100%;min-width:660px;border-collapse:collapse}.inn-vue-report-table-wrap th,.inn-vue-report-table-wrap td{border-bottom:1px solid #e5edf0;padding:11px 12px;color:#46677a;font-size:13px;line-height:1.65;text-align:left;vertical-align:top}.inn-vue-report-table-wrap th{background:#eef7fa;color:#2d607b;font-weight:800}.inn-vue-report-table-wrap tr:last-child td{border-bottom:0}.inn-vue-report-table-wrap tr.emphasis td{background:#fff8e9;color:#775a2a;font-weight:700}
+.inn-wf-report-version-nav{margin-top:-4px;margin-bottom:5px}.inn-wf-report-version-nav button{min-height:38px!important}.inn-wf-report-version-nav button i{font-size:10px!important}
+.inn-report-choice-backdrop{position:fixed;z-index:10040;inset:0;display:grid;place-items:center;padding:20px;background:rgba(17,46,64,.38);backdrop-filter:blur(2px)}.inn-report-choice-dialog{width:min(590px,100%);overflow:hidden;border:1px solid #c8dfe8;border-radius:14px;background:#fff;box-shadow:0 22px 58px rgba(14,49,68,.24)}.inn-report-choice-dialog>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e3edf1;padding:20px 22px 17px}.inn-report-choice-dialog>header span{display:block;color:#237da7;font-size:13px;font-weight:800}.inn-report-choice-dialog>header h2{margin:4px 0 0;color:#173f5d;font-size:23px;line-height:1.25}.inn-report-choice-dialog>header>button{display:grid;place-items:center;width:34px;height:34px;border:1px solid #d6e5eb;border-radius:8px;background:#fff;color:#58778a;cursor:pointer}.inn-report-choice-dialog>header>button:hover{border-color:#9ec8d9;background:#f3fafc;color:#147aa5}.inn-report-choice-options{display:grid;gap:9px;padding:18px 22px}.inn-report-choice-options button{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;gap:12px;border:1px solid #dce8ed;border-radius:9px;background:#fff;padding:13px 14px;color:#5e7b8d;font-family:"Microsoft YaHei",sans-serif;text-align:left;cursor:pointer}.inn-report-choice-options button:hover{border-color:#9dcbdb;background:#f7fcfd}.inn-report-choice-options button.active{border-color:#1887b5;background:#edf8fb;box-shadow:inset 3px 0 0 #1887b5}.inn-report-choice-options b{color:#1d4e6d;font-size:16px}.inn-report-choice-options span{color:#6d8797;font-size:13px;line-height:1.55}.inn-report-template-selection{border-top:1px solid #e3edf1;padding:15px 22px 18px}.inn-report-template-selection>header{margin-bottom:10px}.inn-report-template-selection>header span{color:#315c73;font-size:15px;font-weight:800}.inn-report-template-selection>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.inn-report-template-selection button{min-height:42px;border:1px solid #d8e7ed;border-radius:8px;background:#fff;color:#547588;font-family:"Microsoft YaHei",sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:border-color .16s ease,background-color .16s ease,color .16s ease}.inn-report-template-selection button:hover{border-color:#8cc2d7;background:#f5fbfd;color:#176f99}.inn-report-template-selection button.active{border-color:#1687b6;background:#edf8fb;color:#136f99;box-shadow:inset 0 -2px 0 #1687b6}.inn-report-choice-dialog>footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #e3edf1;background:#fbfdfe;padding:13px 22px}
+@media(max-width:1120px){.inn-vue-report-layout{grid-template-columns:186px minmax(0,1fr)}.inn-vue-report-document{padding:18px}.inn-vue-report-cover{padding:28px 30px}.inn-vue-report-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.inn-vue-report-verdict{grid-template-columns:140px minmax(0,1fr)}}
+@media(max-width:760px){.inn-vue-report-layout,.inn-vue-report-layout.outline-collapsed{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.inn-vue-report-outline{border-right:0;border-bottom:1px solid #dce8ed}.inn-vue-report-outline>header{align-items:center;padding:11px 14px}.inn-vue-report-outline>header>div{display:none}.inn-vue-report-outline>header button{font-size:13px}.inn-vue-report-layout.outline-collapsed .inn-vue-report-outline>header{justify-content:flex-start;padding:11px 14px}.inn-vue-report-layout.outline-collapsed .inn-vue-report-outline>header button{writing-mode:horizontal-tb}.inn-vue-report-outline nav{display:flex;overflow:auto;gap:4px;padding:7px 10px}.inn-vue-report-outline nav button{min-height:32px;flex:0 0 auto;padding:6px 8px;font-size:12px;white-space:nowrap}.inn-vue-report-document{padding:12px 10px 32px}.inn-vue-report-cover{border-radius:10px;padding:23px 18px}.inn-vue-report-cover>span{font-size:12px}.inn-vue-report-cover h2{margin-top:16px;font-size:24px}.inn-vue-report-cover p{font-size:14px}.inn-vue-report-cover dl{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}.inn-vue-report-cover dd{font-size:14px}.inn-vue-report-verdict{grid-template-columns:1fr}.inn-vue-report-grade{min-height:unset;padding:16px}.inn-vue-report-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.inn-vue-report-metrics>div{padding:12px}.inn-vue-report-metrics b{font-size:16px}.inn-vue-report-section{margin-top:22px}.inn-vue-report-section-head h3{font-size:19px}.inn-vue-report-section-head p,.inn-vue-report-overview p,.inn-vue-report-block>p,.inn-vue-report-points p{font-size:14px}.inn-vue-report-blocks{grid-template-columns:1fr;gap:9px}.inn-vue-report-block{padding:13px}.inn-vue-report-block dl>div{grid-template-columns:90px minmax(0,1fr)}.inn-vue-report-points article{padding:12px}.inn-vue-report-points article>header{grid-template-columns:30px minmax(0,1fr)}.inn-vue-report-points header>b{grid-column:2;justify-self:start}.inn-report-choice-backdrop{align-items:end;padding:10px}.inn-report-choice-dialog{border-radius:14px 14px 10px 10px}.inn-report-choice-options{padding:14px}.inn-report-choice-options button{grid-template-columns:1fr;gap:4px;padding:12px}.inn-report-choice-dialog>header,.inn-report-choice-dialog>footer{padding-right:16px;padding-left:16px}}
+
+/* 项目分析：主题与创新点均采用“标题 + 单段详情”，避免页面被字段拆碎。 */
+.inn-wf-card-analysis .inn-analysis-topic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inn-wf-card-analysis .inn-analysis-point-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.inn-wf-card-analysis .inn-analysis-point-card{display:flex;min-width:0;flex-direction:column}
+.inn-wf-card-analysis .inn-analysis-point-card:nth-child(3n){grid-column:1/-1}
+.inn-wf-card-analysis .inn-analysis-topic-card>textarea,
+.inn-wf-card-analysis .inn-analysis-point-card>textarea{display:block;box-sizing:border-box;flex:1;width:100%;min-height:0!important;border:0;border-top:1px solid #e7f0f3;border-radius:0;background:transparent;padding:12px 16px 16px;color:#315b72;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;font-weight:600;line-height:1.75;resize:none}
+.inn-wf-card-analysis .inn-analysis-topic-card:hover>textarea,
+.inn-wf-card-analysis .inn-analysis-point-card:hover>textarea{border-bottom:0;background:transparent}
+.inn-wf-card-analysis .inn-analysis-topic-card>textarea:focus,
+.inn-wf-card-analysis .inn-analysis-point-card>textarea:focus{border-top-color:#9ccddd;background:#f8fcfd;outline:0}
+.inn-wf-card-analysis .inn-analysis-branch-tags{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:0;padding:0}
+.inn-wf-card-analysis .inn-analysis-branch-tags>span{display:flex;align-items:center;min-height:56px;border:1px solid #d4e6ed;border-left:3px solid #1885b4;border-radius:9px;background:#f2f8fa;padding:11px 13px;color:#28647f;font-size:16px;font-weight:800;line-height:1.45}
+@media(max-width:1080px){.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-analysis-topic-grid,
+  .inn-wf-card-analysis .inn-analysis-point-list{grid-template-columns:1fr}
+  .inn-wf-card-analysis .inn-analysis-point-card:nth-child(3n){grid-column:auto}
+  .inn-wf-card-analysis .inn-analysis-topic-card>textarea,
+  .inn-wf-card-analysis .inn-analysis-point-card>textarea{padding:11px 14px 14px;font-size:14px;line-height:1.7}
+  .inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:1fr;gap:8px}
+  .inn-wf-card-analysis .inn-analysis-branch-tags>span{min-height:52px;padding:10px 12px;font-size:15px}
+}
+
+/* 数据检索工具栏采用紧凑的分段控件，强化资料类型与视图状态。 */
+.inn-wf-card-research .inn-recall-type-tabs{gap:2px;border:1px solid #d8e5eb;border-radius:8px;background:#f4f8fa;padding:3px}
+.inn-wf-card-research .inn-recall-type-tabs button{min-height:34px;border:0;border-radius:6px;background:transparent;padding:0 12px;color:#668196;font-size:14px;font-weight:800;transition:background-color .14s ease,color .14s ease,box-shadow .14s ease}
+.inn-wf-card-research .inn-recall-type-tabs button:hover{background:#eaf3f7;color:#1b7198}
+.inn-wf-card-research .inn-recall-type-tabs button.active{background:#fff;color:#173f5d;box-shadow:0 1px 3px rgba(32,80,104,.13)}
+.inn-wf-card-research .inn-recall-view-switch{grid-template-columns:repeat(2,34px);gap:2px;width:auto;border:1px solid #d8e5eb;border-radius:8px;background:#f7fafb;padding:3px}
+.inn-wf-card-research .inn-recall-view-switch>span{display:none}
+.inn-wf-card-research .inn-recall-view-switch button,.inn-wf-card-research .inn-recall-view-switch button:first-of-type,.inn-wf-card-research .inn-recall-view-switch button+button{width:34px;min-width:34px!important;min-height:34px!important;margin-left:0!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#7190a1!important}
+.inn-wf-card-research .inn-recall-view-switch button:hover{background:#eaf3f7!important;color:#1b7198!important}
+.inn-wf-card-research .inn-recall-view-switch button.active{background:#fff!important;color:#147da9!important;box-shadow:0 1px 3px rgba(32,80,104,.13)!important}
+.inn-wf-card-research .inn-recall-toolbar{gap:10px}
+.inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs,.inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs{gap:2px;border:1px solid #d8e5eb;border-radius:8px;background:#f4f8fa;padding:3px}
+.inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button,.inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button{min-height:34px;border:0;border-radius:6px;background:transparent;padding:0 12px;color:#668196;font-size:14px;font-weight:800;box-shadow:none}
+.inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button:hover,.inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button:hover{background:#eaf3f7;color:#1b7198}
+.inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs button.active,.inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-type-tabs button.active{background:#fff;color:#173f5d;box-shadow:0 1px 3px rgba(32,80,104,.13)}
+@media(max-width:720px){.inn-wf-card-research .inn-recall-type-tabs button{min-height:32px;padding:0 10px}.inn-wf-card-research .inn-recall-view-switch{grid-template-columns:repeat(2,32px)}.inn-wf-card-research .inn-recall-view-switch button,.inn-wf-card-research .inn-recall-view-switch button:first-of-type,.inn-wf-card-research .inn-recall-view-switch button+button{width:32px;min-width:32px!important;min-height:32px!important}}
+
+/* 数据检索：资料来源、浏览方式和操作采用一条紧凑的工作台工具栏。 */
+.inn-wf-card-research .inn-recall-toolbar{min-height:52px;gap:12px;padding-top:8px;padding-bottom:8px}
+.inn-wf-card-research .inn-recall-list-summary{display:flex;align-items:baseline;min-height:28px;border-left:1px solid #e1ebf0;padding-left:12px}
+.inn-wf-card-research .inn-recall-list-summary strong{letter-spacing:.01em}
+.inn-wf-card-research .inn-recall-list-actions{gap:7px}
+.inn-wf-card-research .inn-recall-list-actions .inn-recall-add{display:inline-flex;align-items:center;justify-content:center;min-width:72px;gap:4px;border-color:#a8d2e2;background:#edf8fc;color:#137ca9;box-shadow:none}
+.inn-wf-card-research .inn-recall-list-actions .inn-recall-add:hover{border-color:#59a9c9;background:#e1f3f9;color:#0c709f}
+.inn-wf-card-research .inn-recall-list-actions .inn-recall-add svg{stroke-width:2.4}
+.inn-wf-card-research .inn-recall-list-actions .inn-recall-order-lock{border-color:#d6e3e8;background:#f5f8fa;color:#647f8f}
+@media(max-width:720px){.inn-wf-card-research .inn-recall-toolbar{min-height:0;gap:8px}.inn-wf-card-research .inn-recall-list-summary{border-left:0;padding-left:2px}.inn-wf-card-research .inn-recall-list-actions .inn-recall-add{min-width:58px}}
+
+.inn-wf-card-analysis.is-analysis-editing .inn-analysis-topic-card,.inn-wf-card-analysis.is-analysis-editing .inn-analysis-point-card{background:#f3fafc}
+.inn-wf-card-analysis .inn-analysis-edit-toggle,.inn-wf-card-analysis .inn-analysis-add{white-space:nowrap}
+@media(max-width:720px){.inn-wf-card-analysis .inn-analysis-add{gap:4px;font-size:0}.inn-wf-card-analysis .inn-analysis-add:after{content:"新增";font-size:14px}.inn-wf-card-analysis .inn-analysis-edit-toggle{padding-right:9px;padding-left:9px}}
+
+/* 技术主题与创新点保持相同的两行检索头部：对象在上，资料类型与操作在下。 */
+@media(min-width:981px){
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs){grid-template-columns:minmax(0,1fr)}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs{grid-column:1;grid-row:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;width:100%;padding:0 14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs button{width:100%;min-width:0;padding:0 8px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-patent-topic-tabs .inn-patent-topic-title{max-width:100%}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-recall-controls{grid-column:1;grid-row:2;display:grid!important;grid-template-columns:auto minmax(0,1fr);align-items:center;border-top:1px solid #e1ebf0;border-bottom:0}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-type-tabs{grid-column:1;grid-row:1;align-self:center;margin-left:14px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-toolbar{grid-column:2;grid-row:1;min-width:0;border-top:0}
+}
+
+/* 项目分析：默认可直接编辑，聚焦时再显露输入状态。 */
+.inn-wf-card-analysis .inn-wf-analysis-page{gap:20px;background:#f7fafc}
+.inn-wf-card-analysis .inn-analysis-topic-card,.inn-wf-card-analysis .inn-analysis-point-card{overflow:hidden;border:1px solid #d6e5eb;border-radius:12px;background:#fff;box-shadow:0 4px 12px rgba(21,78,106,.045);transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>header,.inn-wf-card-analysis .inn-analysis-point-card>header{min-height:0;border-bottom:1px solid #e2edf1;background:#f7fbfc;padding:13px 16px;transition:background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis .inn-analysis-point-title textarea{display:block;box-sizing:border-box;width:100%;min-height:34px;border:1px solid transparent;border-radius:6px;outline:0;background:transparent;padding:1px 4px;color:#1b4965;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:17px;font-weight:800;line-height:1.5;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>textarea,.inn-wf-card-analysis .inn-analysis-point-card>textarea{display:block;box-sizing:border-box;width:100%;min-height:0!important;border:1px solid transparent;border-top-color:#e2edf1;border-radius:0;outline:0;background:transparent;padding:12px 16px 15px;color:#486b7f;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;font-weight:600;line-height:1.8;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card:hover,.inn-wf-card-analysis .inn-analysis-point-card:hover{border-color:#bdd9e5;box-shadow:0 7px 18px rgba(21,78,106,.07)}
+.inn-wf-card-analysis .inn-analysis-topic-card:focus-within,.inn-wf-card-analysis .inn-analysis-point-card:focus-within{border-color:#6eb5d0;background:#fafdfe;box-shadow:0 0 0 3px rgba(25,132,176,.12),0 8px 20px rgba(21,78,106,.08)}
+.inn-wf-card-analysis .inn-analysis-topic-card:focus-within>header,.inn-wf-card-analysis .inn-analysis-point-card:focus-within>header{background:#eaf7fb}
+.inn-wf-card-analysis .inn-analysis-topic-card textarea:focus,.inn-wf-card-analysis .inn-analysis-point-card textarea:focus{border-color:#91c7da;background:#fff;box-shadow:0 1px 2px rgba(25,91,120,.04)}
+.inn-wf-card-analysis .inn-analysis-tag-editor{background:#f2f8fa;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-analysis .inn-analysis-tag-editor input{background:transparent}
+.inn-wf-card-analysis .inn-analysis-tag-editor button{opacity:0;pointer-events:none;transition:opacity .16s ease,background-color .16s ease,color .16s ease}
+.inn-wf-card-analysis .inn-analysis-tag-editor:hover,.inn-wf-card-analysis .inn-analysis-tag-editor:focus-within{border-color:#6daec9;background:#fff;box-shadow:0 0 0 3px rgba(25,132,176,.1)}
+.inn-wf-card-analysis .inn-analysis-tag-editor:hover button,.inn-wf-card-analysis .inn-analysis-tag-editor:focus-within button{opacity:1;pointer-events:auto}
+.inn-wf-card-analysis .inn-analysis-tag-create{border-style:dashed;background:#fbfdfe}
+.inn-wf-card-analysis .inn-analysis-tag-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.inn-wf-card-analysis .inn-analysis-tag-heading{display:flex;align-items:baseline;gap:8px;min-width:0}
+.inn-wf-card-analysis .inn-analysis-tag-heading>span{color:#315b73;font-size:16px;font-weight:800}
+.inn-wf-card-analysis .inn-analysis-tag-heading>small{color:#7791a0;font-size:13px;font-weight:700}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-analysis-topic-card>header,.inn-wf-card-analysis .inn-analysis-point-card>header{padding:12px 13px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>textarea,.inn-wf-card-analysis .inn-analysis-point-card>textarea{padding:11px 13px 14px;font-size:14px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis .inn-analysis-point-title textarea{font-size:16px}
+}
+
+/* 报告正文：保留原报告的完整章节、表格和图示，作用域限定在报告阅读区。 */
+.inn-vue-report-document-full{padding:0}.inn-source-report-html{min-width:0;color:#1a1d21;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.75}.inn-source-report-html *{box-sizing:border-box}.inn-source-report-html .wrap{width:min(1080px,100%);margin:0 auto;padding:0 28px 56px}.inn-source-report-html .cover{margin:0 -28px 30px;border-radius:0 0 9px 9px;background:linear-gradient(150deg,#1f4e79 0%,#16385a 100%);padding:44px 40px 36px;color:#fff;box-shadow:0 8px 18px rgba(27,69,100,.12)}.inn-source-report-html .cover .tag{margin-bottom:17px;color:#c7ddeb;font-size:13px;font-weight:700;letter-spacing:.08em}.inn-source-report-html .cover h1{max-width:900px;margin:0 0 13px;color:#fff;font-size:31px;font-weight:800;letter-spacing:-.02em;line-height:1.4}.inn-source-report-html .cover .sub{max-width:780px;color:#deecf4;font-size:15px;line-height:1.85}.inn-source-report-html .cover .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin-top:27px;background:rgba(255,255,255,.16)}.inn-source-report-html .cover .meta>div{min-width:0;background:rgba(0,0,0,.12);padding:12px 14px}.inn-source-report-html .cover .meta dt{margin-bottom:4px;color:#bdd3df;font-size:12px}.inn-source-report-html .cover .meta dd{margin:0;color:#fff;font-size:15px;font-weight:800;line-height:1.45}
+.inn-source-report-html .tip,.inn-source-report-html .card,.inn-source-report-html .fig,.inn-source-report-html .verdict{border:1px solid #dbe5e9;border-radius:8px;background:#fff;box-shadow:0 4px 13px rgba(24,70,91,.045)}.inn-source-report-html .tip{margin-bottom:16px;border-left:3px solid #2d6da4;padding:15px 18px}.inn-source-report-html .tip h5{margin:0 0 7px;color:#2d6da4}.inn-source-report-html .tip p:last-child{margin-bottom:0}.inn-source-report-html .ch{margin:46px 0 20px;border-bottom:2px solid #1f4e79;padding-bottom:12px;scroll-margin-top:14px}.inn-source-report-html .ch .cn{display:inline-block;margin-bottom:7px;border-radius:3px;background:#2d6da4;padding:2px 9px;color:#fff;font-size:13px;font-weight:800;letter-spacing:.07em}.inn-source-report-html .ch h2{margin:0;color:#183f5b;font-size:29px;font-weight:800;line-height:1.36}.inn-source-report-html .ch .lead{margin:8px 0 0;color:#587385;font-size:15px;line-height:1.7}.inn-source-report-html h3{margin:32px 0 13px;border-left:4px solid #2d6da4;padding-left:12px;color:#1b4b6b;font-size:20px;font-weight:800;line-height:1.45;scroll-margin-top:14px}.inn-source-report-html h4{margin:23px 0 9px;color:#244e68;font-size:17px;font-weight:800}.inn-source-report-html h5{margin:18px 0 8px;color:#31576d;font-size:15px;font-weight:800}.inn-source-report-html p{margin:0 0 13px;color:#344d5d}.inn-source-report-html em.hl,.inn-source-report-html em.hlr,.inn-source-report-html em.hlg{font-style:normal;font-weight:800}.inn-source-report-html em.hl{color:#1d6f9d}.inn-source-report-html em.hlr{color:#b3261e}.inn-source-report-html em.hlg{color:#1c6b45}.inn-source-report-html .small{color:#6b7e89;font-size:13px;line-height:1.7}
+.inn-source-report-html .card{margin-bottom:15px;padding:19px 21px}.inn-source-report-html .tw{overflow:auto;margin-bottom:14px;border:1px solid #dbe5e9;border-radius:8px;background:#fff}.inn-source-report-html table{width:100%;min-width:580px;border-collapse:collapse;font-size:14px}.inn-source-report-html caption{caption-side:top;border-bottom:1px solid #e4ecef;padding:10px 12px;color:#71828b;font-size:13px;text-align:left}.inn-source-report-html thead th{border-bottom:1px solid #dbe5e9;background:#f1f6f8;padding:10px 12px;color:#405d6e;font-size:13px;font-weight:800;text-align:left;white-space:nowrap}.inn-source-report-html td{border-bottom:1px solid #e9eef0;padding:9px 12px;color:#344d5d;line-height:1.65;vertical-align:top}.inn-source-report-html tbody tr:last-child td{border-bottom:0}.inn-source-report-html tbody tr.sum td{background:#f1f6f8;font-weight:800}.inn-source-report-html td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.inn-source-report-html .b{display:inline-block;border-radius:4px;padding:2px 7px;font-size:12px;font-weight:800;line-height:1.55;white-space:nowrap}.inn-source-report-html .b.r{background:#fdf0ef;color:#b3261e}.inn-source-report-html .b.a{background:#fdf6e7;color:#8a5a00}.inn-source-report-html .b.g{background:#eef7f2;color:#1c6b45}.inn-source-report-html .b.n{background:#eef1f3;color:#71828b}
+.inn-source-report-html .box{margin-bottom:14px;border-left:3px solid #2d6da4;border-radius:5px;background:#f4f8fa;padding:15px 18px}.inn-source-report-html .box h5{margin:0 0 7px}.inn-source-report-html .box p:last-child{margin-bottom:0}.inn-source-report-html .box.r{border-color:#b3261e;background:#fdf0ef}.inn-source-report-html .box.r h5{color:#b3261e}.inn-source-report-html .box.a{border-color:#8a5a00;background:#fdf6e7}.inn-source-report-html .box.a h5{color:#8a5a00}.inn-source-report-html .box.g{border-color:#1c6b45;background:#eef7f2}.inn-source-report-html .box.g h5{color:#1c6b45}.inn-source-report-html .box.i h5{color:#2d6da4}.inn-source-report-html .fig{margin-bottom:15px;padding:18px 20px}.inn-source-report-html .fig .ft{margin-bottom:3px;color:#254c65;font-size:15px;font-weight:800}.inn-source-report-html .fig .fs{margin-bottom:13px;color:#71828b;font-size:13px}.inn-source-report-html .fig .fn{margin-top:11px;border-top:1px solid #e5ecef;padding-top:9px;color:#71828b;font-size:13px;line-height:1.65}.inn-source-report-html .fig svg{display:block;width:100%;height:auto;overflow:visible}.inn-source-report-html .lg{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:10px;color:#58717f;font-size:13px}.inn-source-report-html .lg i{display:inline-block;width:11px;height:3px;margin-right:5px;border-radius:1px;vertical-align:middle}.inn-source-report-html .bars{display:grid;gap:8px}.inn-source-report-html .bar{display:grid;grid-template-columns:132px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px}.inn-source-report-html .bar .bn{overflow:hidden;color:#4d6675;text-overflow:ellipsis;white-space:nowrap}.inn-source-report-html .bar .bt{height:17px;overflow:hidden;border-radius:2px;background:#eef2f4}.inn-source-report-html .bar .bf{height:100%;border-radius:2px}.inn-source-report-html .bar .bv{text-align:right;font-size:13px;font-weight:800}.inn-source-report-html .cloud{display:flex;flex-wrap:wrap;gap:8px 15px;align-items:baseline;padding:6px 0}.inn-source-report-html .cloud span{color:#4b6472;line-height:1.5}.inn-source-report-html .cloud span b{margin-left:2px;color:#7b8990;font-size:.65em;font-weight:500}.inn-source-report-html .bub{display:flex;flex-wrap:wrap;gap:13px;align-items:center;justify-content:center;padding:10px 0}.inn-source-report-html .bub>div{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;padding:5px;color:#fff;line-height:1.25;text-align:center}.inn-source-report-html .bub span{max-width:88%;font-size:11px}.inn-source-report-html .bub b{margin-top:2px;font-size:13px}.inn-source-report-html .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.inn-source-report-html .verdict{display:grid;grid-template-columns:170px minmax(0,1fr);gap:24px;margin-bottom:16px;padding:24px 26px}.inn-source-report-html .grade{align-self:center;border-right:1px solid #dfe7ea;padding-right:22px;text-align:center}.inn-source-report-html .grade .g{color:#8a5a00;font-size:58px;font-weight:900;line-height:1}.inn-source-report-html .grade .gl{margin-top:7px;color:#72828b;font-size:13px}.inn-source-report-html .grade .sc{margin-top:11px;color:#254c65;font-size:23px;font-weight:800}.inn-source-report-html .grade .sc span{color:#71828b;font-size:13px;font-weight:500}.inn-source-report-html .grade .note{margin-top:6px;color:#8a5a00;font-size:12px;line-height:1.5}.inn-source-report-html .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(164px,1fr));gap:16px 20px;align-self:center}.inn-source-report-html .kpi .kl{margin-bottom:4px;color:#71828b;font-size:12px}.inn-source-report-html .kpi .kv{color:#254c65;font-size:18px;font-weight:800;line-height:1.35}.inn-source-report-html .kpi .kv small{color:#71828b;font-size:12px;font-weight:500}.inn-source-report-html .kpi .kd{margin-top:3px;color:#617985;font-size:12px;line-height:1.55}.inn-source-report-html .chk{display:grid;gap:9px;margin-bottom:14px}.inn-source-report-html .chk .it{display:grid;grid-template-columns:26px minmax(0,1fr);gap:11px;border:1px solid #dbe5e9;border-radius:7px;background:#fff;padding:13px 15px}.inn-source-report-html .chk .no{display:grid;place-items:center;height:22px;border-radius:3px;background:#2d6da4;color:#fff;font-size:12px;font-weight:800}.inn-source-report-html .chk .bd h5{margin:0 0 5px;font-size:15px}.inn-source-report-html .chk .bd p{margin:0 0 6px;color:#4b6472;font-size:14px}.inn-source-report-html .chk .bd p:last-child{margin:0}.inn-source-report-html .chk .src{color:#7a8891;font-size:12px}
+@media(max-width:760px){.inn-source-report-html{font-size:14px}.inn-source-report-html .wrap{padding:0 14px 38px}.inn-source-report-html .cover{margin:0 -14px 22px;border-radius:0 0 8px 8px;padding:28px 17px 25px}.inn-source-report-html .cover .tag{font-size:12px}.inn-source-report-html .cover h1{font-size:24px}.inn-source-report-html .cover .sub{font-size:14px}.inn-source-report-html .cover .meta{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:20px}.inn-source-report-html .cover .meta dd{font-size:14px}.inn-source-report-html .ch{margin-top:32px}.inn-source-report-html .ch h2{font-size:23px}.inn-source-report-html h3{margin-top:25px;font-size:18px}.inn-source-report-html h4{font-size:16px}.inn-source-report-html .card,.inn-source-report-html .fig{padding:14px}.inn-source-report-html .two,.inn-source-report-html .verdict{grid-template-columns:1fr}.inn-source-report-html .verdict{gap:16px;padding:17px}.inn-source-report-html .grade{border-right:0;border-bottom:1px solid #dfe7ea;padding:0 0 16px}.inn-source-report-html .bar{grid-template-columns:96px minmax(0,1fr) 50px;font-size:12px}.inn-source-report-html .tw table{min-width:540px}.inn-source-report-html .chk .it{padding:12px}.inn-source-report-html .bub{justify-content:flex-start}.inn-source-report-html .small,.inn-source-report-html .fig .fn{font-size:12px}}
+/* 项目分析统一视觉：分组优先于堆叠卡片，聚焦时才显露编辑状态。 */
+.inn-wf-card-analysis{
+  --analysis-ink:#173f5c;
+  --analysis-copy:#466a7d;
+  --analysis-accent:#147fae;
+  --analysis-line:#d8e7ed;
+  --analysis-soft:#f4fafc;
+  --analysis-focus:#eef9fc;
+  background:#f8fbfc;
+}
+.inn-wf-card-analysis .inn-wf-analysis-page{display:grid;align-content:start;gap:26px;background:#f8fbfc}
+.inn-wf-card-analysis .inn-analysis-section{display:grid;gap:13px;min-width:0}
+.inn-wf-card-analysis .inn-analysis-section+.inn-analysis-section{border-top:1px solid var(--analysis-line);padding-top:24px}
+.inn-wf-card-analysis .inn-analysis-section-head{min-height:42px;border:0;padding:0}
+.inn-wf-card-analysis .inn-analysis-section-head>span{color:var(--analysis-ink);font-size:20px;font-weight:800;letter-spacing:-.025em;line-height:1.3}
+.inn-wf-card-analysis .inn-analysis-add{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border:1px solid #b7d6e2;border-radius:8px;background:#fff;padding:0 12px;color:#156f98;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:14px;font-weight:800;line-height:1;cursor:pointer;transition:border-color .16s ease,background-color .16s ease,color .16s ease,transform .16s ease}
+.inn-wf-card-analysis .inn-analysis-add:hover{border-color:#6facca;background:#f0f9fc;color:#0b648d}
+.inn-wf-card-analysis .inn-analysis-add:active{transform:translateY(1px)}
+.inn-wf-card-analysis .inn-analysis-add:focus-visible{outline:0;border-color:#3d9bc2;box-shadow:0 0 0 3px rgba(20,127,174,.14)}
+.inn-wf-card-analysis .inn-analysis-topic-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.inn-wf-card-analysis .inn-analysis-topic-card{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;overflow:hidden;border:1px solid var(--analysis-line);border-radius:12px;background:#fff;box-shadow:0 2px 7px rgba(19,69,94,.035);transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>header{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:start;gap:10px;min-height:0;border-bottom:1px solid #e6f0f3;background:var(--analysis-soft);padding:14px 16px}
+.inn-wf-card-analysis .inn-analysis-topic-card>header>i,.inn-wf-card-analysis .inn-analysis-point-title>i{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:#e3f4fa;padding:0;color:var(--analysis-accent);font-family:"DIN Alternate","Arial",sans-serif;font-size:11px;font-style:normal;font-weight:900;line-height:1}
+.inn-wf-card-analysis .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis .inn-analysis-point-title textarea{display:block;box-sizing:border-box;width:100%;min-height:34px;border:1px solid transparent;border-radius:6px;outline:0;background:transparent;padding:0 3px;color:var(--analysis-ink);font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:17px;font-weight:800;line-height:1.5;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card>textarea{display:block;box-sizing:border-box;width:100%;min-height:0!important;border:1px solid transparent;border-top-color:#edf3f5;border-radius:0;outline:0;background:transparent;padding:14px 16px 16px;color:var(--analysis-copy);font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;font-weight:600;line-height:1.78;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-point-list{display:grid;grid-template-columns:1fr;gap:10px}
+.inn-wf-card-analysis .inn-analysis-point-card{display:grid;grid-template-columns:minmax(245px,.72fr) minmax(0,1.55fr);min-width:0;overflow:hidden;border:1px solid var(--analysis-line);border-radius:12px;background:#fff;box-shadow:0 2px 7px rgba(19,69,94,.035);transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.inn-wf-card-analysis .inn-analysis-point-card>header{display:flex;align-items:flex-start;min-height:0;border:0;border-right:1px solid #e2edf1;background:var(--analysis-soft);padding:16px}
+.inn-wf-card-analysis .inn-analysis-point-title{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:start;gap:10px;width:100%}
+.inn-wf-card-analysis .inn-analysis-point-card>textarea{display:block;box-sizing:border-box;width:100%;min-height:0!important;border:1px solid transparent;border-left-color:#edf3f5;border-radius:0;outline:0;background:transparent;padding:15px 18px;color:var(--analysis-copy);font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;font-weight:600;line-height:1.78;resize:none;transition:border-color .16s ease,background-color .16s ease}
+.inn-wf-card-analysis .inn-analysis-topic-card:hover,.inn-wf-card-analysis .inn-analysis-point-card:hover{border-color:#c1dbe5;box-shadow:0 7px 18px rgba(19,69,94,.065);transform:translateY(-1px)}
+.inn-wf-card-analysis .inn-analysis-topic-card:focus-within,.inn-wf-card-analysis .inn-analysis-point-card:focus-within{border-color:#62adcb;background:#fbfdfe;box-shadow:0 0 0 3px rgba(20,127,174,.12),0 8px 19px rgba(19,69,94,.075);transform:none}
+.inn-wf-card-analysis .inn-analysis-topic-card:focus-within>header,.inn-wf-card-analysis .inn-analysis-point-card:focus-within>header{background:var(--analysis-focus)}
+.inn-wf-card-analysis .inn-analysis-topic-card textarea:focus,.inn-wf-card-analysis .inn-analysis-point-card textarea:focus{border-color:#8fc4d8;background:#fff;box-shadow:0 1px 2px rgba(19,69,94,.04)}
+.inn-wf-card-analysis .inn-analysis-tag-panel{display:grid;gap:12px;margin:0;border:0;padding:0}
+.inn-wf-card-analysis .inn-analysis-tag-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0}
+.inn-wf-card-analysis .inn-analysis-tag-heading{display:flex;align-items:baseline;gap:8px;min-width:0}
+.inn-wf-card-analysis .inn-analysis-tag-heading>span{color:var(--analysis-ink);font-size:18px;font-weight:800;letter-spacing:-.015em}
+.inn-wf-card-analysis .inn-analysis-tag-heading>small{color:#7892a0;font-size:13px;font-weight:700}
+.inn-wf-card-analysis .inn-analysis-branch-tags{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0;padding:0}
+.inn-wf-card-analysis .inn-analysis-tag-editor{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:6px;min-width:0;min-height:54px;border:1px solid var(--analysis-line);border-radius:10px;background:#fff;padding:0 7px 0 13px;box-shadow:0 1px 3px rgba(19,69,94,.025);transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease,transform .16s ease}
+.inn-wf-card-analysis .inn-analysis-tag-editor input{box-sizing:border-box;min-width:0;width:100%;border:0;outline:0;background:transparent;color:#28566e;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:16px;font-weight:800;line-height:1.45}
+.inn-wf-card-analysis .inn-analysis-tag-editor button{display:grid;place-items:center;width:27px;height:27px;border:0;border-radius:6px;background:#eff6f8;color:#608292;opacity:0;pointer-events:none;cursor:pointer;transition:opacity .16s ease,background-color .16s ease,color .16s ease}
+.inn-wf-card-analysis .inn-analysis-tag-editor:hover,.inn-wf-card-analysis .inn-analysis-tag-editor:focus-within{border-color:#75b4cd;background:#fbfdfe;box-shadow:0 0 0 3px rgba(20,127,174,.1);transform:translateY(-1px)}
+.inn-wf-card-analysis .inn-analysis-tag-editor:hover button,.inn-wf-card-analysis .inn-analysis-tag-editor:focus-within button{opacity:1;pointer-events:auto}
+.inn-wf-card-analysis .inn-analysis-tag-editor button:hover{background:#e3f3f8;color:#116f98}
+@media (prefers-reduced-motion:reduce){.inn-wf-card-analysis .inn-analysis-add,.inn-wf-card-analysis .inn-analysis-topic-card,.inn-wf-card-analysis .inn-analysis-point-card,.inn-wf-card-analysis .inn-analysis-tag-editor{transition:none!important}}
+@media(max-width:1080px){.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){
+  .inn-wf-card-analysis .inn-wf-analysis-page{gap:20px}
+  .inn-wf-card-analysis .inn-analysis-section+.inn-analysis-section{padding-top:20px}
+  .inn-wf-card-analysis .inn-analysis-section-head>span{font-size:18px}
+  .inn-wf-card-analysis .inn-analysis-topic-grid,.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:1fr;gap:10px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>header{padding:12px 13px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>textarea{padding:12px 13px 14px;font-size:14px}
+  .inn-wf-card-analysis .inn-analysis-point-card{grid-template-columns:1fr}
+  .inn-wf-card-analysis .inn-analysis-point-card>header{border-right:0;border-bottom:1px solid #e2edf1;padding:12px 13px}
+  .inn-wf-card-analysis .inn-analysis-point-card>textarea{border-left:0;border-top-color:#edf3f5;padding:12px 13px 14px;font-size:14px}
+  .inn-wf-card-analysis .inn-analysis-topic-card>header textarea,.inn-wf-card-analysis .inn-analysis-point-title textarea{font-size:16px}
+  .inn-wf-card-analysis .inn-analysis-tag-editor{min-height:52px}
+  .inn-wf-card-analysis .inn-analysis-add{gap:4px;font-size:0}
+  .inn-wf-card-analysis .inn-analysis-add:after{content:"新增";font-size:14px}
+}
+@media(max-width:760px){
+  .inn-report-choice-dialog{display:flex;max-height:calc(100dvh - 20px);flex-direction:column;overflow:auto}
+  .inn-report-choice-options{gap:7px;padding:13px 14px}
+  .inn-report-choice-options button{gap:3px;padding:10px 12px}
+  .inn-report-template-selection{padding:12px 14px 14px}
+  .inn-report-template-selection>header{margin-bottom:8px}
+  .inn-report-template-selection button{min-height:38px;font-size:14px}
+  .inn-report-choice-dialog>footer{position:sticky;bottom:0;z-index:1;padding:11px 14px}
+}
+
+/* 信息确认：以阅读式项目摘要呈现，编辑边界只在交互时显现。 */
+.inn-wf-card-project{background:#f7fafc}
+.inn-wf-card-project .inn-wf-project-page{gap:25px;padding:25px 30px 28px;background:#fff}
+.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{margin:0;padding:0;background:transparent}
+.inn-wf-card-project .inn-project-section-head{min-height:26px;margin:0 0 13px;padding:0}
+.inn-wf-card-project .inn-project-section-head:before{width:3px;height:20px;margin-right:10px;background:#1584b5}
+.inn-wf-card-project .inn-project-section-head span{color:#183f5b;font-size:19px;font-weight:800;letter-spacing:-.025em}
+
+.inn-wf-card-project .inn-project-identity{grid-template-columns:minmax(0,1.7fr) minmax(190px,.8fr);gap:0;overflow:hidden;border:1px solid #dce8ee;border-radius:12px;background:#dce8ee}
+.inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field{min-height:72px;border:0!important;border-radius:0;background:#fff!important;padding:13px 16px;box-shadow:none!important}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-project-name-field{grid-column:1/-1;min-height:74px;border-bottom:1px solid #dce8ee!important;background:#f4fafc!important}
+.inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field{border-left:0!important}
+.inn-wf-card-project .inn-project-overview .inn-project-meta-field+.inn-project-meta-field{border-left:1px solid #dce8ee!important}
+.inn-wf-card-project .inn-project-overview .inn-wf-field>span{color:#678397;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-overview .inn-wf-field textarea{box-sizing:border-box;width:100%;min-height:0;margin-top:3px;border:1px solid transparent;border-radius:7px;background:transparent;padding:4px 7px;color:#284e67;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:15px;font-weight:650;line-height:1.58;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{color:#173f5c;font-size:17px;font-weight:800;letter-spacing:-.02em}
+
+.inn-wf-card-project .inn-project-confirm-grid{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);align-items:stretch;gap:16px;margin-top:17px;padding:0;border:0}
+.inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{display:grid;align-content:start;gap:9px;min-height:0;border:1px solid #e0eaee!important;border-radius:12px;background:#fff!important;padding:16px 17px;box-shadow:none!important}
+.inn-wf-card-project .inn-project-route-item,.inn-wf-card-project.is-project-editing .inn-project-route-item{border-color:#d4e7ef!important;background:#f3f9fb!important}
+.inn-wf-card-project .inn-project-confirm-item>span{color:#315d76;font-size:14px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-item textarea{box-sizing:border-box;width:100%;min-height:0;border:1px solid transparent;border-radius:7px;background:transparent;padding:3px 6px;color:#2e536a;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.75;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+
+.inn-wf-card-project .inn-project-objectives{margin-top:0}
+.inn-wf-card-project .inn-project-metric-note{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 9px;color:#55758a}
+.inn-wf-card-project .inn-project-metric-note>span{font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-metric-note small{color:#8298a6;font-size:12px;font-weight:700}
+.inn-wf-card-project .inn-project-metric-note i{margin:0 5px;color:#2482a9;font-size:15px;font-style:normal;font-weight:800}
+.inn-wf-card-project .inn-project-target-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;overflow:hidden;margin:0;border:1px solid #dce8ee;border-radius:12px;background:#dce8ee;padding:0}
+.inn-wf-card-project .inn-project-target-grid article{display:grid;align-content:space-between;gap:13px;min-height:96px;background:#fff;padding:14px 15px}
+.inn-wf-card-project .inn-project-target-grid article:nth-child(even){background:#fbfdfe}
+.inn-wf-card-project .inn-project-target-grid input{box-sizing:border-box;min-width:0;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 4px;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;outline:0;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-target-name{color:#315d75;font-size:14px;font-weight:800;line-height:1.45}
+.inn-wf-card-project .inn-project-target-values{display:grid;grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr);align-items:center;gap:3px}
+.inn-wf-card-project .inn-project-target-values input{color:#617e8f;font-size:14px;font-weight:800;line-height:1.4;text-align:left;white-space:nowrap}
+.inn-wf-card-project .inn-project-target-values input:last-child{color:#087bab;font-size:16px}
+.inn-wf-card-project .inn-project-target-values i{color:#94aab6;font-size:15px;font-style:normal;font-weight:800;text-align:center}
+.inn-wf-card-project .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-deliverables{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:start;gap:14px;margin-top:15px;border:1px solid #dce8ee;border-left:3px solid #1684b5;border-radius:10px;background:#f5fafc;padding:13px 15px 13px 14px;box-shadow:none!important}
+.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-project-deliverables{border-color:#dce8ee!important;border-left-color:#1684b5!important;background:#f5fafc!important}
+.inn-wf-card-project .inn-project-deliverables>span{padding-top:3px;color:#315d76;font-size:14px;font-weight:800}
+.inn-wf-card-project .inn-project-deliverables textarea{box-sizing:border-box;width:100%;min-height:0!important;border:1px solid transparent;border-radius:7px;background:transparent;padding:1px 5px!important;color:#2e536a;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.72;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-identity textarea:hover,.inn-wf-card-project .inn-project-confirm-item textarea:hover,.inn-wf-card-project .inn-project-objectives textarea:hover,.inn-wf-card-project .inn-project-target-grid input:hover{border-color:#c5dfe9;background:#fff;box-shadow:0 1px 2px rgba(21,73,98,.035)}
+.inn-wf-card-project .inn-project-identity textarea:focus,.inn-wf-card-project .inn-project-confirm-item textarea:focus,.inn-wf-card-project .inn-project-objectives textarea:focus,.inn-wf-card-project .inn-project-target-grid input:focus{border-color:#5ba8c6;background:#fff;box-shadow:0 0 0 3px rgba(54,147,188,.11)}
+@media(max-width:980px){
+  .inn-wf-card-project .inn-wf-project-page{padding:22px}
+  .inn-wf-card-project .inn-project-target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .inn-wf-card-project .inn-project-target-grid article{min-height:92px}
+}
+@media(max-width:720px){
+  .inn-wf-card-project .inn-wf-project-page{gap:20px;padding:16px 14px 20px}
+  .inn-wf-card-project .inn-project-section-head{margin-bottom:11px}
+  .inn-wf-card-project .inn-project-section-head span{font-size:17px}
+  .inn-wf-card-project .inn-project-identity{grid-template-columns:1fr}
+  .inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field{min-height:0;padding:11px 12px}
+  .inn-wf-card-project .inn-project-overview .inn-project-name-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-project-name-field{min-height:0}
+  .inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field,.inn-wf-card-project .inn-project-overview .inn-project-meta-field+.inn-project-meta-field{border-top:1px solid #dce8ee!important;border-left:0!important}
+  .inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{font-size:15px}
+  .inn-wf-card-project .inn-project-confirm-grid{grid-template-columns:1fr;gap:11px;margin-top:12px}
+  .inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{padding:13px 14px}
+  .inn-wf-card-project .inn-project-confirm-item textarea{font-size:14px}
+  .inn-wf-card-project .inn-project-metric-note{margin-bottom:8px}
+  .inn-wf-card-project .inn-project-metric-note>span{font-size:13px}
+  .inn-wf-card-project .inn-project-metric-note small{font-size:12px}
+  .inn-wf-card-project .inn-project-target-grid{grid-template-columns:1fr}
+  .inn-wf-card-project .inn-project-target-grid article{grid-template-columns:minmax(0,1fr) minmax(150px,.9fr);align-items:center;gap:12px;min-height:64px;padding:12px 13px}
+  .inn-wf-card-project .inn-project-target-values{grid-column:2;grid-row:1}
+  .inn-wf-card-project .inn-project-target-name{font-size:14px}
+  .inn-wf-card-project .inn-project-target-values input{font-size:14px}
+  .inn-wf-card-project .inn-project-target-values input:last-child{font-size:15px}
+  .inn-wf-card-project .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-deliverables{grid-template-columns:1fr;gap:7px;margin-top:12px;padding:12px 13px}
+  .inn-wf-card-project .inn-project-deliverables>span{padding:0}
+}
+
+/* 信息确认：回归连续阅读式版面，避免把项目事实拆成展示卡片。 */
+.inn-wf-card-project{background:#fff!important}
+.inn-wf-card-project .inn-wf-project-page{gap:23px;padding:22px 28px 24px;background:#fff}
+.inn-wf-card-project .inn-project-overview,.inn-wf-card-project .inn-project-objectives{margin:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.inn-wf-card-project .inn-project-section-head{min-height:26px;margin:0 0 12px;padding:0}
+.inn-wf-card-project .inn-project-section-head:before{width:3px;height:19px;margin-right:9px;background:#1684b5}
+.inn-wf-card-project .inn-project-section-head span{color:#183f5b;font-size:18px;font-weight:800;letter-spacing:-.02em}
+
+.inn-wf-card-project .inn-project-identity{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:0;overflow:visible;border:0;border-top:1px solid #e1ebef;border-bottom:1px solid #e1ebef;border-radius:0;background:transparent}
+.inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field{min-height:0;border:0!important;border-radius:0;background:transparent!important;padding:10px 14px;box-shadow:none!important}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-project-name-field{grid-column:1/-1;border-bottom:1px solid #e1ebef!important}
+.inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field{border-left:0!important}
+.inn-wf-card-project .inn-project-overview .inn-project-meta-field+.inn-project-meta-field{border-left:1px solid #e1ebef!important}
+.inn-wf-card-project .inn-project-identity .inn-project-name-field{grid-column:1!important;grid-row:1;border-bottom:0!important}
+.inn-wf-card-project .inn-project-identity .inn-project-region-field{grid-column:2!important;grid-row:1;border-left:1px solid #e1ebef!important}
+.inn-wf-card-project .inn-project-identity .inn-project-direction-field{grid-column:1/-1!important;grid-row:2;border-top:1px solid #e1ebef!important;border-left:0!important}
+.inn-wf-card-project .inn-project-overview .inn-wf-field>span{color:#668195;font-size:13px;font-weight:800}
+.inn-wf-card-project .inn-project-overview .inn-wf-field textarea{box-sizing:border-box;width:100%;min-height:0;margin-top:1px;border:1px solid transparent;border-radius:6px;background:transparent;padding:4px 7px;color:#2a5068;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:650;line-height:1.58;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{color:#173f5c;font-size:16px;font-weight:800;letter-spacing:-.018em}
+
+.inn-wf-card-project .inn-project-confirm-grid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:0;margin-top:18px;border:0;padding:0}
+.inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{display:grid;align-content:start;gap:7px;min-height:0;border:0!important;border-radius:0;background:transparent!important;padding:0 19px 0 0;box-shadow:none!important}
+.inn-wf-card-project .inn-project-route-item,.inn-wf-card-project.is-project-editing .inn-project-route-item{border-left:1px solid #e1ebef!important;background:transparent!important;padding:0 0 0 20px}
+.inn-wf-card-project .inn-project-confirm-item>span{color:#426b83;font-size:14px;font-weight:800}
+.inn-wf-card-project .inn-project-confirm-item textarea{box-sizing:border-box;width:100%;min-height:0;border:1px solid transparent;border-radius:6px;background:transparent;padding:3px 6px;color:#31566d;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.72;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+
+.inn-wf-card-project .inn-project-objectives{margin-top:0}
+.inn-wf-card-project .inn-project-target-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:hidden;margin:0;border:1px solid #e1ebef;border-radius:10px;background:#fff;padding:0}
+.inn-wf-card-project .inn-project-target-grid article{display:grid;align-content:start;gap:9px;min-height:108px;background:transparent;padding:13px 14px}
+.inn-wf-card-project .inn-project-target-grid article+article{border-left:1px solid #e1ebef}
+.inn-wf-card-project .inn-project-target-grid article:nth-child(even){background:#fbfdfe}
+.inn-wf-card-project .inn-project-target-grid input{box-sizing:border-box;min-width:0;width:100%;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 4px;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;outline:0;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-target-name{color:#315d75;font-size:14px;font-weight:800;line-height:1.45}
+.inn-wf-card-project .inn-project-target-current,.inn-wf-card-project .inn-project-target-result{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.inn-wf-card-project .inn-project-target-current small,.inn-wf-card-project .inn-project-target-result small{flex:0 0 auto;color:#8398a5;font-size:11px;font-weight:700;white-space:nowrap}
+.inn-wf-card-project .inn-project-target-current input,.inn-wf-card-project .inn-project-target-result input{min-width:0;color:#617e8f;font-size:14px;font-weight:800;line-height:1.4;text-align:right;white-space:nowrap}
+.inn-wf-card-project .inn-project-target-result input{color:#087bab;font-size:15px}
+.inn-wf-card-project .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-project-deliverables{display:grid;grid-template-columns:104px minmax(0,1fr);align-items:start;gap:14px;margin-top:14px;border:0!important;border-top:1px solid #e1ebef!important;border-radius:0;background:transparent!important;padding:13px 0 0;box-shadow:none!important}
+.inn-wf-card-project .inn-project-deliverables>span{padding:3px 0 0;color:#426b83;font-size:14px;font-weight:800}
+.inn-wf-card-project .inn-project-deliverables textarea{box-sizing:border-box;width:100%;min-height:0!important;border:1px solid transparent;border-radius:6px;background:transparent;padding:1px 5px!important;color:#31566d;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.72;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-identity textarea:hover,.inn-wf-card-project .inn-project-confirm-item textarea:hover,.inn-wf-card-project .inn-project-objectives textarea:hover,.inn-wf-card-project .inn-project-target-grid input:hover{border-color:#c8e0e9;background:#f6fafb;box-shadow:0 1px 2px rgba(21,73,98,.03)}
+.inn-wf-card-project .inn-project-identity textarea:focus,.inn-wf-card-project .inn-project-confirm-item textarea:focus,.inn-wf-card-project .inn-project-objectives textarea:focus,.inn-wf-card-project .inn-project-target-grid input:focus{border-color:#62aeca;background:#fff;box-shadow:0 0 0 3px rgba(54,147,188,.11)}
+@media(max-width:980px){
+  .inn-wf-card-project .inn-wf-project-page{padding:19px 22px}
+  .inn-wf-card-project .inn-project-target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .inn-wf-card-project .inn-project-target-grid article:nth-child(3){border-left:0}
+  .inn-wf-card-project .inn-project-target-grid article:nth-child(n+3){border-top:1px solid #e1ebef}
+}
+@media(max-width:720px){
+  .inn-wf-card-project .inn-wf-project-page{gap:19px;padding:16px 14px 20px}
+  .inn-wf-card-project .inn-project-section-head{margin-bottom:10px}
+  .inn-wf-card-project .inn-project-section-head span{font-size:17px}
+  .inn-wf-card-project .inn-project-identity{grid-template-columns:1fr}
+  .inn-wf-card-project .inn-project-identity .inn-project-name-field,.inn-wf-card-project .inn-project-identity .inn-project-region-field,.inn-wf-card-project .inn-project-identity .inn-project-direction-field{grid-column:1!important;grid-row:auto!important}
+  .inn-wf-card-project .inn-project-overview .inn-wf-field,.inn-wf-card-project.is-project-editing .inn-project-overview .inn-wf-field{padding:10px 9px}
+  .inn-wf-card-project .inn-project-overview .inn-wf-field+.inn-wf-field,.inn-wf-card-project .inn-project-overview .inn-project-meta-field+.inn-project-meta-field{border-top:1px solid #e1ebef!important;border-left:0!important}
+  .inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{font-size:15px}
+  .inn-wf-card-project .inn-project-confirm-grid{grid-template-columns:1fr;gap:13px;margin-top:15px}
+  .inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{padding:0}
+  .inn-wf-card-project .inn-project-route-item,.inn-wf-card-project.is-project-editing .inn-project-route-item{border-top:1px solid #e1ebef!important;border-left:0!important;padding:13px 0 0}
+  .inn-wf-card-project .inn-project-target-grid article{min-height:100px;padding:12px}
+  .inn-wf-card-project .inn-project-target-current input,.inn-wf-card-project .inn-project-target-result input{font-size:14px}
+  .inn-wf-card-project .inn-project-target-result input{font-size:15px}
+  .inn-wf-card-project .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-deliverables,.inn-wf-card-project.is-project-editing .inn-project-objectives .inn-project-deliverables{grid-template-columns:1fr;gap:6px;margin-top:12px;padding-top:12px}
+  .inn-wf-card-project .inn-project-deliverables>span{padding:0}
+}
+@media(max-width:430px){
+  .inn-wf-card-project .inn-project-target-grid{grid-template-columns:1fr}
+  .inn-wf-card-project .inn-project-target-grid article+article,.inn-wf-card-project .inn-project-target-grid article:nth-child(3){border-top:1px solid #e1ebef;border-left:0}
+  .inn-wf-card-project .inn-project-target-grid article{min-height:74px}
+}
+
+/* 信息确认：锁定同一套文字与编辑反馈，避免宽屏断点改变同级字段的观感。 */
+.inn-wf-card-project .inn-wf-project-page,.inn-wf-card-project .inn-wf-project-page textarea,.inn-wf-card-project .inn-wf-project-page input{font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif!important;font-synthesis:none}
+.inn-wf-card-project .inn-project-section-head span{color:#173f5c!important;font-size:20px!important;font-weight:800!important;letter-spacing:-.02em!important;line-height:1.35!important}
+.inn-wf-card-project .inn-project-overview .inn-wf-field>span,.inn-wf-card-project .inn-project-confirm-item>span,.inn-wf-card-project .inn-project-deliverables>span{color:#5e7d91!important;font-size:15px!important;font-weight:700!important;letter-spacing:0!important;line-height:1.5!important}
+.inn-wf-card-project .inn-project-overview .inn-project-name-field textarea{color:#173f5c!important;font-size:16px!important;font-weight:800!important;letter-spacing:-.018em!important;line-height:1.55!important}
+.inn-wf-card-project .inn-project-overview .inn-project-meta-field textarea,.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-deliverables textarea{color:#173f5c!important;font-size:16px!important;font-weight:800!important;letter-spacing:-.018em!important;line-height:1.55!important}
+.inn-wf-card-project .inn-project-target-name{color:#315d75!important;font-size:15px!important;font-weight:700!important;line-height:1.45!important}
+.inn-wf-card-project .inn-project-target-current small,.inn-wf-card-project .inn-project-target-result small{color:#7f95a3!important;font-size:14px!important;font-weight:600!important;line-height:1.4!important}
+.inn-wf-card-project .inn-project-target-current input,.inn-wf-card-project .inn-project-target-result input{color:#557385!important;font-size:15px!important;font-weight:700!important;line-height:1.45!important}
+.inn-wf-card-project .inn-project-target-result input{color:#087bab!important;font-weight:800!important}
+
+.inn-wf-card-project .inn-project-overview textarea,.inn-wf-card-project .inn-project-confirm-item textarea,.inn-wf-card-project .inn-project-deliverables textarea,.inn-wf-card-project .inn-project-target-grid input{border:1px solid transparent!important;border-radius:6px!important;background:transparent!important;box-shadow:none!important;caret-color:#087cab;cursor:text;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease!important}
+.inn-wf-card-project .inn-project-overview textarea:hover,.inn-wf-card-project .inn-project-confirm-item textarea:hover,.inn-wf-card-project .inn-project-deliverables textarea:hover,.inn-wf-card-project .inn-project-target-grid input:hover{border-color:#c8dfe9!important;background:#f6fafb!important;box-shadow:none!important}
+.inn-wf-card-project .inn-project-overview textarea:focus,.inn-wf-card-project .inn-project-confirm-item textarea:focus,.inn-wf-card-project .inn-project-deliverables textarea:focus,.inn-wf-card-project .inn-project-target-grid input:focus{border-color:#4d9fbe!important;background:#fff!important;box-shadow:0 0 0 3px rgba(22,132,181,.1)!important}
+@media(max-width:720px){
+  .inn-wf-card-project .inn-project-section-head span{font-size:18px!important}
+}
+
+/* 数据检索工具栏：资料类型、视图方式与结果信息紧凑连续，操作区保留在右侧。 */
+@media(min-width:981px){
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs)>.inn-recall-controls,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-recall-controls{grid-template-columns:max-content minmax(0,1fr);column-gap:6px}
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-toolbar,
+  .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-toolbar{gap:9px;padding-right:14px;padding-left:4px}
+}
+.inn-wf-card-research .inn-recall-view-switch{border-color:#dce8ed;padding:2px}
+.inn-wf-card-research .inn-recall-view-switch button,.inn-wf-card-research .inn-recall-view-switch button:first-of-type,.inn-wf-card-research .inn-recall-view-switch button+button{width:32px;min-width:32px!important;min-height:32px!important}
+.inn-wf-card-research .inn-recall-list-summary{border-left-color:#e7eff2;padding-left:10px}
+.inn-wf-card-research .inn-recall-list-actions{gap:6px}
+.inn-wf-card-research .inn-recall-list-actions select{width:106px}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-recall-view-switch button,.inn-wf-card-research .inn-recall-view-switch button:first-of-type,.inn-wf-card-research .inn-recall-view-switch button+button{width:32px;min-width:32px!important;min-height:32px!important}
+  .inn-wf-card-research .inn-recall-list-summary{padding-left:2px}
+  .inn-wf-card-research .inn-recall-list-actions select{width:76px}
+}
+@media(max-width:760px){
+  .inn-wf-card-research .inn-recall-list-summary{gap:3px}
+  .inn-wf-card-research .inn-recall-list-summary strong{font-size:16px}
+  .inn-wf-card-research .inn-recall-list-summary b{font-size:13px}
+  .inn-wf-card-research .inn-recall-list-summary span{display:none}
+  .inn-wf-card-research .inn-recall-list-actions{gap:4px}
+  .inn-wf-card-research .inn-recall-list-actions button{min-width:48px;padding-right:7px;padding-left:7px}
+  .inn-wf-card-research .inn-recall-list-actions .inn-recall-add{min-width:62px}
+}
+
+/* 创新点重点标注：不分先后，仅以旗标标出供报告重点比对的五条资料。 */
+.inn-wf-card-research .inn-top5-summary{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;border:1px solid #c7dfe9;border-radius:7px;background:#fff;padding:0 10px;color:#1e7094;font-size:14px;font-weight:800;line-height:1;white-space:nowrap}
+.inn-wf-card-research .inn-top5-summary:hover{border-color:#74bad4;background:#f3fbfd;color:#0879a8}
+.inn-wf-card-research .inn-top5-column-head{width:42px!important;padding-right:3px!important;padding-left:12px!important;text-align:center}
+.inn-wf-card-research .inn-top5-help{position:relative;display:inline-grid;place-items:center;width:22px;height:22px;color:#6d8b9c;cursor:help}
+.inn-wf-card-research .inn-top5-help i{position:absolute;z-index:12;bottom:calc(100% + 8px);left:50%;width:226px;opacity:0;pointer-events:none;transform:translate(-50%,4px);border-radius:7px;background:#244d67;padding:8px 10px;color:#fff;font-size:12px;font-style:normal;font-weight:600;line-height:1.55;text-align:left;visibility:hidden;box-shadow:0 8px 20px rgba(18,56,75,.2);transition:opacity .16s ease,transform .16s ease,visibility .16s ease}
+.inn-wf-card-research .inn-top5-help:hover i,.inn-wf-card-research .inn-top5-help:focus-within i{opacity:1;transform:translate(-50%,0);visibility:visible}
+.inn-wf-card-research .inn-top5-flag{display:inline-grid;place-items:center;flex:0 0 auto;width:26px;height:26px;border:0;border-radius:5px;background:transparent;padding:0;color:#8aa1ad;line-height:1;transition:color .16s ease,background-color .16s ease,transform .16s ease}
+.inn-wf-card-research .inn-top5-flag:hover{background:#edf7fa;color:#2980a7}
+.inn-wf-card-research .inn-top5-flag.active{background:var(--inn-list-selection);color:#fff;box-shadow:0 2px 5px color-mix(in srgb,var(--inn-list-selection) 30%,transparent)}
+.inn-wf-card-research .inn-top5-flag.active:hover{background:var(--inn-list-selection);transform:translateY(-1px)}
+.inn-wf-card-research .inn-patent-table tbody tr.is-top-focus,.inn-wf-card-research .inn-research-table tbody tr.is-top-focus{background:transparent!important;box-shadow:none!important}
+.inn-wf-card-research .inn-patent-table tbody tr.is-top-focus>td,.inn-wf-card-research .inn-research-table tbody tr.is-top-focus>td{background:transparent!important}
+.inn-wf-card-research .inn-patent-table tbody tr.is-top-focus>td:first-child,.inn-wf-card-research .inn-research-table tbody tr.is-top-focus>td:first-child{box-shadow:inset 3px 0 0 var(--inn-list-selection)!important}
+.inn-wf-card-research .inn-patent-card.is-top-focus,.inn-wf-card-research .inn-paper-item.is-top-focus{border-left:3px solid var(--inn-list-selection);padding-left:15px;box-shadow:0 2px 7px rgba(26,89,76,.025)}
+.inn-wf-card-research .inn-patent-card.is-top-focus .inn-patent-card-select{margin-left:-3px}
+.inn-wf-card-research .inn-paper-item.is-top-focus .inn-paper-item-index{margin-left:-3px}
+
+/* 技术主题资料全部进入分析：去掉选择列后，让结果内容直接占满原工作区。 */
+.inn-wf-card-research .inn-theme-data-table th:first-child,.inn-wf-card-research .inn-theme-data-table td:first-child{width:52px!important;padding-right:7px!important;padding-left:14px!important;color:#688697;font-variant-numeric:tabular-nums;text-align:center}
+.inn-wf-card-research .inn-theme-data-table th:nth-child(2),.inn-wf-card-research .inn-theme-data-table td:nth-child(2){width:290px!important;min-width:290px!important;padding-right:12px!important;padding-left:8px!important}
+.inn-wf-card-research .inn-theme-data-table tbody tr:not(.inn-research-table-detail):not(.inn-patent-table-detail)>td:nth-child(2){padding-top:8px!important;vertical-align:middle!important}
+.inn-wf-card-research table.inn-theme-data-table{table-layout:fixed}
+.inn-wf-card-research table.inn-theme-data-table th,.inn-wf-card-research table.inn-theme-data-table td{vertical-align:middle!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table{min-width:1240px}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(1),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(1){width:58px!important;min-width:58px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(2),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(2){width:340px!important;min-width:340px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(3),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(3){width:144px!important;min-width:144px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(4),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(4){width:72px!important;min-width:72px!important;text-align:center}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(5),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(5){width:88px!important;min-width:88px!important;text-align:center}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(6),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(6){width:170px!important;min-width:170px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(7),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(7){width:156px!important;min-width:156px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(8),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(8),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(9),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(9){width:104px!important;min-width:104px!important}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(2) .inn-patent-title{display:block;box-sizing:border-box;width:100%;overflow:hidden;border:0;background:transparent;padding:0;color:#1f4b67;font:800 14px/1.4 "Microsoft YaHei",sans-serif;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(2) .inn-patent-title:hover,.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(2) .inn-patent-title:focus-visible{color:#087cad;text-decoration:underline;text-decoration-color:#9ccfe0;text-underline-offset:3px;outline:0}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table .inn-patent-assignee{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.inn-wf-card-research table.inn-theme-data-table.inn-patent-table .inn-patent-classifications{flex-wrap:nowrap;overflow:hidden}
+/* 通用资料表没有额外状态列；展示每个真实字段，避免政策、内部知识和论文丢失最后一列。 */
+.inn-wf-card-research .inn-research-table th:last-child,.inn-wf-card-research .inn-research-table tbody tr:not(.inn-research-table-detail)>td:last-child{display:table-cell!important}
+.inn-wf-card-research .inn-research-table.is-policy,.inn-wf-card-research .inn-research-table.is-internal{min-width:1080px;table-layout:fixed}
+.inn-wf-card-research .inn-research-table.is-policy th,.inn-wf-card-research .inn-research-table.is-policy td,.inn-wf-card-research .inn-research-table.is-internal th,.inn-wf-card-research .inn-research-table.is-internal td{vertical-align:middle!important}
+.inn-wf-card-research .inn-research-table.is-policy th:nth-child(1),.inn-wf-card-research .inn-research-table.is-policy td:nth-child(1),.inn-wf-card-research .inn-research-table.is-internal th:nth-child(1),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(1){width:62px!important;min-width:62px!important;padding-right:6px!important;padding-left:14px!important;color:#668496;font-variant-numeric:tabular-nums;text-align:center!important}
+.inn-wf-card-research .inn-research-table.is-policy th:nth-child(2),.inn-wf-card-research .inn-research-table.is-policy td:nth-child(2),.inn-wf-card-research .inn-research-table.is-internal th:nth-child(2),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(2){width:32%!important;min-width:300px!important;padding-right:16px!important;padding-left:12px!important}
+.inn-wf-card-research .inn-research-table.is-policy th:nth-child(3),.inn-wf-card-research .inn-research-table.is-policy td:nth-child(3),.inn-wf-card-research .inn-research-table.is-internal th:nth-child(3),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(3){width:26%!important;min-width:210px!important}
+.inn-wf-card-research .inn-research-table.is-policy th:nth-child(4),.inn-wf-card-research .inn-research-table.is-policy td:nth-child(4),.inn-wf-card-research .inn-research-table.is-internal th:nth-child(4),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(4){width:24%!important;min-width:190px!important}
+.inn-wf-card-research .inn-research-table.is-policy th:nth-child(5),.inn-wf-card-research .inn-research-table.is-policy td:nth-child(5),.inn-wf-card-research .inn-research-table.is-internal th:nth-child(5),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(5){width:16%!important;min-width:128px!important}
+.inn-wf-card-research .inn-research-table.is-policy td:nth-child(n+3),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(n+3){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inn-wf-card-research .inn-research-table.is-policy .inn-research-table-title button,.inn-wf-card-research .inn-research-table.is-internal .inn-research-table-title button{padding-top:0!important;color:#1d4b66!important}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper{min-width:1180px;table-layout:fixed}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(1),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(1){width:62px!important;min-width:62px!important;padding-right:6px!important;padding-left:14px!important;color:#668496;font-variant-numeric:tabular-nums;text-align:center!important}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(2),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(2){width:30%!important;min-width:300px!important;padding-right:16px!important;padding-left:12px!important}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(3),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(3){width:78px!important;min-width:78px!important;text-align:center}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(4),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(4){width:19%!important;min-width:180px!important}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(5),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(5){width:24%!important;min-width:210px!important}
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper th:nth-child(6),.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper td:nth-child(6){width:20%!important;min-width:180px!important}
+/* 前三条论文为可跳转链接，布局与其余标题按钮保持同一左对齐基线。 */
+.inn-wf-card-research .inn-research-table.inn-theme-data-table.is-paper .inn-research-table-title>a{box-sizing:border-box;margin:0;padding:0;text-align:left!important}
+.inn-wf-card-research .inn-patent-card.is-theme{grid-template-columns:minmax(0,1fr)}
+.inn-wf-card-research .inn-patent-card.is-theme .inn-patent-card-body{grid-column:1}
+.inn-wf-card-research .inn-paper-item.is-theme{grid-template-columns:minmax(0,1fr)}
+.inn-wf-card-research .inn-paper-item.is-theme .inn-paper-item-body{grid-column:1}
+.inn-wf-card-research .inn-evidence-ledger-row:has(.inn-evidence-ledger-order){grid-template-columns:36px minmax(0,1fr)}
+.inn-wf-card-research .inn-evidence-ledger-row:has(.inn-evidence-ledger-order) .inn-evidence-ledger-order{grid-column:1;grid-row:1;align-self:start;padding-top:3px;color:#628196;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.45;text-align:center}
+.inn-wf-card-research .inn-evidence-ledger-row:has(.inn-evidence-ledger-order) .inn-evidence-ledger-body{grid-column:2}
+
+/* TOP5 查看面板。 */
+.inn-top5-modal-backdrop{position:fixed;z-index:10030;inset:0;display:grid;place-items:center;padding:24px;background:rgba(17,48,65,.32);backdrop-filter:blur(2px)}
+.inn-top5-modal{width:min(610px,100%);overflow:hidden;border:1px solid #d4e4eb;border-radius:12px;background:#fff;box-shadow:0 20px 46px rgba(18,57,77,.23)}
+.inn-top5-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border-bottom:1px solid #e3edf1;padding:20px 22px 16px}
+.inn-top5-modal>header span{display:block;margin-bottom:4px;color:#6a8595;font-size:13px;font-weight:700}
+.inn-top5-modal>header h2{margin:0;color:#193f59;font-size:21px;font-weight:800;line-height:1.35}
+.inn-top5-modal>header>button{display:grid;place-items:center;width:32px;height:32px;border:1px solid #d2e1e7;border-radius:7px;background:#fff;color:#55768a}
+.inn-top5-modal>header>button:hover{border-color:#8dc2d7;background:#f2f9fb;color:#117da8}
+.inn-top5-modal-list{display:grid;gap:0;max-height:min(50vh,390px);overflow:auto;padding:5px 22px}
+.inn-top5-modal-list article{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:9px;align-items:center;border-bottom:1px solid #e8f0f3;padding:13px 0;color:#214b64}
+.inn-top5-modal-list article:last-child{border-bottom:0}
+.inn-top5-modal-list article>svg{color:var(--inn-list-selection,#1688ba)}
+.inn-top5-modal-list article>span{overflow:hidden;font-size:14px;font-weight:750;line-height:1.5;text-overflow:ellipsis;white-space:nowrap}
+.inn-top5-modal-list article button{border:0;background:transparent;padding:4px;color:#6f8796;font-size:13px;font-weight:700;white-space:nowrap}
+.inn-top5-modal-list article button:hover{color:#0d7eaa;text-decoration:underline;text-underline-offset:3px}
+.inn-top5-modal>footer{display:flex;justify-content:flex-end;border-top:1px solid #e3edf1;padding:13px 22px}
+.inn-top5-modal>footer button{min-height:34px;border:1px solid #c9dce5;border-radius:7px;background:#fff;padding:0 14px;color:#476b80;font-size:14px;font-weight:800}
+.inn-top5-modal>footer button:hover{border-color:#82bad1;background:#f2f9fb;color:#0f779f}
+@media(max-width:720px){
+  .inn-wf-card-research .inn-top5-summary{min-width:auto!important;padding:0 8px;font-size:13px}
+  .inn-wf-card-research .inn-top5-summary svg{display:none}
+  .inn-wf-card-research .inn-theme-data-table th:nth-child(2),.inn-wf-card-research .inn-theme-data-table td:nth-child(2){width:220px!important;min-width:220px!important}
+  .inn-wf-card-research table.inn-theme-data-table.inn-patent-table{min-width:1120px}
+  .inn-wf-card-research table.inn-theme-data-table.inn-patent-table th:nth-child(2),.inn-wf-card-research table.inn-theme-data-table.inn-patent-table td:nth-child(2){width:280px!important;min-width:280px!important}
+  .inn-wf-card-research .inn-patent-card.is-top-focus,.inn-wf-card-research .inn-paper-item.is-top-focus{padding-left:10px}
+  .inn-top5-modal-backdrop{align-items:end;padding:12px}
+  .inn-top5-modal{border-radius:12px}
+  .inn-top5-modal>header{padding:17px 16px 14px}
+  .inn-top5-modal-list{padding:4px 16px}
+  .inn-top5-modal>footer{padding:12px 16px}
+}
+</style>
+<style>
+/* v-html 正文不带组件作用域属性，完整报告样式在此做最小范围的全局限定。 */
+.inn-source-report-html{--brand:#1f4e79;--brand2:#2d6da4;--accent:#0f7b6c;--red:#b3261e;--redbg:#fdf0ef;--amber:#8a5a00;--amberbg:#fdf6e7;--green:#1c6b45;--greenbg:#eef7f2;--c1:#1f4e79;--c2:#2d8f8a;--c3:#a8763e;--c4:#7a5aa0;--c5:#8c6f4a;--line:#e2e5e9;--line2:#eef0f3;--card:#fff;--ink:#1a1d21;--ink2:#4a5158;--ink3:#7b838c;min-width:0;color:#1a1d21;font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:15px;line-height:1.75}.inn-source-report-html *{box-sizing:border-box}.inn-source-report-html .wrap{width:min(1080px,100%);margin:0 auto;padding:0 28px 56px}.inn-source-report-html .cover{margin:0 -28px 30px;border-radius:0 0 9px 9px;background:linear-gradient(150deg,#1f4e79 0%,#16385a 100%);padding:44px 40px 36px;color:#fff;box-shadow:0 8px 18px rgba(27,69,100,.12)}.inn-source-report-html .cover .tag{margin-bottom:17px;color:#c7ddeb;font-size:13px;font-weight:700;letter-spacing:.08em}.inn-source-report-html .cover h1{max-width:900px;margin:0 0 13px;color:#fff;font-size:31px;font-weight:800;letter-spacing:-.02em;line-height:1.4}.inn-source-report-html .cover .sub{max-width:780px;color:#deecf4;font-size:15px;line-height:1.85}.inn-source-report-html .cover .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin-top:27px;background:rgba(255,255,255,.16)}.inn-source-report-html .cover .meta>div{min-width:0;background:rgba(0,0,0,.12);padding:12px 14px}.inn-source-report-html .cover .meta dt{margin-bottom:4px;color:#bdd3df;font-size:12px}.inn-source-report-html .cover .meta dd{margin:0;color:#fff;font-size:15px;font-weight:800;line-height:1.45}
+.inn-source-report-html .tip,.inn-source-report-html .card,.inn-source-report-html .fig,.inn-source-report-html .verdict{border:1px solid #dbe5e9;border-radius:8px;background:#fff;box-shadow:0 4px 13px rgba(24,70,91,.045)}.inn-source-report-html .tip{margin-bottom:16px;border-left:3px solid #2d6da4;padding:15px 18px}.inn-source-report-html .tip h5{margin:0 0 7px;color:#2d6da4}.inn-source-report-html .tip p:last-child{margin-bottom:0}.inn-source-report-html .ch{margin:46px 0 20px;border-bottom:2px solid #1f4e79;padding-bottom:12px;scroll-margin-top:14px}.inn-source-report-html .ch .cn{display:inline-block;margin-bottom:7px;border-radius:3px;background:#2d6da4;padding:2px 9px;color:#fff;font-size:13px;font-weight:800;letter-spacing:.07em}.inn-source-report-html .ch h2{margin:0;color:#183f5b;font-size:29px;font-weight:800;line-height:1.36}.inn-source-report-html .ch .lead{margin:8px 0 0;color:#587385;font-size:15px;line-height:1.7}.inn-source-report-html h3{margin:32px 0 13px;border-left:4px solid #2d6da4;padding-left:12px;color:#1b4b6b;font-size:20px;font-weight:800;line-height:1.45;scroll-margin-top:14px}.inn-source-report-html h4{margin:23px 0 9px;color:#244e68;font-size:17px;font-weight:800}.inn-source-report-html h5{margin:18px 0 8px;color:#31576d;font-size:15px;font-weight:800}.inn-source-report-html p{margin:0 0 13px;color:#344d5d}.inn-source-report-html em.hl,.inn-source-report-html em.hlr,.inn-source-report-html em.hlg{font-style:normal;font-weight:800}.inn-source-report-html em.hl{color:#1d6f9d}.inn-source-report-html em.hlr{color:#b3261e}.inn-source-report-html em.hlg{color:#1c6b45}.inn-source-report-html .small{color:#6b7e89;font-size:13px;line-height:1.7}.inn-source-report-html .card{margin-bottom:15px;padding:19px 21px}
+.inn-source-report-html .tw{overflow:auto;margin-bottom:14px;border:1px solid #dbe5e9;border-radius:8px;background:#fff}.inn-source-report-html table{width:100%;min-width:580px;border-collapse:collapse;font-size:14px}.inn-source-report-html caption{caption-side:top;border-bottom:1px solid #e4ecef;padding:10px 12px;color:#71828b;font-size:13px;text-align:left}.inn-source-report-html thead th{border-bottom:1px solid #dbe5e9;background:#f1f6f8;padding:10px 12px;color:#405d6e;font-size:13px;font-weight:800;text-align:left;white-space:nowrap}.inn-source-report-html td{border-bottom:1px solid #e9eef0;padding:9px 12px;color:#344d5d;line-height:1.65;vertical-align:top}.inn-source-report-html tbody tr:last-child td{border-bottom:0}.inn-source-report-html tbody tr.sum td{background:#f1f6f8;font-weight:800}.inn-source-report-html td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.inn-source-report-html .b{display:inline-block;border-radius:4px;padding:2px 7px;font-size:12px;font-weight:800;line-height:1.55;white-space:nowrap}.inn-source-report-html .b.r{background:#fdf0ef;color:#b3261e}.inn-source-report-html .b.a{background:#fdf6e7;color:#8a5a00}.inn-source-report-html .b.g{background:#eef7f2;color:#1c6b45}.inn-source-report-html .b.n{background:#eef1f3;color:#71828b}.inn-source-report-html .box{margin-bottom:14px;border-left:3px solid #2d6da4;border-radius:5px;background:#f4f8fa;padding:15px 18px}.inn-source-report-html .box h5{margin:0 0 7px}.inn-source-report-html .box p:last-child{margin-bottom:0}.inn-source-report-html .box.r{border-color:#b3261e;background:#fdf0ef}.inn-source-report-html .box.r h5{color:#b3261e}.inn-source-report-html .box.a{border-color:#8a5a00;background:#fdf6e7}.inn-source-report-html .box.a h5{color:#8a5a00}.inn-source-report-html .box.g{border-color:#1c6b45;background:#eef7f2}.inn-source-report-html .box.g h5{color:#1c6b45}
+.inn-source-report-html .fig{margin-bottom:15px;padding:18px 20px}.inn-source-report-html .fig .ft{margin-bottom:3px;color:#254c65;font-size:15px;font-weight:800}.inn-source-report-html .fig .fs{margin-bottom:13px;color:#71828b;font-size:13px}.inn-source-report-html .fig .fn{margin-top:11px;border-top:1px solid #e5ecef;padding-top:9px;color:#71828b;font-size:13px;line-height:1.65}.inn-source-report-html .fig svg{display:block;width:100%;height:auto;overflow:visible}.inn-source-report-html .lg{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:10px;color:#58717f;font-size:13px}.inn-source-report-html .lg i{display:inline-block;width:11px;height:3px;margin-right:5px;border-radius:1px;vertical-align:middle}.inn-source-report-html .bars{display:grid;gap:8px}.inn-source-report-html .bar{display:grid;grid-template-columns:132px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px}.inn-source-report-html .bar .bn{overflow:hidden;color:#4d6675;text-overflow:ellipsis;white-space:nowrap}.inn-source-report-html .bar .bt{height:17px;overflow:hidden;border-radius:2px;background:#eef2f4}.inn-source-report-html .bar .bf{height:100%;border-radius:2px}.inn-source-report-html .bar .bv{text-align:right;font-size:13px;font-weight:800}.inn-source-report-html .cloud{display:flex;flex-wrap:wrap;gap:8px 15px;align-items:baseline;padding:6px 0}.inn-source-report-html .cloud span{color:#4b6472;line-height:1.5}.inn-source-report-html .cloud span b{margin-left:2px;color:#7b8990;font-size:.65em;font-weight:500}.inn-source-report-html .bub{display:flex;flex-wrap:wrap;gap:13px;align-items:center;justify-content:center;padding:10px 0}.inn-source-report-html .bub>div{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;padding:5px;color:#fff;line-height:1.25;text-align:center}.inn-source-report-html .bub span{max-width:88%;font-size:11px}.inn-source-report-html .bub b{margin-top:2px;font-size:13px}.inn-source-report-html .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.inn-source-report-html .verdict{display:grid;grid-template-columns:170px minmax(0,1fr);gap:24px;margin-bottom:16px;padding:24px 26px}.inn-source-report-html .grade{align-self:center;border-right:1px solid #dfe7ea;padding-right:22px;text-align:center}.inn-source-report-html .grade .g{color:#8a5a00;font-size:58px;font-weight:900;line-height:1}.inn-source-report-html .grade .gl{margin-top:7px;color:#72828b;font-size:13px}.inn-source-report-html .grade .sc{margin-top:11px;color:#254c65;font-size:23px;font-weight:800}.inn-source-report-html .grade .sc span{color:#71828b;font-size:13px;font-weight:500}.inn-source-report-html .grade .note{margin-top:6px;color:#8a5a00;font-size:12px;line-height:1.5}.inn-source-report-html .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(164px,1fr));gap:16px 20px;align-self:center}.inn-source-report-html .kpi .kl{margin-bottom:4px;color:#71828b;font-size:12px}.inn-source-report-html .kpi .kv{color:#254c65;font-size:18px;font-weight:800;line-height:1.35}.inn-source-report-html .kpi .kv small{color:#71828b;font-size:12px;font-weight:500}.inn-source-report-html .kpi .kd{margin-top:3px;color:#617985;font-size:12px;line-height:1.55}.inn-source-report-html .chk{display:grid;gap:9px;margin-bottom:14px}.inn-source-report-html .chk .it{display:grid;grid-template-columns:26px minmax(0,1fr);gap:11px;border:1px solid #dbe5e9;border-radius:7px;background:#fff;padding:13px 15px}.inn-source-report-html .chk .no{display:grid;place-items:center;height:22px;border-radius:3px;background:#2d6da4;color:#fff;font-size:12px;font-weight:800}.inn-source-report-html .chk .bd h5{margin:0 0 5px;font-size:15px}.inn-source-report-html .chk .bd p{margin:0 0 6px;color:#4b6472;font-size:14px}.inn-source-report-html .chk .bd p:last-child{margin:0}.inn-source-report-html .chk .src{color:#7a8891;font-size:12px}
+@media(max-width:760px){.inn-source-report-html{font-size:14px}.inn-source-report-html .wrap{padding:0 14px 38px}.inn-source-report-html .cover{margin:0 -14px 22px;border-radius:0 0 8px 8px;padding:28px 17px 25px}.inn-source-report-html .cover .tag{font-size:12px}.inn-source-report-html .cover h1{font-size:24px}.inn-source-report-html .cover .sub{font-size:14px}.inn-source-report-html .cover .meta{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:20px}.inn-source-report-html .cover .meta dd{font-size:14px}.inn-source-report-html .ch{margin-top:32px}.inn-source-report-html .ch h2{font-size:23px}.inn-source-report-html h3{margin-top:25px;font-size:18px}.inn-source-report-html h4{font-size:16px}.inn-source-report-html .card,.inn-source-report-html .fig{padding:14px}.inn-source-report-html .two,.inn-source-report-html .verdict{grid-template-columns:1fr}.inn-source-report-html .verdict{gap:16px;padding:17px}.inn-source-report-html .grade{border-right:0;border-bottom:1px solid #dfe7ea;padding:0 0 16px}.inn-source-report-html .bar{grid-template-columns:96px minmax(0,1fr) 50px;font-size:12px}.inn-source-report-html .tw table{min-width:540px}.inn-source-report-html .chk .it{padding:12px}.inn-source-report-html .bub{justify-content:flex-start}.inn-source-report-html .small,.inn-source-report-html .fig .fn{font-size:12px}}
 </style>

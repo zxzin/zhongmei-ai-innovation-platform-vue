@@ -1,23 +1,32 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ArchiveRestore, ArrowLeft, ArrowUpRight, BookOpenText, Check, FileText, FolderOpen, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from '@lucide/vue'
 import PageHeader from '../components/PageHeader.vue'
 import BaseSelect from '../components/BaseSelect.vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useKnowledgeStore } from '../stores/knowledge.js'
 import { useUiStore } from '../stores/ui.js'
+import { routeChoice, useRouteQueryState } from '../composables/useRouteQueryState.js'
 
+const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const knowledge = useKnowledgeStore()
 const ui = useUiStore()
 
 const owner = computed(() => auth.profile?.account || 'User')
-const workspace = ref('manage')
+const workspace = useRouteQueryState(route, router, 'workspace', 'manage', {
+  ...routeChoice(['manage', 'recycle', 'detail'], 'manage'),
+  serialize: (value) => ['recycle', 'detail'].includes(value) ? value : undefined,
+})
 const libraryQuery = ref('')
 const librarySort = ref('最近更新')
 const recycleQuery = ref('')
 const recycleSort = ref('最近删除')
-const selectedLibraryId = ref(null)
+const selectedLibraryId = useRouteQueryState(route, router, 'library', null, {
+  parse: (value) => typeof value === 'string' && value ? value : null,
+})
 const fileQuery = ref('')
 const fileSort = ref('最近更新')
 const libraryForm = ref(null)

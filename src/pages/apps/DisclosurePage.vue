@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Check, Download, FileText, Info, Lightbulb, PanelRightClose, PanelRightOpen, Pencil, RefreshCw, ScrollText, Sparkles } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import { useUiStore } from '../../stores/ui.js'
+import { routeChoice, useRouteQueryState } from '../../composables/useRouteQueryState.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,7 +107,7 @@ const referenceGroups = [
     ['测试报告', '多传感器融合定位与断网续航测试报告'],
   ] },
 ]
-const activeReferenceTitle = ref('专利')
+const activeReferenceTitle = useRouteQueryState(route, router, 'source', '专利', routeChoice(['专利', '论文', '政策', '内部知识'], '专利'))
 const numberedReferenceGroups = computed(() => {
   let number = 0
   return referenceGroups.map(group => ({
@@ -141,7 +142,7 @@ function openReference(reference) {
   activeReferenceTitle.value = group.title
   nextTick(() => goToSection('references'))
 }
-function setRoute(next, replace = false) { return router[replace ? 'replace' : 'push']('/agent/disclosure/' + next) }
+function setRoute(next, replace = false) { return router[replace ? 'replace' : 'push']({ path: '/agent/disclosure/' + next, query: route.query }) }
 function isSectionVisible(id) { return id === 'references' ? referencesRevealed.value : revealedSectionIds.value.includes(id) }
 function waitForGeneration(ms) { return new Promise(resolve => window.setTimeout(resolve, ms)) }
 function firstParagraph(section) { return section.paragraphs?.[0] || section.blocks?.[0]?.paragraphs?.[0] || '' }

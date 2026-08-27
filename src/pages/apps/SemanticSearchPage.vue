@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BookmarkPlus, Check, Copy, Download, ExternalLink, Search, X } from '@lucide/vue'
+import { Copy, Download, ExternalLink, Search, X } from '@lucide/vue'
 import ApplicationHeading from '../../components/ApplicationHeading.vue'
 import BaseDrawer from '../../components/BaseDrawer.vue'
 import { semanticReferenceResults } from '../../data/semanticResults.js'
+import { routeChoice, routePositiveInteger, useRouteQueryState } from '../../composables/useRouteQueryState.js'
 import { useUiStore } from '../../stores/ui.js'
 
 const ui = useUiStore()
@@ -13,11 +14,10 @@ const router = useRouter()
 const query = ref('')
 const semanticDemoInput = '一种适用于煤矿井下复杂环境的智能巡检机器人及其控制方法，包括移动底盘、激光雷达、低照度摄像头、热成像模块、惯性测量单元和气体传感器；通过多传感器融合定位建立巷道环境地图，并根据粉尘浓度、照度、通信质量和设备状态动态调整感知权重。在 5G 专网通信中断或信号弱覆盖区域，机器人将巡检任务、定位轨迹和异常告警缓存在本地任务队列中，按照预设安全策略继续完成自主巡检；通信恢复后执行断点续传与数据一致性校验。'
 const searched = ref(false)
-const category = ref('patent')
-const sort = ref('相关度')
+const category = useRouteQueryState(route, router, 'type', 'patent', routeChoice(['patent', 'paper', 'policy', 'internal'], 'patent'))
+const sort = useRouteQueryState(route, router, 'sort', '相关度', routeChoice(['相关度', '申请日', '公开日'], '相关度'))
 const selectedResults = ref([])
-const savedResultIds = ref([])
-const resultPage = ref(1)
+const resultPage = useRouteQueryState(route, router, 'page', 1, routePositiveInteger())
 const pageSize = 20
 const detail = ref(null)
 const queryDialogOpen = ref(false)
@@ -70,7 +70,7 @@ function showResults() {
   resultPage.value = 1
   hoverPreview.value = null
   beginGeneration()
-  if (route.params.stage !== 'results') router.push('/agent/semantic/results')
+  if (route.params.stage !== 'results') router.push({ path: '/agent/semantic/results', query: route.query })
 }
 async function copyQuery() {
   if (!query.value.trim()) return
@@ -102,40 +102,25 @@ function statusTone(status) {
 }
 function areaTags(item) { return item.areaTags || item.area.split(' · ') }
 function paperTopics(item) { return (item.topics || areaTags(item)).filter(Boolean).slice(0, 4) }
-function isSaved(item) { return savedResultIds.value.includes(item.id) }
-function saveItem(item) {
-  if (isSaved(item)) {
-    ui.notify('该资料已在个人知识库中', 'success')
-    return
-  }
-  savedResultIds.value.push(item.id)
-  ui.notify(`已将${sourceLabel(item.type)}保存至个人知识库`, 'success')
-}
-function saveSelected() {
+function downloadSelected() {
   if (!selectedResults.value.length) return
-  const pendingIds = selectedResults.value.filter((id) => !savedResultIds.value.includes(id))
-  if (pendingIds.length) savedResultIds.value.push(...pendingIds)
-  const savedCount = pendingIds.length
-  selectedResults.value = []
-  ui.notify(savedCount ? `已将 ${savedCount} 条资料保存至个人知识库` : '已勾选资料均已在个人知识库中', 'success')
-}
-function downloadItem(item) {
-  const content = [
-    `资料类型：${sourceLabel(item.type)}`,
+  const selectedItems = semanticReferenceResults.filter((item) => selectedResults.value.includes(item.id))
+  const content = selectedItems.map((item, index) => [
+    `${index + 1}. ${sourceLabel(item.type)}`,
     `标题：${item.title}`,
     item.originalTitle ? `英文标题：${item.originalTitle}` : '',
     `编号：${item.number || '-'}`,
     `摘要：${item.summary || '-'}`,
-  ].filter(Boolean).join('\n\n')
+  ].filter(Boolean).join('\n')).join('\n\n')
   const objectUrl = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }))
   const anchor = document.createElement('a')
   anchor.href = objectUrl
-  anchor.download = `${item.title.replace(/[\\/:*?"<>|]/g, '_')}.txt`
+  anchor.download = '语义检索结果.txt'
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
-  ui.notify(`已开始下载《${item.title}》`, 'success')
+  ui.notify(`已开始下载 ${selectedItems.length} 条资料`, 'success')
 }
 function clearHoverPreviewTimer() {
   if (hoverPreviewTimer) window.clearTimeout(hoverPreviewTimer)
@@ -214,15 +199,15 @@ onBeforeUnmount(() => {
           <header class="semantic-results-toolbar-v3">
             <div class="semantic-results-toolbar-v3__count"><b>{{ filteredRecords.length.toLocaleString() }} {{ category === 'paper' ? '篇文献' : category === 'patent' ? '条专利' : '条数据' }}</b><span>第 {{ resultPage }} 页，每页 {{ pageSize }} 条</span></div>
             <div class="semantic-results-toolbar-v3__controls">
-              <button class="semantic-results-toolbar-v3__save" type="button" title="一键保存已勾选到个人知识库" :disabled="!selectedResults.length" @click="saveSelected"><BookmarkPlus :size="16" />保存</button>
-              <label class="semantic-results-toolbar-v3__filter"><span class="sr-only">结果排序</span><select v-model="sort" aria-label="结果排序" @change="resultPage = 1"><option value="相关度">最相关</option><option :value="category === 'paper' ? '发表时间' : '申请日'">{{ category === 'paper' ? '最新发表' : '最新申请' }}</option></select></label>
+              <button class="semantic-results-toolbar-v3__download" type="button" title="一键下载已选中" aria-label="一键下载已选中" :disabled="!selectedResults.length" @click="downloadSelected"><Download :size="17" /></button>
+              <label class="semantic-results-toolbar-v3__filter"><span class="sr-only">结果排序</span><select v-model="sort" aria-label="结果排序" @change="resultPage = 1"><option value="相关度">最相关</option><option :value="category === 'paper' ? '发表时间' : '申请日'">最新</option></select></label>
             </div>
           </header>
           <div v-if="category === 'paper'" class="literature-result-list">
             <article v-for="(item, index) in pagedRecords" :key="item.id" class="literature-result-item">
               <div class="literature-result-item__index"><label class="literature-result-item__selection"><input v-model="selectedResults" type="checkbox" :value="item.id" :aria-label="`选择${item.title}`" /><span class="sr-only">选择文献</span></label></div>
               <div class="literature-result-item__body">
-                <header><div class="literature-result-item__title-row"><b class="literature-result-item__order">{{ (resultPage - 1) * pageSize + index + 1 }}</b><button type="button" :title="item.title" @click="detail = item"><span class="literature-result-item__title-line"><strong>{{ item.title }}</strong><span class="literature-result-item__year">{{ item.year || item.publication || '-' }}</span></span><small v-if="item.originalTitle">{{ item.originalTitle }}</small></button><div class="semantic-result-inline-actions"><button type="button" :class="{ saved: isSaved(item) }" :aria-label="`保存《${item.title}》到个人知识库`" :title="isSaved(item) ? '已保存到个人知识库' : '保存到个人知识库'" @click.stop="saveItem(item)"><Check v-if="isSaved(item)" :size="15" /><BookmarkPlus v-else :size="15" /></button><button type="button" :aria-label="`下载《${item.title}》`" title="下载" @click.stop="downloadItem(item)"><Download :size="15" /></button></div></div><span v-if="item.citations && item.citations !== '-'" class="literature-result-item__citation">被引 {{ item.citations }}</span></header>
+                <header><div class="literature-result-item__title-row"><b class="literature-result-item__order">{{ (resultPage - 1) * pageSize + index + 1 }}</b><button type="button" :title="item.title" @click="detail = item"><span class="literature-result-item__title-line"><strong>{{ item.title }}</strong><span class="literature-result-item__year">{{ item.year || item.publication || '-' }}</span><span v-if="item.citations && item.citations !== '-'" class="literature-result-item__citation">被引 {{ item.citations }}</span></span><small v-if="item.originalTitle">{{ item.originalTitle }}</small></button></div></header>
                 <dl><div><dt>作者</dt><dd>{{ item.authors || item.applicant }}</dd></div><div><dt>期刊 / 会议</dt><dd>{{ item.journal || item.number }}</dd></div><div v-if="item.number && item.number !== '—'"><dt>DOI</dt><dd>{{ item.number }}</dd></div></dl>
                 <p v-if="item.summary && item.summary !== '—'" class="literature-result-item__abstract">{{ item.summary }}</p>
                 <footer><span v-for="topic in paperTopics(item)" :key="topic">{{ topic }}</span><em v-if="item.applicant && item.applicant !== '—'">{{ item.applicant }}</em></footer>
@@ -239,7 +224,7 @@ onBeforeUnmount(() => {
                   <td>{{ (resultPage - 1) * pageSize + index + 1 }}</td>
                   <td><b class="semantic-result-score">{{ item.similarity }}</b></td>
                   <td class="semantic-result-number"><i></i><small>{{ item.number }}</small></td>
-                  <td class="semantic-result-title"><div class="semantic-result-title__content"><button type="button" :class="{ 'has-preview': Boolean(item.preview) }" :title="item.title" @pointerenter="showPatentPreview(item, $event)" @pointerleave="scheduleHoverPreviewClose" @click="detail = item">{{ item.title }}</button><div v-if="category === 'patent'" class="semantic-result-inline-actions"><button type="button" :class="{ saved: isSaved(item) }" :aria-label="`保存《${item.title}》到个人知识库`" :title="isSaved(item) ? '已保存到个人知识库' : '保存到个人知识库'" @click.stop="saveItem(item)"><Check v-if="isSaved(item)" :size="15" /><BookmarkPlus v-else :size="15" /></button><button type="button" :aria-label="`下载《${item.title}》`" title="下载" @click.stop="downloadItem(item)"><Download :size="15" /></button></div></div></td>
+                  <td class="semantic-result-title"><div class="semantic-result-title__content"><button type="button" :class="{ 'has-preview': Boolean(item.preview) }" :title="item.title" @pointerenter="showPatentPreview(item, $event)" @pointerleave="scheduleHoverPreviewClose" @click="detail = item">{{ item.title }}</button></div></td>
                   <td class="semantic-result-statuses"><span v-for="status in statusItems(item.status)" :key="status" class="semantic-result-status" :class="statusTone(status)">{{ status }}</span></td>
                   <td class="semantic-result-applicant">{{ item.applicant }}</td><td><div class="semantic-result-tags"><span v-for="tag in areaTags(item)" :key="tag" :class="{ more: tag.startsWith('+') }">{{ tag }}</span></div></td><td>{{ item.filing }}</td><td>{{ item.publication }}</td>
                 </tr>

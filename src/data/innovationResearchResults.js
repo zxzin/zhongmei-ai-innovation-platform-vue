@@ -8,7 +8,7 @@ const makePapers = (prefix, records) => records.map((record, index) => ({
 export const technologyTopicPaperResults = [
   {
     id: 'high-mineralized-water',
-    total: '246',
+    total: '1,000',
     items: makePapers('T1-L', [
       { title: 'Time series prediction model using LSTM-Transformer neural network for mine water inflow', year: '2024', authors: 'Junwei Shi · Shiqi Wang · Pengfei Qu · Jianli Shao', outlet: 'Scientific Reports, 14, 18284', identifier: '10.1038/s41598-024-69418-z', identifierLabel: 'DOI', abstract: '采用 LSTM-Transformer 进行矿井涌水时间序列预测，用于核验预测模型、时间窗口与数据组织方式。', keywords: ['涌水量预测', 'LSTM-Transformer'] },
       { title: 'Application of robust deep learning models to predict mine water inflow: Implication for groundwater environment management', year: '2023', authors: 'Songlin Yang · Huiqing Lian · Bin Xu 等', outlet: 'Science of the Total Environment, 871, 162056', identifier: '10.1016/j.scitotenv.2023.162056', identifierLabel: 'DOI', abstract: '比较稳健深度学习模型在矿井日均涌水预测中的效果，并分析推进距离、地下水位等输入影响。', keywords: ['深度学习', '地下水管理'] },
@@ -34,7 +34,7 @@ export const technologyTopicPaperResults = [
   },
   {
     id: 'coal-water-mining',
-    total: '47',
+    total: '1,000',
     items: makePapers('T2-L', [
       { title: '采掘工序与矿井排水负荷协同优化研究', year: '2024', authors: '中国矿业大学研究团队', outlet: '煤炭学报, 2024', identifier: '检索记录-T2-001', abstract: '研究采掘工序与排水负荷的协同优化，作为回采推进与排水调控耦合的直接文献对照。', keywords: ['采掘工序', '协同优化'] },
       { title: '深部矿井涌水量动态响应规律及预测模型', year: '2023', authors: '煤炭科学研究总院研究团队', outlet: '煤炭科学技术, 2023', identifier: '检索记录-T2-002', abstract: '分析深部开采过程中涌水量动态响应规律，并构建预测模型。', keywords: ['动态响应', '涌水预测'] },
