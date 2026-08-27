@@ -19,7 +19,7 @@ export const agents = [
   },
   {
     id: 'semantic', number: '02', name: '语义检索', action: '开始检索', icon: Search,
-    description: '检索专利、论文与授权知识库，按语义相关度排序并返回原文核验。',
+    description: '检索专利、论文与授权知识库，按相关度返回原文核验。',
     placeholder: '输入技术主题或检索问题，不少于 200 字可获得更准确的结果',
     sample: '检索煤岩识别技术路线相关专利与论文，重点关注多模态传感与井下复杂环境适配。',
     steps: ['检索要求', '范围确认', '结果列表', '原文核验'],

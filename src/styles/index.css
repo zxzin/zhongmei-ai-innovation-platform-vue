@@ -3746,3 +3746,47 @@ tbody tr:hover { background: #f7fbfe; }
   .app-shell:not(.side-collapsed) .side-footer .side-account > span { font-size: 15px; }
   .app-shell:not(.side-collapsed) .side-footer .side-account > b { font-size: 16px; }
 }
+
+/* Application entry cards: concise descriptions carry the decision-making detail. */
+.hub-title-task { font-size: clamp(24px, 1.9vw, 30px); }
+.hub-title-welcome { font-size: clamp(38px, 2.75vw, 46px); }
+.hub-heading { margin-bottom: 32px; }
+.agent-matrix { grid-template-rows: repeat(2, minmax(clamp(184px, 21vh, 236px), auto)); }
+.agent-tile {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px 18px;
+  padding: 24px 26px;
+}
+.agent-tile > .agent-tile-icon { grid-column: 1; grid-row: 1; width: 56px; height: 56px; border-radius: 15px; }
+.agent-tile-copy { grid-column: 2; grid-row: 1 / span 2; align-self: start; display: grid; gap: 10px; }
+.agent-tile-title h2 { font-size: clamp(22px, 1.65vw, 27px); line-height: 1.2; }
+.agent-tile-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #5c7487;
+  font-size: 14px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.agent-tile-action { grid-column: 2; grid-row: 3; margin-right: 0; font-size: 15px; }
+
+@media (max-width: 1180px) {
+  .agent-matrix { grid-template-rows: none; grid-auto-rows: minmax(194px, auto); }
+}
+
+@media (max-width: 700px) {
+  .hub-title-task { font-size: 23px; }
+  .hub-title-welcome { font-size: 34px; }
+  .hub-heading { margin-bottom: 22px; }
+  .agent-matrix { grid-auto-rows: minmax(178px, auto); }
+  .agent-tile { grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 9px 13px; padding: 18px; }
+  .agent-tile > .agent-tile-icon { width: 48px; height: 48px; border-radius: 13px; }
+  .agent-tile-copy { gap: 7px; }
+  .agent-tile-title h2 { font-size: 21px; }
+  .agent-tile-description { font-size: 14px; line-height: 1.55; }
+  .agent-tile-action { grid-column: 2; grid-row: 3; font-size: 14px; }
+}

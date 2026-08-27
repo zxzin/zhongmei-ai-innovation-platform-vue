@@ -45,6 +45,7 @@ function applicationHref(id) {
           <div class="agent-tile-title">
             <h2>{{ agent.name }}</h2>
           </div>
+          <p class="agent-tile-description">{{ agent.description }}</p>
         </div>
         <span class="agent-tile-action">{{ agent.action }}<b><ArrowUpRight :size="17" /></b></span>
         <span class="agent-tile-watermark" aria-hidden="true"><component :is="agent.icon" :size="160" /></span>
