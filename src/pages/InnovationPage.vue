@@ -109,11 +109,12 @@ const researchAddOrder = ref([])
 const researchAddOrderLocks = reactive({})
 const researchAddedCount = reactive({})
 const pointTop5Modal = ref(false)
-const themeTopicPreview = ref(null)
 const pointTopicPreview = ref(null)
+const workflowCard = ref(null)
+const workflowActions = ref(null)
 let patentPreviewCloseTimer
-let themeTopicPreviewCloseTimer
 let pointTopicPreviewCloseTimer
+let analysisActionBarObserver
 const reportWorkflowNavStorageKey = 'innovation-report-workflow-nav-collapsed'
 const reportVersionStorageKey = 'innovation-report-version-selection'
 function readStoredReportWorkflowNavState() {
@@ -997,19 +998,6 @@ function schedulePatentPreviewClose() {
 function keepPatentPreviewOpen() {
   window.clearTimeout(patentPreviewCloseTimer)
 }
-function showThemeTopicPreview(topic, index, event) {
-  window.clearTimeout(themeTopicPreviewCloseTimer)
-  const rect = event.currentTarget.getBoundingClientRect()
-  const width = Math.min(420, window.innerWidth - 32)
-  const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16)
-  const top = rect.bottom + 8 <= window.innerHeight - 104
-    ? rect.bottom + 8
-    : Math.max(16, rect.top - 100)
-  themeTopicPreview.value = { topic, index, left, top }
-}
-function scheduleThemeTopicPreviewClose() {
-  themeTopicPreviewCloseTimer = window.setTimeout(() => { themeTopicPreview.value = null }, 80)
-}
 function showPointTopicPreview(point, index, event) {
   window.clearTimeout(pointTopicPreviewCloseTimer)
   const rect = event.currentTarget.getBoundingClientRect()
@@ -1038,6 +1026,7 @@ watch(stage, (value) => {
   if (index >= 0) workflowMax.value = Math.max(workflowMax.value, index + 1)
   if (value === 'project') syncProjectTextareaHeights()
   if (value === 'analysis') syncAnalysisTextareaHeights()
+  observeAnalysisActionBarBounds()
   if (value === 'research') {
     window.scrollTo(0, 0)
     syncResearchPageScrollRange()
@@ -1053,6 +1042,7 @@ watch(reportWorkflowNavCollapsed, (collapsed) => {
   }
   if (stage.value === 'project') syncProjectTextareaHeights()
   if (stage.value === 'analysis') syncAnalysisTextareaHeights()
+  nextTick(syncAnalysisActionBarBounds)
 })
 watch([selectedReportScope, activeReportVersion, selectedReviewTemplate], ([scope, active, template]) => {
   try {
@@ -1085,6 +1075,28 @@ function syncAnalysisTextareaHeights() {
     const resizeAll = () => document.querySelectorAll('.inn-wf-card-analysis textarea').forEach(resizeAnalysisTextarea)
     resizeAll()
     window.requestAnimationFrame(resizeAll)
+  })
+}
+function syncAnalysisActionBarBounds() {
+  if (stage.value !== 'analysis') return
+  const card = workflowCard.value
+  const actions = workflowActions.value
+  if (!card || !actions) return
+  const { left, width } = card.getBoundingClientRect()
+  actions.style.setProperty('--analysis-action-left', `${Math.round(left)}px`)
+  actions.style.setProperty('--analysis-action-width', `${Math.round(width)}px`)
+}
+function observeAnalysisActionBarBounds() {
+  analysisActionBarObserver?.disconnect()
+  analysisActionBarObserver = undefined
+  nextTick(() => {
+    if (stage.value !== 'analysis') return
+    const card = workflowCard.value
+    if (!card) return
+    syncAnalysisActionBarBounds()
+    if (typeof ResizeObserver === 'undefined') return
+    analysisActionBarObserver = new ResizeObserver(syncAnalysisActionBarBounds)
+    analysisActionBarObserver.observe(card)
   })
 }
 function autoResizeAnalysisTextarea(event) {
@@ -1162,20 +1174,23 @@ function normalizeInnovationBranchTag(index) {
 onMounted(() => {
   window.addEventListener('resize', syncProjectTextareaHeights)
   window.addEventListener('resize', syncAnalysisTextareaHeights)
+  window.addEventListener('resize', syncAnalysisActionBarBounds)
   window.addEventListener('resize', syncResearchPageScrollRange)
   window.addEventListener('scroll', syncResearchContentScroll, { passive: true })
   syncProjectTextareaHeights()
   syncAnalysisTextareaHeights()
+  observeAnalysisActionBarBounds()
   syncResearchPageScrollRange()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncProjectTextareaHeights)
   window.removeEventListener('resize', syncAnalysisTextareaHeights)
+  window.removeEventListener('resize', syncAnalysisActionBarBounds)
   window.removeEventListener('resize', syncResearchPageScrollRange)
   window.removeEventListener('scroll', syncResearchContentScroll)
   window.clearTimeout(patentPreviewCloseTimer)
-  window.clearTimeout(themeTopicPreviewCloseTimer)
   window.clearTimeout(pointTopicPreviewCloseTimer)
+  analysisActionBarObserver?.disconnect()
 })
 
 function move(next) {
@@ -1447,7 +1462,7 @@ function exportReport(format) {
           </div>
         </aside>
         <main class="inn-wf-main">
-          <article class="inn-wf-card" :class="[`inn-wf-card-${stage}`, { 'is-project-editing': stage === 'project' }]">
+          <article ref="workflowCard" class="inn-wf-card" :class="[`inn-wf-card-${stage}`, { 'is-project-editing': stage === 'project' }]">
             <section v-if="stage === 'project'" class="inn-wf-section inn-wf-project-page">
               <section class="inn-project-overview">
                 <header class="inn-project-section-head"><span>项目概览</span></header>
@@ -1519,10 +1534,7 @@ function exportReport(format) {
 
             <section v-if="stage === 'research'" class="inn-wf-section inn-wf-research-page">
 
-              <section v-if="researchPanel === 'theme'" class="inn-wf-point-recall" :class="`is-${themeSource}`">
-                <nav class="inn-wf-point-tabs inn-patent-topic-tabs">
-                  <button v-for="(topic, index) in retrievedPatentTopicEvidence" :key="topic.id || index" :class="{ active: patentTopicTab === index }" type="button" :aria-describedby="themeTopicPreview?.index === index ? `technology-topic-preview-${index}` : undefined" @mouseenter="showThemeTopicPreview(scopeTopics[index], index, $event)" @mouseleave="scheduleThemeTopicPreviewClose" @focus="showThemeTopicPreview(scopeTopics[index], index, $event)" @blur="scheduleThemeTopicPreviewClose" @click="patentTopicTab = index; themeExpanded = ''; themePage = 1"><span class="inn-patent-topic-title">{{ scopeTopics[index] }}</span></button>
-                </nav>
+              <section v-if="researchPanel === 'theme'" class="inn-wf-point-recall inn-theme-recall" :class="`is-${themeSource}`">
                 <header class="inn-recall-controls">
                   <nav class="inn-recall-type-tabs">
                     <button v-for="source in Object.keys(sourceMeta)" :key="source" :class="{ active: themeSource === source }" type="button" @click="themeSource = source; themeExpanded = ''; themePage = 1"><span>{{ sourceMeta[source].label }}</span></button>
@@ -1663,7 +1675,7 @@ function exportReport(format) {
                 <section class="inn-full-section"><h3>附录：检索主题卡与证据留痕</h3><table class="inn-report-table"><thead><tr><th>卡片 ID</th><th>对象</th><th>查询主题/条件</th><th>时间范围与筛选</th><th>留痕内容</th></tr></thead><tbody><tr v-for="(topic, index) in scopeTopics" :key="topic"><td>Q-00{{ index + 1 }}</td><td>专利 / 论文 / 政策</td><td>{{ topic }}：问题 + 技术手段 + 目标/效果</td><td>专利/论文近 10 年；政策近 3 年</td><td>查询版本、样本量、原文入口、评分依据与人工调整记录</td></tr></tbody></table><p class="inn-simple-disclaimer">本报告由中煤深圳院 AI 创新平台基于项目材料与本报告载明的数据范围生成，用于科研立项与技术研判辅助；不构成专利查新、自由实施、法律意见、市场预测或工程验收结论。</p></section>
               </article>
             </section>
-            <footer v-if="stage !== 'report'" class="inn-wf-actions"><div class="inn-wf-action-context"><span>下一步</span><b>{{ nextStageLabel }}</b></div><div class="inn-wf-action-buttons"><button class="inn-wf-back" type="button" @click="previousStage">上一步</button><button class="primary-btn" type="button" @click="nextStage">{{ nextStageActionLabel }}</button></div></footer>
+            <footer v-if="stage !== 'report'" ref="workflowActions" class="inn-wf-actions"><div class="inn-wf-action-context"><span>下一步</span><b>{{ nextStageLabel }}</b></div><div class="inn-wf-action-buttons"><button class="inn-wf-back" type="button" @click="previousStage">上一步</button><button class="primary-btn" type="button" @click="nextStage">{{ nextStageActionLabel }}</button></div></footer>
             <footer v-else class="inn-source-report-actions"><button class="inn-source-report-back" type="button" @click="navigateResearchPanel('point')">上一步</button><div class="inn-report-export-menu"><button class="primary-btn" type="button" aria-haspopup="menu"><Download :size="15" />导出报告</button><div class="inn-report-export-popover" role="menu" aria-label="选择导出格式"><button type="button" role="menuitem" @click="exportReport('PDF')"><Download :size="15" />PDF</button><button type="button" role="menuitem" @click="exportReport('Word')"><FileText :size="15" />Word</button></div></div></footer>
           </article>
         </main>
@@ -1715,7 +1727,6 @@ function exportReport(format) {
           <footer><button type="button" @click="pointTop5Modal = false">关闭</button></footer>
         </section>
       </div>
-      <aside v-if="themeTopicPreview" :id="`technology-topic-preview-${themeTopicPreview.index}`" class="inn-theme-topic-preview" role="tooltip" :style="{ left: `${themeTopicPreview.left}px`, top: `${themeTopicPreview.top}px` }"><span>技术主题 {{ themeTopicPreview.index + 1 }}</span><strong>{{ themeTopicPreview.topic }}</strong></aside>
       <aside v-if="pointTopicPreview" :id="`innovation-point-preview-${pointTopicPreview.index}`" class="inn-point-topic-preview" role="tooltip" :style="{ left: `${pointTopicPreview.left}px`, top: `${pointTopicPreview.top}px` }"><span>创新点 {{ pointTopicPreview.index + 1 }}</span><strong>{{ pointTopicPreview.point }}</strong></aside>
       <aside v-if="patentPreview" class="inn-patent-preview" :class="`is-${patentPreview.type}`" :style="{ left: `${patentPreview.left}px`, top: `${patentPreview.top}px` }" @mouseenter="keepPatentPreviewOpen" @mouseleave="schedulePatentPreviewClose">
         <template v-if="patentPreview.type === 'title'">
@@ -2874,7 +2885,7 @@ function exportReport(format) {
   background:#f8fbfc;
 }
 .inn-wf-card-analysis .inn-wf-analysis-page{display:grid;flex:0 0 auto;min-height:0;overflow:visible;align-content:start;gap:26px;background:#f8fbfc;padding-bottom:108px}
-.inn-wf-card-analysis .inn-wf-actions{position:fixed;right:max(24px,calc((100vw - 1560px)/2 + 24px));bottom:0;left:max(260px,calc((100vw - 1560px)/2 + 260px));z-index:30;flex:0 0 auto;border:1px solid #dce9ef;border-bottom:0;border-radius:12px 12px 0 0;background:#fbfdfe;box-shadow:0 -8px 24px rgba(27,77,103,.12)}
+.inn-wf-card-analysis .inn-wf-actions{position:fixed;right:auto;bottom:0;left:var(--analysis-action-left,100vw);box-sizing:border-box;width:var(--analysis-action-width,0px);z-index:30;flex:0 0 auto;border:1px solid #dce9ef;border-bottom:0;border-radius:0 0 16px 16px;background:#fbfdfe;box-shadow:0 -8px 24px rgba(27,77,103,.12)}
 .inn-wf-card-analysis .inn-analysis-section{display:grid;gap:13px;min-width:0}
 .inn-wf-card-analysis .inn-analysis-section+.inn-analysis-section{border-top:1px solid var(--analysis-line);padding-top:24px}
 .inn-wf-card-analysis .inn-analysis-section-head{min-height:42px;border:0;padding:0}
@@ -2914,11 +2925,10 @@ function exportReport(format) {
 .inn-wf-card-analysis .inn-analysis-tag-editor button:hover,.inn-wf-card-analysis .inn-analysis-tag-editor button:focus-visible{outline:0;background:#e3f3f8;color:#116f98}
 @media (prefers-reduced-motion:reduce){.inn-wf-card-analysis .inn-analysis-add,.inn-wf-card-analysis .inn-analysis-topic-card,.inn-wf-card-analysis .inn-analysis-point-card,.inn-wf-card-analysis .inn-analysis-tag-editor{transition:none!important}}
 @media(max-width:1080px){.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:980px){.inn-wf-card-analysis .inn-wf-actions{right:16px;left:16px}}
 @media(max-width:720px){
   .inn-wf-card-analysis .inn-wf-analysis-page{gap:20px}
   .inn-wf-card-analysis .inn-wf-analysis-page{padding-bottom:88px}
-  .inn-wf-card-analysis .inn-wf-actions{right:8px;left:8px;border-radius:10px 10px 0 0}
+  .inn-wf-card-analysis .inn-wf-actions{border-radius:0 0 10px 10px}
   .inn-wf-card-analysis .inn-analysis-section+.inn-analysis-section{padding-top:20px}
   .inn-wf-card-analysis .inn-analysis-section-head>span{font-size:18px}
   .inn-wf-card-analysis .inn-analysis-topic-grid,.inn-wf-card-analysis .inn-analysis-branch-tags{grid-template-columns:1fr;gap:10px}
@@ -3111,6 +3121,8 @@ function exportReport(format) {
   .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs)>.inn-recall-controls{grid-template-columns:max-content minmax(0,1fr);column-gap:6px}
   .inn-wf-card-research .inn-wf-point-recall:has(.inn-patent-topic-tabs) .inn-recall-toolbar,
   .inn-wf-card-research .inn-wf-point-recall:has(.inn-point-topic-tabs) .inn-recall-toolbar{gap:9px;padding-right:14px;padding-left:4px}
+  .inn-wf-card-research .inn-theme-recall>.inn-recall-controls{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;gap:6px;min-height:56px;padding:10px 14px}
+  .inn-wf-card-research .inn-theme-recall>.inn-recall-controls>.inn-recall-toolbar{grid-column:2;min-width:0;min-height:0;gap:9px;border-top:0;background:transparent;padding:0 14px 0 4px}
 }
 .inn-wf-card-research .inn-recall-view-switch{border-color:#dce8ed;padding:2px}
 .inn-wf-card-research .inn-recall-view-switch button,.inn-wf-card-research .inn-recall-view-switch button:first-of-type,.inn-wf-card-research .inn-recall-view-switch button+button{width:32px;min-width:32px!important;min-height:32px!important}
