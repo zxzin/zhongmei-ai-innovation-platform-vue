@@ -131,58 +131,74 @@ export const cockpitAppScopeProfiles = {
   },
 }
 
-// 驾驶舱本地演示汇总：字段结构对应后续运营统计接口，不代表实时生产数据。trend.calls 为发起调用总量，包含成功、失败、超时和中止的调用；trend.results 仅统计成功形成的结果。
+function buildCockpitTrend(labels, calls, activeUsers) {
+  return labels.map((label, index) => {
+    const labelFields = typeof label === 'string' ? { label } : label
+    const callCount = calls[index]
+    return {
+      ...labelFields,
+      calls: callCount,
+      results: Math.max(0, callCount - Math.max(1, Math.round(callCount * .035))),
+      activeUsers: activeUsers[index],
+    }
+  })
+}
+
+const cockpitMonthTrend = buildCockpitTrend(
+  Array.from({ length: 30 }, (_, index) => {
+    const day = index + 1
+    const label = `${String(day).padStart(2, '0')}日`
+    return { label, axisLabel: day === 1 || day === 5 || day % 5 === 0 ? label : '' }
+  }),
+  [136, 152, 147, 165, 158, 174, 149, 181, 169, 188, 161, 179, 154, 193, 171, 202, 176, 189, 168, 211, 184, 218, 179, 224, 196, 207, 187, 231, 203, 219],
+  [19, 20, 20, 21, 22, 21, 23, 22, 23, 24, 23, 25, 24, 26, 25, 27, 26, 28, 27, 28, 29, 28, 30, 29, 31, 32, 30, 33, 34, 35],
+)
+
+const cockpitQuarterTrend = buildCockpitTrend(
+  [
+    { label: '05月末', axisLabel: '05月' }, { label: '06月第1周', axisLabel: '' }, { label: '06月第2周', axisLabel: '' }, { label: '06月第3周', axisLabel: '' },
+    { label: '06月末', axisLabel: '06月' }, { label: '07月第1周', axisLabel: '' }, { label: '07月第2周', axisLabel: '' }, { label: '07月第3周', axisLabel: '' },
+    { label: '07月末', axisLabel: '07月' }, { label: '08月第1周', axisLabel: '' }, { label: '08月第2周', axisLabel: '' }, { label: '08月第3周', axisLabel: '' },
+    { label: '08月末', axisLabel: '08月' },
+  ],
+  [118, 132, 125, 141, 136, 149, 143, 158, 151, 166, 154, 172, 161],
+  [75, 78, 76, 82, 84, 87, 86, 91, 93, 96, 94, 99, 100],
+)
+
+const cockpitYearTrend = buildCockpitTrend(
+  ['02月', '03月', '04月', '05月', '06月', '07月', '08月'].flatMap((month) => [
+    { label: `${month}上半月`, axisLabel: month },
+    { label: `${month}下半月`, axisLabel: '' },
+  ]),
+  [34, 39, 42, 49, 55, 63, 70, 79, 85, 93, 99, 110, 124, 141],
+  [52, 57, 61, 67, 72, 78, 84, 90, 95, 101, 107, 114, 119, 126],
+)
+
+// 驾驶舱本地演示汇总：字段结构对应后续运营统计接口，不代表实时生产数据。trend.calls 为发起调用总量，包含成功、失败、超时和中止的调用；trend.results 仅统计成功形成的结果；activeUsers 为对应时间分段内发生有效行为的去重用户数；axisLabel 控制稀疏横轴标签，不改变实际统计节点数量。
 export const cockpitPeriods = [
   {
     id: 'day', name: '今日', label: '2026年08月24日', scale: 15 / 662, userScale: 0.19, dayCount: 1,
     comparisonLabel: '较昨日', comparison: { calls: '+6.4%', completion: '+0.7%', response: '-8.2%', logins: '+2.6%' },
     trend: [
-      { label: '09时', calls: 2, results: 2 }, { label: '11时', calls: 2, results: 2 },
-      { label: '13时', calls: 3, results: 3 }, { label: '15时', calls: 3, results: 3 },
-      { label: '17时', calls: 2, results: 2 }, { label: '19时', calls: 3, results: 3 },
+      { label: '09时', calls: 2, results: 2, activeUsers: 6 }, { label: '11时', calls: 2, results: 2, activeUsers: 9 },
+      { label: '13时', calls: 3, results: 3, activeUsers: 12 }, { label: '15时', calls: 3, results: 3, activeUsers: 16 },
+      { label: '17时', calls: 2, results: 2, activeUsers: 20 }, { label: '19时', calls: 3, results: 3, activeUsers: 24 },
     ],
   },
   {
     id: 'year', name: '本年度', label: '2026年02月—08月', scale: 1, userScale: 1, activeDays: 8.6, dayCount: 205,
     comparisonLabel: '较上年同期', comparison: { calls: '+24.7%', completion: '+2.6%', response: '-11.3%', logins: '+17.8%' },
-    trend: [
-      { label: '02月', calls: 39, results: 38 }, { label: '03月', calls: 49, results: 47 },
-      { label: '04月', calls: 70, results: 67 }, { label: '05月', calls: 93, results: 90 },
-      { label: '06月', calls: 110, results: 106 }, { label: '07月', calls: 141, results: 136 },
-      { label: '08月', calls: 160, results: 154 },
-    ],
+    trend: cockpitYearTrend,
   },
   {
     id: 'quarter', name: '近 90 天', label: '2026年06月—08月', scale: 417 / 662, userScale: 0.79, activeDays: 4.8, dayCount: 90,
     comparisonLabel: '较上一季度', comparison: { calls: '+18.2%', completion: '+1.9%', response: '-9.4%', logins: '+12.1%' },
-    trend: [
-      { label: '06月', calls: 126, results: 122 }, { label: '07月', calls: 138, results: 133 }, { label: '08月', calls: 153, results: 149 },
-    ],
+    trend: cockpitQuarterTrend,
   },
   {
     id: 'month', name: '近 30 天', label: '2026年08月', scale: 160 / 662, userScale: 0.56, activeDays: 2.1, dayCount: 30,
     comparisonLabel: '较上月', comparison: { calls: '+12.6%', completion: '+1.4%', response: '-6.9%', logins: '+8.3%' },
-    trend: [
-      { label: '第 1 周', calls: 31, results: 30 }, { label: '第 2 周', calls: 37, results: 36 },
-      { label: '第 3 周', calls: 43, results: 41 }, { label: '第 4 周', calls: 49, results: 47 },
-    ],
-    activityTrend: [
-      { label: '01日', calls: 3, activeUsers: 19 }, { label: '02日', calls: 5, activeUsers: 20 },
-      { label: '03日', calls: 4, activeUsers: 20 }, { label: '04日', calls: 4, activeUsers: 21 },
-      { label: '05日', calls: 5, activeUsers: 22 }, { label: '06日', calls: 4, activeUsers: 21 },
-      { label: '07日', calls: 5, activeUsers: 23 }, { label: '08日', calls: 4, activeUsers: 22 },
-      { label: '09日', calls: 5, activeUsers: 23 }, { label: '10日', calls: 5, activeUsers: 24 },
-      { label: '11日', calls: 4, activeUsers: 23 }, { label: '12日', calls: 5, activeUsers: 25 },
-      { label: '13日', calls: 5, activeUsers: 24 }, { label: '14日', calls: 5, activeUsers: 26 },
-      { label: '15日', calls: 5, activeUsers: 25 }, { label: '16日', calls: 6, activeUsers: 27 },
-      { label: '17日', calls: 5, activeUsers: 26 }, { label: '18日', calls: 6, activeUsers: 28 },
-      { label: '19日', calls: 5, activeUsers: 27 }, { label: '20日', calls: 6, activeUsers: 28 },
-      { label: '21日', calls: 6, activeUsers: 29 }, { label: '22日', calls: 5, activeUsers: 28 },
-      { label: '23日', calls: 6, activeUsers: 30 }, { label: '24日', calls: 6, activeUsers: 29 },
-      { label: '25日', calls: 6, activeUsers: 31 }, { label: '26日', calls: 7, activeUsers: 32 },
-      { label: '27日', calls: 6, activeUsers: 30 }, { label: '28日', calls: 7, activeUsers: 33 },
-      { label: '29日', calls: 7, activeUsers: 34 }, { label: '30日', calls: 8, activeUsers: 35 },
-    ],
+    trend: cockpitMonthTrend,
   },
 ]
 
@@ -327,12 +343,12 @@ const cockpitComparisonScopeSeeds = [
 ]
 
 const cockpitComparisonScopeTargets = [
-  { calls: 156, acceptedTasks: 155, completedTasks: 154, activeUsers: 34, registeredUsers: 38 },
-  { calls: 132, acceptedTasks: 128, completedTasks: 118, activeUsers: 12, registeredUsers: 33 },
-  { calls: 112, acceptedTasks: 112, completedTasks: 110, activeUsers: 28, registeredUsers: 29 },
-  { calls: 104, acceptedTasks: 104, completedTasks: 101, activeUsers: 11, registeredUsers: 25 },
-  { calls: 85, acceptedTasks: 82, completedTasks: 81, activeUsers: 24, registeredUsers: 34 },
-  { calls: 73, acceptedTasks: 68, completedTasks: 65, activeUsers: 17, registeredUsers: 24 },
+  { calls: 156, startedTasks: 155, completedTasks: 154, activeUsers: 34, registeredUsers: 38 },
+  { calls: 132, startedTasks: 128, completedTasks: 118, activeUsers: 12, registeredUsers: 33 },
+  { calls: 112, startedTasks: 112, completedTasks: 110, activeUsers: 28, registeredUsers: 29 },
+  { calls: 104, startedTasks: 104, completedTasks: 101, activeUsers: 11, registeredUsers: 25 },
+  { calls: 85, startedTasks: 82, completedTasks: 81, activeUsers: 24, registeredUsers: 34 },
+  { calls: 73, startedTasks: 68, completedTasks: 65, activeUsers: 17, registeredUsers: 24 },
 ]
 
 function distributeCockpitComparisonTotal(total, weights) {
@@ -355,16 +371,16 @@ function buildCockpitComparisonScope(seed, scopeIndex) {
   const callWeights = seed.children.map(([, calls]) => calls)
   const registeredUserWeights = seed.children.map(([, , , , , registeredUsers]) => registeredUsers)
   const calls = distributeCockpitComparisonTotal(target.calls, callWeights)
-  const acceptedTasks = distributeCockpitComparisonTotal(target.acceptedTasks, callWeights)
-  const failedTasks = distributeCockpitComparisonTotal(target.acceptedTasks - target.completedTasks, callWeights)
+  const startedTasks = distributeCockpitComparisonTotal(target.startedTasks, callWeights)
+  const incompleteTasks = distributeCockpitComparisonTotal(target.startedTasks - target.completedTasks, callWeights)
   const registeredUsers = distributeCockpitComparisonTotal(target.registeredUsers, registeredUserWeights)
   const activeUsers = distributeCockpitComparisonTotal(target.activeUsers, registeredUserWeights)
   const children = seed.children.map(([name], index) => ({
     id: `${seed.id}-${String(index + 1).padStart(2, '0')}`,
     name,
     calls: calls[index],
-    acceptedTasks: acceptedTasks[index],
-    completedTasks: acceptedTasks[index] - failedTasks[index],
+    startedTasks: startedTasks[index],
+    completedTasks: startedTasks[index] - incompleteTasks[index],
     activeUsers: activeUsers[index],
     registeredUsers: registeredUsers[index],
     color: cockpitComparisonPalette[index],
@@ -376,7 +392,7 @@ function buildCockpitComparisonScope(seed, scopeIndex) {
     name: seed.name,
     color: cockpitComparisonPalette[scopeIndex],
     calls: total('calls'),
-    acceptedTasks: total('acceptedTasks'),
+    startedTasks: total('startedTasks'),
     completedTasks: total('completedTasks'),
     activeUsers: total('activeUsers'),
     registeredUsers: total('registeredUsers'),

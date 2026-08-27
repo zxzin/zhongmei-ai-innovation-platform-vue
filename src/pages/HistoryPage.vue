@@ -53,10 +53,16 @@ function taskDate(value) {
     <PageHeader title="历史记录" />
     <div class="filter-bar history-filters"><label class="search-field"><Search :size="18" /><input v-model="query" placeholder="搜索我的任务名称或智能应用" /></label><BaseSelect v-model="application" class="history-filter-application" :options="applicationOptions" prefix="名称" aria-label="筛选名称" /><DateRangeFilter v-model="dateRange" class="history-filter-range" prefix="时间" aria-label="按任务日期筛选" /><BaseSelect v-model="sort" class="history-filter-sort" :options="sortOptions" prefix="排序" aria-label="筛选排序" /></div>
     <div class="history-summary"><span>当前账号共 <b>{{ filtered.length }}</b> 条任务记录</span></div>
-    <div class="history-bulkbar"><label><input type="checkbox" :checked="allSelected" @change="toggleAll" />全选</label><span v-if="selected.length">已选择 {{ selected.length }} 条</span><button v-if="selected.length" class="button ghost" @click="deleteSelected"><Trash2 :size="16" />删除所选</button></div>
-    <div class="record-list enhanced-record-list">
-      <article v-for="record in filtered" :key="record.id" class="record-row" :style="recordAccent(record)"><label class="record-check"><input v-model="selected" type="checkbox" :value="record.id" /><span class="sr-only">选择 {{ record.title }}</span></label><button class="record-open" type="button" @click="openRecord(record)"><i><component :is="agentMap[record.agent].icon" :size="21" /></i><div class="record-main"><div class="record-meta"><span class="record-agent">{{ agentMap[record.agent].name }} Agent</span></div><h2>{{ record.title }}</h2></div><time class="record-date" :datetime="record.date.replace(' ', 'T')"><small>任务日期</small><b>{{ taskDate(record.date) }}</b></time><ArrowRight :size="19" /></button><button class="icon-button record-delete" aria-label="删除记录" @click="deleteRecord(record)"><Trash2 :size="17" /></button></article>
-      <div v-if="!filtered.length" class="empty-state"><Search :size="28" /><h2>没有匹配记录</h2><p>调整关键词或智能应用条件后重新查找。</p></div>
+    <div class="history-list-shell">
+      <div class="history-bulkbar">
+        <label class="history-select-all"><input type="checkbox" :checked="allSelected" @change="toggleAll" />全选</label>
+        <div v-if="selected.length" class="history-bulk-actions"><span>已选择 {{ selected.length }} 条</span><button class="button ghost" @click="deleteSelected"><Trash2 :size="16" />删除所选</button></div>
+        <div v-else class="history-column-headings" aria-hidden="true"><div class="history-column-main-headings"><span>Agent 名称</span><span>任务名称</span></div><span>任务日期</span></div>
+      </div>
+      <div class="record-list enhanced-record-list">
+        <article v-for="record in filtered" :key="record.id" class="record-row" :style="recordAccent(record)"><label class="record-check"><input v-model="selected" type="checkbox" :value="record.id" /><span class="sr-only">选择 {{ record.title }}</span></label><button class="record-open" type="button" @click="openRecord(record)"><i><component :is="agentMap[record.agent].icon" :size="21" /></i><div class="record-main"><div class="record-meta"><span class="record-agent">{{ agentMap[record.agent].name }} Agent</span></div><h2>{{ record.title }}</h2></div><time class="record-date" :datetime="record.date.replace(' ', 'T')"><b>{{ taskDate(record.date) }}</b></time><ArrowRight :size="19" /></button><button class="icon-button record-delete" aria-label="删除记录" @click="deleteRecord(record)"><Trash2 :size="17" /></button></article>
+        <div v-if="!filtered.length" class="empty-state"><Search :size="28" /><h2>没有匹配记录</h2><p>调整关键词或智能应用条件后重新查找。</p></div>
+      </div>
     </div>
   </section>
 </template>

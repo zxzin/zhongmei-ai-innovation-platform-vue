@@ -13,6 +13,7 @@ const props = defineProps({
   searchable: { type: Boolean, default: false },
   searchPlaceholder: { type: String, default: '搜索选项' },
   searchLabel: { type: String, default: '' },
+  menuClass: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -201,7 +202,7 @@ onBeforeUnmount(() => {
 
     <Teleport to="body" :disabled="!portalled">
       <Transition name="app-select-pop">
-        <div v-if="open" ref="menu" class="app-select-menu" :class="{ portalled, grouped: hasOptionGroups }" :style="portalled ? menuStyle : undefined">
+        <div v-if="open" ref="menu" class="app-select-menu" :class="[menuClass, { portalled, grouped: hasOptionGroups }]" :style="portalled ? menuStyle : undefined">
           <label v-if="searchable" class="app-select-search"><Search :size="15" aria-hidden="true" /><input ref="searchInput" v-model="searchQuery" type="search" :placeholder="searchPlaceholder" :aria-label="searchLabel || searchPlaceholder" @keydown="handleSearchKeydown" /></label>
           <div class="app-select-options" role="listbox" :aria-label="ariaLabel">
             <template v-for="(option, index) in visibleOptions" :key="`${option.kind}-${String(option.value)}-${index}`">
