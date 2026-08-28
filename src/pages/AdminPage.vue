@@ -536,7 +536,7 @@ function nextInnovationTemplateVersion() {
 function openTemplateCreator() {
   templateError.value = ''
   templateDraft.value = {
-    name: '创新性分析评价模板',
+    name: '',
     kind: 'scoring',
     scope: '创新性分析',
     version: nextInnovationTemplateVersion(),
@@ -548,14 +548,19 @@ function openTemplateCreator() {
 function closeTemplateCreator() { templateCreatorOpen.value = false; templateDraft.value = null; templateError.value = '' }
 function saveTemplate() {
   const draft = templateDraft.value
+  const name = String(draft?.name || '').trim()
   const weights = normalizeInnovationWeights(draft?.weights)
   const total = innovationWeightTotal(weights)
+  if (!name) {
+    templateError.value = '请输入版本名称'
+    return
+  }
   if (Math.abs(total - 100) > 0.001) {
-    templateError.value = `九项权重合计需为 100%，当前为 ${total}%`
+    templateError.value = `${innovationScoreItems.length} 项权重合计需为 100%，当前为 ${total}%`
     return
   }
   const saved = adminWorkspace.createTemplate({
-    name: '创新性分析评价模板',
+    name,
     kind: 'scoring',
     scope: '创新性分析',
     version: draft.version,
@@ -563,7 +568,7 @@ function saveTemplate() {
     weights,
     owner: auth.profile?.department || '科研管理部',
   })
-  closeTemplateCreator(); selectedTemplate.value = { ...saved }; ui.notify('创新性分析评价模板已创建', 'success')
+  closeTemplateCreator(); ui.notify(`“${saved.name}”已保存`, 'success')
 }
 function hydrateDepartmentTree(nodes, parentId = null, level = 0) {
   return nodes.map((node) => {
@@ -1065,14 +1070,14 @@ async function submitPasswordReset() {
 
         <template v-else-if="section === 'templates'">
           <header class="panel-heading template-page-heading">
-            <div><h2>创新性分析模板</h2><p>固定九项二级评分指标与四档赋分规则；管理员仅可通过调整权重创建新的评价模板。</p></div>
+            <div><h2>创新性分析模板</h2><p>固定 {{ innovationScoreItems.length }} 项二级评分指标与四档赋分规则；管理员可通过调整权重创建新的评价模板。</p></div>
             <button class="button primary" type="button" @click="openTemplateCreator"><Plus :size="17" />创建权重模板</button>
           </header>
           <section class="template-directory template-score-directory" aria-label="创新性分析评价模板目录">
             <header><div><h3>评价模板版本</h3><p>每个版本使用相同的评分项、档位和判定依据，仅权重配置不同。</p></div><span>{{ innovationTemplates.length }} 个版本</span></header>
             <div class="template-table-wrap">
-              <table class="template-table template-score-directory-table"><thead><tr><th>模板版本</th><th>评分范围</th><th>权重合计</th><th>维护部门</th><th>状态</th><th aria-label="查看详情" /></tr></thead><tbody>
-                <tr v-for="item in innovationTemplates" :key="item.id" class="template-row" tabindex="0" @click="selectedTemplate = { ...item }" @keydown.enter.prevent="selectedTemplate = { ...item }"><td><b>{{ item.version }}</b><small>创新性分析评价模板</small></td><td><span class="template-kind">九项二级指标</span></td><td><b class="template-total-weight">{{ templateWeightTotal(item) }}%</b></td><td>{{ item.owner }}</td><td><span class="status-chip" :class="item.status === '已发布' ? 'success' : 'warning'">{{ item.status }}</span></td><td><button class="table-row-action" type="button" :aria-label="`查看${item.version}模板详情`" @click.stop="selectedTemplate = { ...item }">查看规则<ChevronRight :size="16" /></button></td></tr>
+              <table class="template-table template-score-directory-table"><thead><tr><th>版本名称</th><th>评分范围</th><th>权重合计</th><th>维护部门</th><th>状态</th><th aria-label="查看详情" /></tr></thead><tbody>
+                <tr v-for="item in innovationTemplates" :key="item.id" class="template-row" tabindex="0" @click="selectedTemplate = { ...item }" @keydown.enter.prevent="selectedTemplate = { ...item }"><td><b :title="item.name">{{ item.name }}</b><small>{{ item.version }}</small></td><td><span class="template-kind">{{ innovationScoreItems.length }} 项二级指标</span></td><td><b class="template-total-weight">{{ templateWeightTotal(item) }}%</b></td><td>{{ item.owner }}</td><td><span class="status-chip" :class="item.status === '已发布' ? 'success' : 'warning'">{{ item.status }}</span></td><td><button class="table-row-action" type="button" :aria-label="`查看${item.name}详情`" @click.stop="selectedTemplate = { ...item }">查看规则<ChevronRight :size="16" /></button></td></tr>
               </tbody></table>
             </div>
           </section>
@@ -1095,12 +1100,19 @@ async function submitPasswordReset() {
             <div v-else class="empty-state knowledge-empty company-library-empty"><BookOpenText :size="30" /><h2>暂无可管理的资料库</h2><p>当前管理员仅能查看获授权范围内的公司资料库。</p></div>
           </section>
           <section v-else-if="activeCompanyLibrary" class="company-library-detail knowledge-detail-page" aria-labelledby="company-library-detail-title">
-            <button class="detail-back" type="button" @click="returnToCompanyLibraryDirectory"><ArrowLeft :size="18" />返回资料库目录</button>
+            <nav class="company-library-detail-nav" aria-label="公司资料库导航">
+              <button class="detail-back company-library-detail-back" type="button" @click="returnToCompanyLibraryDirectory"><ArrowLeft :size="15" />返回目录</button>
+            </nav>
             <article class="knowledge-detail-hero company-library-detail-hero">
-              <header><div><span class="company-library-detail-kicker">公司资料库</span><h2 id="company-library-detail-title">{{ activeCompanyLibrary.name }}</h2><p>{{ activeCompanyLibrary.description }}</p></div><button class="button secondary" type="button" @click="openCompanyLibraryEditor(activeCompanyLibrary)"><Pencil :size="16" />编辑资料库</button></header>
-              <div class="company-library-permission-summary"><div><small>可见范围</small><b>{{ companyLibraryVisibilityLabel(activeCompanyLibrary) }}</b></div><p>{{ companyLibraryVisibilityDescription(activeCompanyLibrary) }}</p></div>
+              <header>
+                <div class="company-library-detail-copy"><h2 id="company-library-detail-title">{{ activeCompanyLibrary.name }}</h2><p>{{ activeCompanyLibrary.description }}</p></div>
+                <div class="company-library-detail-meta">
+                  <span class="company-library-scope-chip" :title="companyLibraryVisibilityDescription(activeCompanyLibrary)" :aria-label="`可见范围：${companyLibraryVisibilityLabel(activeCompanyLibrary)}`">{{ companyLibraryVisibilityLabel(activeCompanyLibrary) }}</span>
+                  <button class="button secondary company-library-detail-edit" type="button" @click="openCompanyLibraryEditor(activeCompanyLibrary)"><Pencil :size="14" />编辑</button>
+                </div>
+              </header>
             </article>
-            <section class="knowledge-file-workspace company-library-file-workspace" aria-labelledby="company-library-files-title"><header><div><h2 id="company-library-files-title">资料文件</h2><p>文件列表与个人知识库采用相同管理方式。</p></div><label class="button primary upload-button"><Upload :size="17" />上传文件<input type="file" multiple @change="handleCompanyFileUpload" /></label></header><div class="library-file-toolbar"><label class="search-field"><Search :size="17" /><input v-model="companyFileQuery" placeholder="在当前资料库中搜索文件" /></label><BaseSelect v-model="companyFileSort" :options="['最近更新', '名称']" aria-label="公司资料库文件排序规则" /></div>
+            <section class="knowledge-file-workspace company-library-file-workspace" aria-labelledby="company-library-files-title"><header><div><h2 id="company-library-files-title">资料文件</h2></div></header><div class="library-file-toolbar company-library-file-toolbar"><label class="search-field"><Search :size="17" /><input v-model="companyFileQuery" placeholder="搜索文件" /></label><BaseSelect v-model="companyFileSort" :options="['最近更新', '名称']" aria-label="公司资料库文件排序规则" /><label class="button primary upload-button company-library-upload-button"><Upload :size="15" />上传文件<input type="file" multiple @change="handleCompanyFileUpload" /></label></div>
               <div v-if="visibleCompanyFiles.length" class="file-list file-list-v2 company-library-file-list"><article v-for="file in visibleCompanyFiles" :key="file.id"><span class="file-preview-trigger"><i><FileText :size="19" /></i><span><b>{{ file.name }}</b><small>{{ file.type }} · {{ file.size }} · {{ file.source }} · {{ file.status }} · 更新于 {{ companyDateText(file.updated) }}</small></span></span><div class="file-row-actions"><button class="text-action danger" type="button" @click="removeCompanyLibraryFile(file)"><Trash2 :size="15" />移除</button></div></article></div>
               <div v-else class="empty-state library-files-empty"><FileText :size="28" /><h2>当前资料库还没有文件</h2><p>上传资料后，会在这里统一展示来源、状态和更新时间。</p></div>
             </section>
@@ -1201,18 +1213,18 @@ async function submitPasswordReset() {
         <button class="button primary wide" type="submit">保存用户</button>
       </form>
     </BaseModal>
-    <BaseModal :open="Boolean(selectedTemplate)" :title="selectedTemplate ? `创新性分析评价模板 ${selectedTemplate.version}` : '模板规则'" width="1040px" @close="selectedTemplate = null">
+    <BaseModal :open="Boolean(selectedTemplate)" :title="selectedTemplate ? `${selectedTemplate.name} · ${selectedTemplate.version}` : '模板规则'" width="1040px" @close="selectedTemplate = null">
       <section v-if="selectedTemplate" class="template-detail template-scoring-detail">
-        <header class="template-detail-banner"><div><span class="template-kind">{{ templateType(selectedTemplate) }}</span><h3>创新性分析评价模板 {{ selectedTemplate.version }}</h3><p>九项二级指标各按 100 / 80 / 60 / 30 四档赋值后加权求和，形成 0–100 分评价结果。</p></div><span class="status-chip" :class="selectedTemplate.status === '已发布' ? 'success' : 'warning'">{{ selectedTemplate.status }}</span></header>
+        <header class="template-detail-banner"><div><span class="template-kind">{{ templateType(selectedTemplate) }}</span><h3>{{ selectedTemplate.name }}</h3><p>{{ innovationScoreItems.length }} 项二级指标各按 100 / 80 / 60 / 30 四档赋值后加权求和，形成 0–100 分评价结果。</p></div><span class="status-chip" :class="selectedTemplate.status === '已发布' ? 'success' : 'warning'">{{ selectedTemplate.status }}</span></header>
         <dl class="template-detail-meta"><div><dt>适用智能应用</dt><dd>创新性分析</dd></div><div><dt>维护部门</dt><dd>{{ selectedTemplate.owner }}</dd></div><div><dt>权重合计</dt><dd>{{ templateWeightTotal(selectedTemplate) }}%</dd></div></dl>
-        <section class="template-score-rule"><header><div><h3>固定评分项</h3><p>指标、评分档位及判定依据由平台统一维护；本模板仅记录各指标的权重配置。</p></div><span>{{ innovationScoreItems.length }} 项</span></header><div class="template-score-table-wrap"><table class="template-score-table"><thead><tr><th>一级维度</th><th>二级指标</th><th>权重</th><th>档位</th><th>判定依据</th></tr></thead><tbody v-for="dimension in templateDimensions(selectedTemplate)" :key="dimension.id"><tr v-for="(indicator, index) in dimension.indicators" :key="indicator.id"><th v-if="index === 0" :rowspan="dimension.indicators.length" scope="rowgroup"><span>{{ dimension.label }}</span><b>{{ dimension.weight }}%</b></th><td><b>{{ indicator.id }}</b>{{ indicator.label }}</td><td><strong>{{ templateWeights(selectedTemplate)[indicator.id] }}%</strong></td><td><span class="template-grade-band">{{ innovationGradeBands.join(' / ') }}</span></td><td>{{ indicator.basis }}</td></tr></tbody></table></div></section>
+        <section class="template-score-rule"><header><div><h3>固定评分项</h3><p>指标、评分档位及判定依据由平台统一维护；本模板仅记录各指标的权重配置。</p></div><span>{{ innovationScoreItems.length }} 项</span></header><div class="template-score-table-wrap"><table class="template-score-table"><colgroup><col class="template-dimension-column" /><col class="template-indicator-column" /><col class="template-weight-column" /><col class="template-band-column" /><col class="template-basis-column" /></colgroup><thead><tr><th>一级维度</th><th>二级指标</th><th>权重</th><th>档位</th><th>判定依据</th></tr></thead><tbody v-for="dimension in templateDimensions(selectedTemplate)" :key="dimension.id"><tr v-for="(indicator, index) in dimension.indicators" :key="indicator.id"><th v-if="index === 0" class="template-dimension-cell" :rowspan="dimension.indicators.length" scope="rowgroup"><span>{{ dimension.label }}</span><b>{{ dimension.weight }}%</b></th><td class="template-indicator-cell"><b>{{ indicator.id }}</b><span>{{ indicator.label }}</span></td><td class="template-weight-cell"><strong>{{ templateWeights(selectedTemplate)[indicator.id] }}%</strong></td><td class="template-band-cell"><span class="template-grade-band">{{ innovationGradeBands.join(' / ') }}</span></td><td class="template-basis-cell">{{ indicator.basis }}</td></tr></tbody></table></div></section>
       </section>
     </BaseModal>
     <BaseModal :open="templateCreatorOpen" title="创建创新性分析评价模板" width="780px" @close="closeTemplateCreator">
       <form v-if="templateDraft" class="modal-form template-create-form" @submit.prevent="saveTemplate">
-        <header class="template-create-summary"><div><span>固定评分规则</span><h3>创新性分析评价模板 {{ templateDraft.version }}</h3><p>名称、适用应用、评分项、档位与判定依据均不可修改；仅可配置九项权重。</p></div><b :class="{ invalid: Math.abs(templateDraftWeightTotal - 100) > 0.001 }"><small>权重合计</small>{{ templateDraftWeightTotal }}%</b></header>
-        <section class="template-weight-editor template-nine-weight-editor"><header><h3>配置指标权重</h3><span>合计必须为 100%</span></header><div class="template-weight-dimensions"><section v-for="dimension in innovationScoreDimensions" :key="dimension.id" class="template-weight-dimension"><header><b>{{ dimension.label }}</b><strong>{{ dimension.indicators.reduce((sum, indicator) => sum + Number(templateDraft.weights[indicator.id] || 0), 0) }}%</strong></header><label v-for="indicator in dimension.indicators" :key="indicator.id"><span><b>{{ indicator.id }} {{ indicator.label }}</b><small>{{ indicator.basis }}</small></span><input v-model.number="templateDraft.weights[indicator.id]" :aria-label="`${indicator.label}权重`" type="number" min="0" max="100" step="1" /></label></section></div></section>
-        <p v-if="templateError" class="form-error">{{ templateError }}</p><footer><button class="button secondary" type="button" @click="closeTemplateCreator">取消</button><button class="button primary" type="submit" :disabled="Math.abs(templateDraftWeightTotal - 100) > 0.001">创建模板</button></footer>
+        <section class="template-weight-editor"><header class="template-weight-heading"><h3>指标权重</h3><strong :class="{ invalid: Math.abs(templateDraftWeightTotal - 100) > 0.001 }"><small>合计</small>{{ templateDraftWeightTotal }}%</strong></header><div class="template-weight-list"><label v-for="indicator in innovationScoreItems" :key="indicator.id"><span><small>{{ indicator.dimensionLabel }}</small><b>{{ indicator.id }} {{ indicator.label }}</b></span><span class="template-weight-input"><input v-model.number="templateDraft.weights[indicator.id]" :aria-label="`${indicator.label}权重`" type="number" min="0" max="100" step="1" @input="templateError = ''" /><em>%</em></span></label></div></section>
+        <label class="template-version-name"><span>版本名称</span><input v-model.trim="templateDraft.name" required maxlength="32" placeholder="例如：重点技术评估版" @input="templateError = ''" /></label>
+        <p v-if="templateError" class="form-error">{{ templateError }}</p><footer><button class="button secondary" type="button" @click="closeTemplateCreator">取消</button><button class="button primary" type="submit" :disabled="Math.abs(templateDraftWeightTotal - 100) > 0.001 || !templateDraft.name.trim()">保存版本</button></footer>
       </form>
     </BaseModal>
     <BaseModal :open="Boolean(userImportPreview)" title="确认批量导入" width="900px" @close="userImportPreview = null">

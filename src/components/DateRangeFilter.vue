@@ -11,7 +11,10 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 const root = ref(null)
 const trigger = ref(null)
+const menu = ref(null)
 const open = ref(false)
+const portalled = ref(false)
+const menuStyle = ref({})
 const draftStart = ref('')
 const draftEnd = ref('')
 const selectedPreset = ref('')
@@ -77,11 +80,13 @@ function syncDraft() {
 function openMenu() {
   syncDraft()
   open.value = true
+  nextTick(updateMenuPosition)
 }
 
 function closeMenu(refocus = false) {
   open.value = false
   validationMessage.value = ''
+  menuStyle.value = {}
   if (refocus) nextTick(() => trigger.value?.focus())
 }
 
@@ -124,11 +129,44 @@ function clearRange() {
 }
 
 function onDocumentPointerdown(event) {
-  if (!root.value?.contains(event.target)) closeMenu()
+  if (!root.value?.contains(event.target) && !menu.value?.contains(event.target)) closeMenu()
 }
 
-onMounted(() => document.addEventListener('pointerdown', onDocumentPointerdown))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointerdown))
+function updateMenuPosition() {
+  if (!portalled.value || !open.value || !trigger.value || !menu.value) return
+
+  const triggerRect = trigger.value.getBoundingClientRect()
+  const viewportPadding = 16
+  const gap = 8
+  const menuWidth = Math.min(382, window.innerWidth - viewportPadding * 2)
+  const menuHeight = menu.value.scrollHeight
+  const spaceBelow = window.innerHeight - triggerRect.bottom - gap - viewportPadding
+  const spaceAbove = triggerRect.top - gap - viewportPadding
+  const openUpward = spaceBelow < Math.min(menuHeight, 240) && spaceAbove > spaceBelow
+  const availableHeight = Math.max(120, openUpward ? spaceAbove : spaceBelow)
+  const left = Math.min(Math.max(triggerRect.left, viewportPadding), window.innerWidth - menuWidth - viewportPadding)
+
+  menuStyle.value = {
+    width: `${menuWidth}px`,
+    maxHeight: `${availableHeight}px`,
+    left: `${left}px`,
+    top: openUpward ? 'auto' : `${triggerRect.bottom + gap}px`,
+    bottom: openUpward ? `${window.innerHeight - triggerRect.top + gap}px` : 'auto',
+  }
+}
+
+onMounted(() => {
+  portalled.value = true
+  document.addEventListener('pointerdown', onDocumentPointerdown)
+  window.addEventListener('resize', updateMenuPosition)
+  window.addEventListener('scroll', updateMenuPosition, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerdown)
+  window.removeEventListener('resize', updateMenuPosition)
+  window.removeEventListener('scroll', updateMenuPosition, true)
+})
 </script>
 
 <template>
@@ -146,40 +184,42 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
       <span class="date-range-trigger-icons"><CalendarDays :size="16" aria-hidden="true" /><ChevronDown :size="17" stroke-width="2.2" aria-hidden="true" /></span>
     </button>
 
-    <Transition name="date-range-pop">
-      <section v-if="open" class="date-range-menu" role="dialog" :aria-label="ariaLabel">
-        <header>
-          <div><b>时间范围</b><small>选择后点击确定生效</small></div>
-          <button type="button" class="date-range-clear" @click="clearRange"><RotateCcw :size="14" />清除</button>
-        </header>
+    <Teleport to="body" :disabled="!portalled">
+      <Transition name="date-range-pop">
+        <section v-if="open" ref="menu" class="date-range-menu" :class="{ portalled }" :style="portalled ? menuStyle : undefined" role="dialog" :aria-label="ariaLabel" @keydown.esc.prevent="closeMenu(true)">
+          <header>
+            <div><b>时间范围</b><small>选择后点击确定生效</small></div>
+            <button type="button" class="date-range-clear" @click="clearRange"><RotateCcw :size="14" />清除</button>
+          </header>
 
-        <div class="date-range-presets" aria-label="快捷日期范围">
-          <button
-            v-for="preset in quickRanges"
-            :key="preset.id"
-            type="button"
-            :class="{ selected: selectedPreset === preset.id }"
-            @click="choosePreset(preset.id)"
-          >
-            <Check v-if="selectedPreset === preset.id" :size="13" stroke-width="2.7" aria-hidden="true" />
-            <span>{{ preset.label }}</span>
-          </button>
-        </div>
+          <div class="date-range-presets" aria-label="快捷日期范围">
+            <button
+              v-for="preset in quickRanges"
+              :key="preset.id"
+              type="button"
+              :class="{ selected: selectedPreset === preset.id }"
+              @click="choosePreset(preset.id)"
+            >
+              <Check v-if="selectedPreset === preset.id" :size="13" stroke-width="2.7" aria-hidden="true" />
+              <span>{{ preset.label }}</span>
+            </button>
+          </div>
 
-        <div class="date-range-inputs">
-          <label><span>开始日期</span><input v-model="draftStart" type="date" :max="draftEnd || undefined" @input="onManualDateChange" /></label>
-          <i aria-hidden="true" />
-          <label><span>结束日期</span><input v-model="draftEnd" type="date" :min="draftStart || undefined" @input="onManualDateChange" /></label>
-        </div>
+          <div class="date-range-inputs">
+            <label><span>开始日期</span><input v-model="draftStart" type="date" :max="draftEnd || undefined" @input="onManualDateChange" /></label>
+            <i aria-hidden="true" />
+            <label><span>结束日期</span><input v-model="draftEnd" type="date" :min="draftStart || undefined" @input="onManualDateChange" /></label>
+          </div>
 
-        <p v-if="validationMessage" class="date-range-error" role="alert">{{ validationMessage }}</p>
+          <p v-if="validationMessage" class="date-range-error" role="alert">{{ validationMessage }}</p>
 
-        <footer>
-          <button type="button" class="date-range-cancel" @click="closeMenu(true)">取消</button>
-          <button type="button" class="date-range-confirm" @click="applyRange">确定</button>
-        </footer>
-      </section>
-    </Transition>
+          <footer>
+            <button type="button" class="date-range-cancel" @click="closeMenu(true)">取消</button>
+            <button type="button" class="date-range-confirm" @click="applyRange">确定</button>
+          </footer>
+        </section>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -197,6 +237,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 .date-range-filter.open .date-range-trigger-icons { color: var(--brand-strong); }
 .date-range-filter.open .date-range-trigger-icons svg:last-child { transform: rotate(180deg); }
 .date-range-menu { width: min(382px,calc(100vw - 32px)); position: absolute; z-index: 2; top: calc(100% + 8px); left: 0; display: grid; gap: 14px; padding: 15px; border: 1px solid #c9dce7; border-radius: 14px; background: rgba(255,255,255,.985); box-shadow: 0 18px 34px rgba(29,76,104,.16), 0 2px 5px rgba(29,76,104,.06); backdrop-filter: blur(14px); }
+.date-range-menu.portalled { position: fixed; z-index: 260; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .date-range-menu > header, .date-range-menu > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .date-range-menu > header > div { display: grid; gap: 3px; }
 .date-range-menu > header b { color: var(--ink); font-size: 13px; }

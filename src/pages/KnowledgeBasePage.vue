@@ -257,29 +257,37 @@ function openManageSearchResult(item) {
 
     <section v-else-if="workspace === 'create' && libraryForm" class="knowledge-composer" aria-labelledby="library-create-title"><button class="detail-back" type="button" @click="cancelLibraryForm"><ArrowLeft :size="18" />返回管理库</button><header><span>创建库</span><h2 id="library-create-title">先命名，再补充资料</h2><p>创建完成后直接进入库内文件页面，可继续上传和编辑文件。</p></header><form class="library-form-surface" @submit.prevent="saveLibrary"><label>知识库名称<input v-model="libraryForm.name" required maxlength="32" autofocus placeholder="例如：智能巡检机器人研究" /></label><label>简介<textarea v-model="libraryForm.description" maxlength="100" placeholder="说明资料范围和使用目的" /></label><footer><button class="button secondary" type="button" @click="cancelLibraryForm">取消</button><button class="button primary" type="submit"><Check :size="17" />创建并进入知识库</button></footer></form></section>
 
-    <section v-else-if="workspace === 'detail' && selectedLibrary" class="knowledge-detail-page" aria-labelledby="library-detail-title">
-      <button class="detail-back" type="button" @click="returnToManage"><ArrowLeft :size="18" />返回管理库</button>
-      <article class="knowledge-detail-hero">
-        <template v-if="libraryForm?.mode === 'edit'">
-          <form class="detail-library-form" @submit.prevent="saveLibrary">
-            <label>知识库名称<input v-model="libraryForm.name" required maxlength="32" autofocus /></label>
-            <label>简介<textarea v-model="libraryForm.description" maxlength="100" /></label>
-            <footer>
-              <button class="button secondary" type="button" @click="cancelLibraryForm">取消</button>
-              <button class="button primary" type="submit"><Check :size="17" />保存库信息</button>
-            </footer>
-          </form>
-        </template>
-        <template v-else>
-          <header>
-            <div>
-              <h2 id="library-detail-title">{{ selectedLibrary.name }}</h2>
-              <p>{{ selectedLibrary.description }}</p>
+    <section v-else-if="workspace === 'detail' && selectedLibrary" class="knowledge-detail-page" :aria-label="`${selectedLibrary.name}资料库详情`">
+      <section class="knowledge-detail-overview">
+        <header class="knowledge-detail-toolbar">
+          <button class="detail-back" type="button" aria-label="返回管理库" @click="returnToManage"><ArrowLeft :size="17" />管理库</button>
+          <button v-if="libraryForm?.mode !== 'edit'" class="knowledge-detail-edit" type="button" @click="startLibraryEdit"><Pencil :size="15" />编辑资料库</button>
+        </header>
+        <article class="knowledge-detail-hero">
+          <template v-if="libraryForm?.mode === 'edit'">
+            <form class="detail-library-form" @submit.prevent="saveLibrary">
+              <label>知识库名称<input v-model="libraryForm.name" required maxlength="32" autofocus /></label>
+              <label>简介<textarea v-model="libraryForm.description" maxlength="100" /></label>
+              <footer>
+                <button class="button secondary" type="button" @click="cancelLibraryForm">取消</button>
+                <button class="button primary" type="submit"><Check :size="17" />保存库信息</button>
+              </footer>
+            </form>
+          </template>
+          <template v-else>
+            <div class="knowledge-detail-summary">
+              <div class="knowledge-detail-copy">
+                <h2 id="library-detail-title">{{ selectedLibrary.name }}</h2>
+                <p>{{ selectedLibrary.description }}</p>
+              </div>
+              <dl class="knowledge-detail-meta" aria-label="知识库概况">
+                <div><dt>资料文件</dt><dd>{{ filesCount(selectedLibrary.id) }} 份</dd></div>
+                <div><dt>最近更新</dt><dd>{{ dateText(selectedLibrary.updated) }}</dd></div>
+              </dl>
             </div>
-            <button class="button secondary" type="button" @click="startLibraryEdit"><Pencil :size="16" />编辑</button>
-          </header>
-        </template>
-      </article>
+          </template>
+        </article>
+      </section>
       <section v-if="!libraryForm" class="knowledge-file-workspace"><header><h2>资料文件</h2><label class="button primary upload-button"><Upload :size="17" />上传文件<input type="file" multiple @change="handleFileUpload" /></label></header><div class="library-file-toolbar"><label class="search-field"><Search :size="17" /><input v-model="fileQuery" placeholder="在当前知识库中搜索文件" /></label><BaseSelect v-model="fileSort" :options="['最近更新', '名称']" aria-label="文件排序规则" /></div>
         <div v-if="visibleFiles.length" class="file-list file-list-v2"><article v-for="file in visibleFiles" :key="file.id"><button class="file-preview-trigger" type="button" :aria-label="`预览${file.name}`" @click="openFilePreview(file)"><i><FileText :size="19" /></i><span><b>{{ file.name }}</b><small>{{ file.type }} · {{ file.size }} · {{ file.source }} · 更新于 {{ dateText(file.updated) }}</small></span></button><div class="file-row-actions"><button class="text-action danger" type="button" @click="requestDeletion('archive-file', file)"><Trash2 :size="15" />删除</button></div></article></div>
         <div v-else class="empty-state library-files-empty"><FileText :size="28" /><h2>当前知识库还没有文件</h2><p>上传资料后，会在这里显示来源和更新时间。</p></div></section></section>

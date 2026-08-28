@@ -418,7 +418,8 @@ onBeforeUnmount(() => {
 .research-solutions{gap:24px}.research-solutions-intro{border:0;border-left:4px solid #2586c8;border-radius:0 10px 10px 0;background:#edf6fc;padding:20px 22px}.research-solutions-intro h3{margin:0 0 9px;color:#153a55;font-size:19px}.research-solutions-intro p{color:#506b80}.research-solutions-core{gap:14px}.research-solutions-core article{grid-template-columns:13px minmax(0,1fr);gap:12px;border-color:#d6e5ee;border-left:3px solid #2687c9;padding:20px 22px;box-shadow:0 7px 20px #24536f0a}.research-solutions-core article>span{color:#2387cb;line-height:1.7}.research-solutions-core h4{margin-bottom:9px;color:#125e91;font-size:17px}.research-solutions-core p{color:#506b80;line-height:1.85}.research-solutions-extension{display:grid;gap:9px;border:0;overflow:visible}.research-solutions-extension>h3{margin:2px 0 3px;border:0;padding:0;color:#173b55;font-size:17px}.research-solutions-extension details{border:1px solid #dce6ec;border-radius:9px;background:#fff}.research-solutions-extension summary{gap:16px;padding:15px 17px;color:#223d52;font-size:15px;list-style:none}.research-solutions-extension summary::-webkit-details-marker{display:none}.research-solutions-extension summary i{width:9px;height:9px;border-right:2px solid #2884ba;border-bottom:2px solid #2884ba;transition:transform .18s}.research-solutions-extension details[open] summary{background:#f0f7fb;color:#116a9d}
 .research-players-toolbar button span{font-size:16px}.research-report-section.players.is-editing .research-player-solution{background:#fff9e9;box-shadow:inset 0 0 0 1px #e3b86e}.research-report-section.players.is-editing [data-player-body]{padding:7px 9px;border-radius:6px;background:#fff;cursor:text}.research-report-section.players.is-editing [data-player-body]:focus{box-shadow:0 0 0 3px #f5e5c6}
 
-/* 中间流程的进度轨道按实际内容收口，避免最后一个步骤下方留下空白卡片。 */
+/* 中间流程在各尺寸下保留水平安全边距，进度轨道按实际内容收口。 */
+.research-clarify-layout{width:calc(100% - clamp(28px,4vw,48px));max-width:2200px;margin-inline:auto}
 .research-clarify{min-height:100dvh}.research-clarify-layout{align-items:start;min-height:0}.research-clarify:not(.research-clarify-detail):not(.research-outline-page) .research-clarify-layout,.research-clarify:not(.research-clarify-detail):not(.research-outline-page) .research-dialogue{min-height:100dvh}.research-progress{padding:28px 26px 24px}.research-progress article{min-height:0!important;margin-bottom:0!important;padding-bottom:22px}.research-progress article:last-child{padding-bottom:0}.research-progress h2{margin-bottom:8px}.research-progress-line{top:48px;bottom:42px}.research-outline-progress article{min-height:0!important;padding-bottom:22px}.research-outline-progress .outline-step{padding-bottom:24px}.research-progress.research-outline-progress{padding-bottom:8px}.research-progress.research-outline-progress .research-progress-line{bottom:27px}
 
 /* 保留补充输入，只移除其上方的“补充描述／补充提问”标题卡。 */
@@ -451,10 +452,11 @@ html:has(.research-launch),body:has(.research-launch),#app:has(.research-launch)
   .research-examples{grid-template-columns:84px minmax(0,1fr);margin-top:20px}
 
   .research-clarify-layout{
-    width:100%;
-    max-width:none;
-    grid-template-columns:minmax(0,1fr) clamp(380px,27vw,560px);
-    gap:clamp(24px,2vw,40px)
+    width:calc(100% - clamp(48px,4vw,80px));
+    max-width:2200px;
+    margin-inline:auto;
+    grid-template-columns:minmax(0,1fr) clamp(340px,24vw,480px);
+    gap:clamp(22px,1.6vw,36px)
   }
   .research-dialogue{padding-right:clamp(8px,1vw,20px)}
   .research-clarify-detail .research-dialogue,.research-outline-dialogue{padding-right:clamp(8px,1vw,20px)}
@@ -470,7 +472,6 @@ html:has(.research-launch),body:has(.research-launch),#app:has(.research-launch)
 
 @media (min-width:1800px){
   .research-launch-inner{width:min(1440px,100%)}
-  .research-clarify-layout{grid-template-columns:minmax(0,1fr) clamp(500px,27vw,600px)}
   .research-report-main{width:min(1700px,calc(100% - 180px))}
 }
 

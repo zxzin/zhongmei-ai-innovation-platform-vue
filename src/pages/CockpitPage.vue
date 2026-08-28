@@ -18,10 +18,8 @@ import {
 const ui = useUiStore()
 const activePeriod = ref('month')
 const activeScope = ref('group')
-const comparisonDimension = ref('group')
-const comparisonPeriod = ref('month')
 const comparisonHover = ref(null)
-const comparisonChartSvg = ref(null)
+const comparisonChartContainer = ref(null)
 const comparisonChartSize = ref({ width: 760, height: 244 })
 const callTrendChartContainer = ref(null)
 const callTrendChartSize = ref({ width: 620, height: 184 })
@@ -30,19 +28,6 @@ const activeUserTrendChartSize = ref({ width: 300, height: 184 })
 const isDataDefinitionOpen = ref(false)
 const dataDefinitionPanel = ref(null)
 const appTones = ['#52c9ef', '#66d6bf', '#8ba8ed', '#ddb46a', '#b99ae9', '#e78296']
-const comparisonTones = [
-  ...appTones,
-  '#78c9a1',
-  '#67bfc9',
-  '#76b4dc',
-  '#9199d4',
-  '#c392d1',
-  '#d58eaf',
-  '#dc927e',
-  '#d3a474',
-  '#b9bf75',
-  '#8abd82',
-]
 const cockpitAppOrder = ['技术问答', '语义检索', '技术预研报告', '创新性分析', '可行性分析', '技术交底书撰写']
 let comparisonChartObserver
 let lineChartObserver
@@ -51,16 +36,6 @@ const periodTabs = [
   { value: 'month', label: '月' },
   { value: 'quarter', label: '季度' },
   { value: 'year', label: '年' },
-]
-const comparisonDimensionOptions = [
-  { value: 'group', label: '全集团', detail: '全部公司' },
-  { value: 'secondary', label: '二级公司', detail: '6 家公司' },
-  { value: 'tertiary', label: '三级公司', detail: '10 家公司' },
-]
-const comparisonPeriodOptions = [
-  { value: 'month', label: '按月比', detail: '近 30 天' },
-  { value: 'quarter', label: '按季度比', detail: '近 90 天' },
-  { value: 'year', label: '按年比', detail: '本年度' },
 ]
 const dataDefinitionGroups = operationMetricDefinitionGroups
 
@@ -147,6 +122,15 @@ function selectPeriod(period) {
 const isCockpitFullscreen = computed(() => ui.cockpitFullscreen)
 const isFullscreenTransitioning = ref(false)
 
+function scheduleCockpitChartSizeSync() {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      syncComparisonChartSize()
+      syncLineChartSizes()
+    })
+  })
+}
+
 async function openDataDefinition() {
   isDataDefinitionOpen.value = true
   await nextTick()
@@ -185,6 +169,7 @@ async function toggleCockpitFullscreen() {
         }
       }
       ui.setCockpitFullscreen(true)
+      scheduleCockpitChartSizeSync()
       return
     }
 
@@ -196,6 +181,7 @@ async function toggleCockpitFullscreen() {
       }
     }
     ui.setCockpitFullscreen(false)
+    scheduleCockpitChartSizeSync()
   } finally {
     isFullscreenTransitioning.value = false
   }
@@ -203,12 +189,16 @@ async function toggleCockpitFullscreen() {
 
 function handleFullscreenChange() {
   ui.setCockpitFullscreen(document.fullscreenElement === document.documentElement)
+  scheduleCockpitChartSizeSync()
 }
 
 function syncComparisonChartSize() {
-  const rect = comparisonChartSvg.value?.getBoundingClientRect()
-  const width = Math.round(rect?.width || 0)
-  const height = Math.round(rect?.height || 0)
+  const container = comparisonChartContainer.value
+  const styles = container ? window.getComputedStyle(container) : null
+  const horizontalPadding = styles ? parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight) : 0
+  const verticalPadding = styles ? parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom) : 0
+  const width = Math.round((container?.clientWidth || 0) - horizontalPadding)
+  const height = Math.round((container?.clientHeight || 0) - verticalPadding)
 
   if (width < 260 || height < 120) return
   if (comparisonChartSize.value.width === width && comparisonChartSize.value.height === height) return
@@ -233,12 +223,13 @@ function syncLineChartSizes() {
 onMounted(() => {
   document.addEventListener('keydown', handleCockpitKeydown)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('resize', scheduleCockpitChartSizeSync)
   syncComparisonChartSize()
   syncLineChartSizes()
 
-  if (typeof ResizeObserver !== 'undefined' && comparisonChartSvg.value) {
+  if (typeof ResizeObserver !== 'undefined' && comparisonChartContainer.value) {
     comparisonChartObserver = new ResizeObserver(syncComparisonChartSize)
-    comparisonChartObserver.observe(comparisonChartSvg.value)
+    comparisonChartObserver.observe(comparisonChartContainer.value)
   }
 
   if (typeof ResizeObserver !== 'undefined') {
@@ -251,6 +242,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleCockpitKeydown)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  window.removeEventListener('resize', scheduleCockpitChartSizeSync)
   comparisonChartObserver?.disconnect()
   lineChartObserver?.disconnect()
   ui.setCockpitFullscreen(false)
@@ -415,15 +407,14 @@ const appCallTrendChart = computed(() => {
     { min: 0, max: axisMax },
   )
 })
-const selectedComparisonPeriod = computed(() => cockpitPeriods.find((period) => period.id === comparisonPeriod.value) || cockpitPeriods.find((period) => period.id === 'month'))
 const comparisonTertiarySources = computed(() => selectComparisonTertiarySources(cockpitComparisonScopes, 10))
 
 function makeComparisonUnit(unit) {
-  return buildComparisonMetricUnit(unit, selectedComparisonPeriod.value)
+  return buildComparisonMetricUnit(unit, selectedPeriod.value)
 }
 
 const comparisonUnits = computed(() => {
-  const secondaryUnits = cockpitComparisonScopes.map((scope, index) => makeComparisonUnit({
+  const secondaryUnits = cockpitComparisonScopes.map((scope) => makeComparisonUnit({
       id: scope.id,
       name: scope.name,
       level: '二级公司',
@@ -432,9 +423,8 @@ const comparisonUnits = computed(() => {
       completedTasks: scope.completedTasks,
       activeUsers: scope.activeUsers,
       registeredUsers: scope.registeredUsers,
-      tone: comparisonTones[index],
     }))
-  const tertiaryUnits = comparisonTertiarySources.value.map((child, index) => makeComparisonUnit({
+  const makeTertiaryUnit = (child) => makeComparisonUnit({
     id: child.id,
     name: child.name,
     level: '三级公司',
@@ -443,19 +433,27 @@ const comparisonUnits = computed(() => {
     completedTasks: child.completedTasks,
     activeUsers: child.activeUsers,
     registeredUsers: child.registeredUsers,
-    tone: comparisonTones[index + secondaryUnits.length],
-  }))
+  })
 
-  if (comparisonDimension.value === 'secondary') return secondaryUnits
-  if (comparisonDimension.value === 'tertiary') return tertiaryUnits
-  return [...secondaryUnits, ...tertiaryUnits]
+  if (activeScope.value === 'group') {
+    return [...secondaryUnits, ...comparisonTertiarySources.value.map(makeTertiaryUnit)]
+  }
+
+  const selectedName = selectedScope.value.name
+  if (activeScope.value.includes('__')) {
+    const selectedChild = cockpitComparisonScopes
+      .flatMap((scope) => scope.children)
+      .find((child) => child.name === selectedName)
+    return selectedChild ? [makeTertiaryUnit(selectedChild)] : []
+  }
+
+  const selectedBranch = cockpitComparisonScopes.find((scope) => scope.name === selectedName)
+  return selectedBranch ? selectedBranch.children.map(makeTertiaryUnit) : []
 })
 const comparisonUnitCount = computed(() => comparisonUnits.value.length)
 const comparisonIsDense = computed(() => comparisonUnitCount.value > 6)
-const comparisonTitle = computed(() => '各级单位使用对比')
-function selectComparisonFilter() {
-  comparisonHover.value = null
-}
+const comparisonTitle = computed(() => '各级单位活跃与调用对比')
+const comparisonScopeCaption = computed(() => `${selectedScope.value.name} · ${selectedPeriod.value.name}`)
 
 function niceAxisStep(value) {
   const safeValue = Math.max(value, .1)
@@ -465,339 +463,79 @@ function niceAxisStep(value) {
   return step * magnitude
 }
 
-function comparisonAxisRange(values, segments = 4, limits = {}) {
-  const minimum = Math.min(...values)
-  const maximum = Math.max(...values)
-  const paddingRatio = limits.paddingRatio ?? .12
-  const rawSpan = Math.max(maximum - minimum, Math.max(Math.abs(maximum), 1) * .08)
-  const paddedMinimum = minimum - rawSpan * paddingRatio
-  const paddedMaximum = maximum + rawSpan * paddingRatio
-  const step = niceAxisStep((paddedMaximum - paddedMinimum) / segments)
-  const calculatedMin = limits.dynamic ? paddedMinimum : Math.floor(paddedMinimum / step) * step
-  const calculatedMax = limits.dynamic ? paddedMaximum : Math.ceil(paddedMaximum / step) * step
-  const min = Number.isFinite(limits.floor) ? Math.max(limits.floor, calculatedMin) : calculatedMin
-  const max = Number.isFinite(limits.ceiling) ? Math.min(limits.ceiling, calculatedMax) : calculatedMax
+function comparisonLabelLines(name, charactersPerLine = 6) {
+  const characters = Array.from(name)
+  const lines = []
 
-  return { min, max: max > min ? max : min + step }
+  for (let index = 0; index < characters.length; index += charactersPerLine) {
+    lines.push(characters.slice(index, index + charactersPerLine).join(''))
+  }
+
+  return lines.length ? lines : ['']
 }
 
-function comparisonScalePower(values) {
-  const positiveValues = values.filter((value) => value > 0)
-  const minimum = Math.min(...positiveValues)
-  const maximum = Math.max(...positiveValues)
-  const ratio = maximum / Math.max(minimum, 1)
-
-  if (ratio >= 8) return .56
-  if (ratio >= 4) return .7
-  return 1
-}
-
-const comparisonPlot = computed(() => {
-  const width = Math.max(280, comparisonChartSize.value.width)
-  const height = Math.max(220, comparisonChartSize.value.height)
-  const isCompact = width < 540
+const comparisonBarChart = computed(() => {
   const units = comparisonUnits.value
-  const labelMaximum = clamp(width * (isCompact ? .46 : .3), 108, isCompact ? 176 : 206)
-  const frame = {
-    left: isCompact ? 42 : 52,
-    right: isCompact ? 18 : 28,
-    top: 18,
-    bottom: 38,
-  }
-  const innerWidth = Math.max(110, width - frame.left - frame.right)
-  const innerHeight = Math.max(106, height - frame.top - frame.bottom)
-  const companyCount = Math.max(units.length, 1)
-  const axisPadding = clamp(.07 + 1 / Math.sqrt(companyCount) * .2, .1, .16)
-  const callAxis = comparisonAxisRange(units.map((item) => item.calls), companyCount <= 6 ? 3 : 4, { floor: 0, paddingRatio: axisPadding, dynamic: true })
-  const completionAxis = comparisonAxisRange(units.map((item) => item.completionRate), companyCount <= 6 ? 3 : 4, { floor: 0, ceiling: 100, paddingRatio: axisPadding, dynamic: true })
-  const callScalePower = comparisonScalePower(units.map((item) => item.calls))
-  const xTicks = [0, .25, .5, .75, 1].map((ratio) => ({
-    value: Math.round(callAxis.min + (callAxis.max - callAxis.min) * ratio ** (1 / callScalePower)),
-    x: frame.left + innerWidth * ratio,
-  }))
-  const yTicks = [0, .25, .5, .75, 1].map((ratio) => ({
-    value: completionAxis.min + (completionAxis.max - completionAxis.min) * ratio,
-    y: height - frame.bottom - innerHeight * ratio,
-  }))
-  const availableAreaPerCompany = innerWidth * innerHeight / companyCount
-  const maxRadius = clamp(Math.sqrt(availableAreaPerCompany) * (isCompact ? .28 : .25), isCompact ? 14 : 18, isCompact ? 28 : 38)
-  const minRadius = maxRadius * (comparisonIsDense.value ? .48 : .44)
-  const minBubbleArea = minRadius ** 2
-  const maxBubbleArea = maxRadius ** 2
-  const bubbleGap = clamp(
-    Math.sqrt(availableAreaPerCompany) * (comparisonIsDense.value ? .135 : .1),
-    isCompact ? 10 : 12,
-    isCompact ? 19 : 26,
-  )
-  const bubbles = units.map((item) => ({
-    ...item,
-    targetX: frame.left + ((item.calls - callAxis.min) / Math.max(callAxis.max - callAxis.min, 1)) ** callScalePower * innerWidth,
-    targetY: height - frame.bottom - (item.completionRate - completionAxis.min) / Math.max(completionAxis.max - completionAxis.min, 1) * innerHeight,
-    radius: Math.sqrt(minBubbleArea + item.activeRate / 100 * (maxBubbleArea - minBubbleArea)),
-  }))
-  const minimumLabelFontSize = isCompact ? 7.4 : 8
-  const maximumLabelFontSize = isCompact ? 14.2 : 17.6
-  const radiusSpan = Math.max(maxRadius - minRadius, 1)
-  bubbles.forEach((bubble) => {
-    bubble.x = bubble.targetX
-    bubble.y = bubble.targetY
-    const radiusRatio = clamp((bubble.radius - minRadius) / radiusSpan, 0, 1)
-    const labelScale = radiusRatio ** .52
-    bubble.labelFontSize = Math.round((minimumLabelFontSize + labelScale * (maximumLabelFontSize - minimumLabelFontSize)) * 10) / 10
-  })
-  const labelWidths = new Map(bubbles.map((bubble) => [
-    bubble.id,
-    clamp(Array.from(bubble.name).length * bubble.labelFontSize + 8, 58, labelMaximum),
-  ]))
-
-  // Demo samples keep the metric direction while using a roomier collision layout for legible comparison.
-  const layoutIterations = comparisonIsDense.value ? 144 : 96
-  const targetAttraction = comparisonIsDense.value ? .014 : .026
-  const collisionStrength = comparisonIsDense.value ? .58 : .5
-  for (let iteration = 0; iteration < layoutIterations; iteration += 1) {
-    bubbles.forEach((bubble) => {
-      bubble.x += (bubble.targetX - bubble.x) * targetAttraction
-      bubble.y += (bubble.targetY - bubble.y) * targetAttraction
-    })
-
-    for (let firstIndex = 0; firstIndex < bubbles.length; firstIndex += 1) {
-      for (let secondIndex = firstIndex + 1; secondIndex < bubbles.length; secondIndex += 1) {
-        const first = bubbles[firstIndex]
-        const second = bubbles[secondIndex]
-        let deltaX = second.x - first.x
-        let deltaY = second.y - first.y
-        let distance = Math.hypot(deltaX, deltaY)
-        if (distance < .01) {
-          const angle = (firstIndex * 47 + secondIndex * 71) * Math.PI / 180
-          deltaX = Math.cos(angle)
-          deltaY = Math.sin(angle)
-          distance = 1
-        }
-        const minimumDistance = first.radius + second.radius + bubbleGap
-        if (distance >= minimumDistance) continue
-        const push = (minimumDistance - distance) * collisionStrength
-        first.x -= deltaX / distance * push
-        first.y -= deltaY / distance * push
-        second.x += deltaX / distance * push
-        second.y += deltaY / distance * push
-      }
-    }
-
-    bubbles.forEach((bubble) => {
-      bubble.x = clamp(bubble.x, frame.left + bubble.radius, width - frame.right - bubble.radius)
-      bubble.y = clamp(bubble.y, frame.top + bubble.radius, height - frame.bottom - bubble.radius)
-    })
-  }
-
-  const chartBounds = {
-    left: 3,
-    right: width - 3,
-    top: 3,
-    bottom: height - 22,
-  }
-  const overlaps = (first, second, gap = 3) => first.x < second.x + second.width + gap
-    && first.x + first.width + gap > second.x
-    && first.y < second.y + second.height + gap
-    && first.y + first.height + gap > second.y
-  const labelHeightFor = (bubble) => Math.ceil(bubble.labelFontSize + 6)
-  const labelRectFor = (bubble, side) => {
-    const labelWidth = labelWidths.get(bubble.id)
-    const labelHeight = labelHeightFor(bubble)
+  const visibleWidth = Math.max(320, comparisonChartSize.value.width)
+  const height = Math.max(230, comparisonChartSize.value.height)
+  const fitAllUnits = isCockpitFullscreen.value && units.length > 0
+  const frame = { left: 48, right: 48, top: 34, bottom: 56 }
+  const minimumBandWidth = units.length > 10 ? 46 : units.length > 6 ? 64 : 92
+  const contentMinimumWidth = frame.left + frame.right + Math.max(units.length, 1) * minimumBandWidth
+  const width = fitAllUnits ? visibleWidth : Math.max(visibleWidth, contentMinimumWidth)
+  const innerWidth = Math.max(180, width - frame.left - frame.right)
+  const groupWidth = innerWidth / Math.max(units.length, 1)
+  const labelCharactersPerLine = fitAllUnits && groupWidth < 40 ? 4 : fitAllUnits && groupWidth < 52 ? 5 : 6
+  frame.bottom = labelCharactersPerLine <= 4 ? 64 : 56
+  const innerHeight = Math.max(120, height - frame.top - frame.bottom)
+  const callMaximum = Math.max(...units.map((unit) => unit.calls), 1)
+  const callStep = niceAxisStep(callMaximum / 4)
+  const callAxisMaximum = Math.max(callStep * 4, Math.ceil(callMaximum / callStep) * callStep)
+  const barWidth = clamp(groupWidth * .24, fitAllUnits ? 5 : 8, 18)
+  const barGap = clamp(groupWidth * .08, fitAllUnits ? 2 : 3, 7)
+  const labelFontSize = fitAllUnits ? clamp(groupWidth * .15, 5.7, 7.2) : 7.5
+  const levelFontSize = fitAllUnits ? clamp(groupWidth * .13, 5.2, 6.3) : 6.5
+  const valueFontSize = fitAllUnits ? clamp(groupWidth * .15, 5.8, 7.2) : 7.5
+  const labelLineHeight = labelCharactersPerLine <= 4 ? 8 : 9
+  const baseline = height - frame.bottom
+  const callTicks = Array.from({ length: 5 }, (_, index) => {
+    const ratio = index / 4
     return {
-      x: side === 'right' ? bubble.x : bubble.x - labelWidth,
-      y: bubble.y - labelHeight / 2,
-      width: labelWidth,
-      height: labelHeight,
+      value: Math.round(callAxisMaximum * ratio),
+      y: baseline - innerHeight * ratio,
     }
-  }
-  const boundaryOverflow = (rect) => Math.max(0, chartBounds.left - rect.x)
-    + Math.max(0, rect.x + rect.width - chartBounds.right)
-    + Math.max(0, chartBounds.top - rect.y)
-    + Math.max(0, rect.y + rect.height - chartBounds.bottom)
-  const crowding = new Map(bubbles.map((bubble) => [
-    bubble.id,
-    bubbles.filter((item) => item.id !== bubble.id && Math.hypot(item.x - bubble.x, item.y - bubble.y) < 96).length,
-  ]))
-  const byY = [...bubbles].sort((first, second) => first.y - second.y || first.x - second.x)
-  const byX = [...bubbles].sort((first, second) => first.x - second.x || first.y - second.y)
-  const byCrowding = [...bubbles].sort((first, second) => crowding.get(second.id) - crowding.get(first.id) || first.y - second.y)
-  const orders = [byY, [...byY].reverse(), byX, [...byX].reverse(), byCrowding]
-  ;[byY, byX, byCrowding].forEach((ordered) => {
-    ordered.forEach((_, offset) => orders.push([...ordered.slice(offset), ...ordered.slice(0, offset)]))
   })
-
-  const selectLabelSides = () => orders.map((ordered) => {
-    const placed = []
-    const selections = new Map()
-    let labelCollisions = 0
-    let overlapArea = 0
-    let totalOverflow = 0
-    let preferenceCost = 0
-
-    ordered.forEach((bubble) => {
-      const preferredSide = bubble.x < frame.left + innerWidth / 2 ? 'right' : 'left'
-      const selected = ['left', 'right']
-        .map((side) => {
-          const rect = labelRectFor(bubble, side)
-          const collisions = placed.filter((item) => overlaps(rect, item.rect))
-          const candidateOverlapArea = collisions.reduce((sum, item) => {
-            const overlapWidth = Math.max(0, Math.min(rect.x + rect.width, item.rect.x + item.rect.width) - Math.max(rect.x, item.rect.x))
-            const overlapHeight = Math.max(0, Math.min(rect.y + rect.height, item.rect.y + item.rect.height) - Math.max(rect.y, item.rect.y))
-            return sum + overlapWidth * overlapHeight
-          }, 0)
-          const overflow = boundaryOverflow(rect)
-          const sideCost = side === preferredSide ? 0 : 1
-          return {
-            rect,
-            side,
-            collisions: collisions.length,
-            overlapArea: candidateOverlapArea,
-            overflow,
-            sideCost,
-            placementScore: overflow * 1000000 + collisions.length * 100000 + candidateOverlapArea * 100 + sideCost,
-          }
-        })
-        .sort((first, second) => first.placementScore - second.placementScore)[0]
-      placed.push({ id: bubble.id, rect: selected.rect })
-      selections.set(bubble.id, selected)
-      labelCollisions += selected.collisions
-      overlapArea += selected.overlapArea
-      totalOverflow += selected.overflow
-      preferenceCost += selected.sideCost
-    })
-
+  const activeTicks = Array.from({ length: 5 }, (_, index) => {
+    const ratio = index / 4
     return {
-      selections,
-      score: totalOverflow * 100000000 + labelCollisions * 10000000 + overlapArea * 100 + preferenceCost,
+      value: Math.round(100 * ratio),
+      y: baseline - innerHeight * ratio,
     }
-  }).sort((first, second) => first.score - second.score)[0].selections
-
-  // Labels stay fixed to their own bubble centre. When names compete for space,
-  // move the bubbles together with their labels instead of detaching the text.
-  let labelSides = selectLabelSides()
-  const labelLayoutIterations = comparisonIsDense.value ? 180 : 110
-  for (let iteration = 0; iteration < labelLayoutIterations; iteration += 1) {
-    if (iteration > 0 && iteration % 12 === 0) labelSides = selectLabelSides()
-
-    for (let firstIndex = 0; firstIndex < bubbles.length; firstIndex += 1) {
-      for (let secondIndex = firstIndex + 1; secondIndex < bubbles.length; secondIndex += 1) {
-        const first = bubbles[firstIndex]
-        const second = bubbles[secondIndex]
-        const firstRect = labelRectFor(first, labelSides.get(first.id).side)
-        const secondRect = labelRectFor(second, labelSides.get(second.id).side)
-        if (!overlaps(firstRect, secondRect)) continue
-
-        const requiredSeparation = Math.min(firstRect.y + firstRect.height, secondRect.y + secondRect.height)
-          - Math.max(firstRect.y, secondRect.y) + 3
-        const firstGoesUp = first.y < second.y || (Math.abs(first.y - second.y) < .1 && first.targetX < second.targetX)
-        const upper = firstGoesUp ? first : second
-        const lower = firstGoesUp ? second : first
-        const upperMinimum = Math.max(frame.top + upper.radius, chartBounds.top + labelHeightFor(upper) / 2)
-        const lowerMaximum = Math.min(height - frame.bottom - lower.radius, chartBounds.bottom - labelHeightFor(lower) / 2)
-        const upperRoom = Math.max(0, upper.y - upperMinimum)
-        const lowerRoom = Math.max(0, lowerMaximum - lower.y)
-        const upperPush = Math.min(requiredSeparation / 2, upperRoom)
-        const lowerPush = Math.min(requiredSeparation - upperPush, lowerRoom)
-        const remainingPush = Math.max(0, requiredSeparation - upperPush - lowerPush)
-
-        upper.y -= upperPush + Math.min(remainingPush, Math.max(0, upperRoom - upperPush))
-        lower.y += lowerPush + Math.min(remainingPush, Math.max(0, lowerRoom - lowerPush))
-      }
-    }
-
-    for (let firstIndex = 0; firstIndex < bubbles.length; firstIndex += 1) {
-      for (let secondIndex = firstIndex + 1; secondIndex < bubbles.length; secondIndex += 1) {
-        const first = bubbles[firstIndex]
-        const second = bubbles[secondIndex]
-        let deltaX = second.x - first.x
-        let deltaY = second.y - first.y
-        let distance = Math.hypot(deltaX, deltaY)
-        if (distance < .01) {
-          deltaX = firstIndex % 2 ? -1 : 1
-          deltaY = secondIndex % 2 ? -1 : 1
-          distance = Math.SQRT2
-        }
-        const minimumDistance = first.radius + second.radius + bubbleGap
-        if (distance >= minimumDistance) continue
-        const push = (minimumDistance - distance) * .42
-        first.x -= deltaX / distance * push
-        first.y -= deltaY / distance * push
-        second.x += deltaX / distance * push
-        second.y += deltaY / distance * push
-      }
-    }
-
-    bubbles.forEach((bubble) => {
-      const labelHalfHeight = labelHeightFor(bubble) / 2
-      bubble.x = clamp(bubble.x, frame.left + bubble.radius, width - frame.right - bubble.radius)
-      bubble.y = clamp(
-        bubble.y,
-        Math.max(frame.top + bubble.radius, chartBounds.top + labelHalfHeight),
-        Math.min(height - frame.bottom - bubble.radius, chartBounds.bottom - labelHalfHeight),
-      )
-    })
-  }
-
-  labelSides = selectLabelSides()
-  bubbles.forEach((bubble) => {
-    const side = labelSides.get(bubble.id).side
-    bubble.label = {
-      x: bubble.x,
-      y: bubble.y + bubble.labelFontSize * .34,
-      anchor: side === 'right' ? 'start' : 'end',
-      fontSize: bubble.labelFontSize,
+  })
+  const groups = units.map((unit, index) => {
+    const center = frame.left + groupWidth * (index + .5)
+    const callHeight = unit.calls / callAxisMaximum * innerHeight
+    const activeHeight = unit.activeRate / 100 * innerHeight
+    return {
+      ...unit,
+      center,
+      labelLines: comparisonLabelLines(unit.name, labelCharactersPerLine),
+      callBar: {
+        x: center - barGap / 2 - barWidth,
+        y: baseline - callHeight,
+        width: barWidth,
+        height: callHeight,
+      },
+      activeBar: {
+        x: center + barGap / 2,
+        y: baseline - activeHeight,
+        width: barWidth,
+        height: activeHeight,
+      },
     }
   })
 
-  return {
-    width,
-    height,
-    frame,
-    xTicks,
-    yTicks,
-    bubbles: bubbles
-      .sort((first, second) => Number(first.id === comparisonHover.value) - Number(second.id === comparisonHover.value)),
-  }
-})
-
-const comparisonTooltip = computed(() => {
-  const plot = comparisonPlot.value
-  const bubble = plot.bubbles.find((item) => item.id === comparisonHover.value)
-  if (!bubble) return null
-
-  const compact = plot.width < 540
-  const width = compact ? 174 : 214
-  const height = compact ? 72 : 60
-  const gap = 10
-  const edge = 6
-  const rightX = bubble.x + bubble.radius + gap
-  const leftX = bubble.x - bubble.radius - gap - width
-  const aboveY = bubble.y - bubble.radius - gap - height
-  const belowY = bubble.y + bubble.radius + gap
-  const preferredHorizontalSide = bubble.label?.anchor === 'start' ? 'left' : 'right'
-  const horizontalCandidates = preferredHorizontalSide === 'right'
-    ? [{ x: rightX, fits: rightX + width <= plot.width - edge }, { x: leftX, fits: leftX >= edge }]
-    : [{ x: leftX, fits: leftX >= edge }, { x: rightX, fits: rightX + width <= plot.width - edge }]
-  const horizontalPlacement = horizontalCandidates.find((candidate) => candidate.fits)
-  let x
-  let y
-
-  if (horizontalPlacement) {
-    x = horizontalPlacement.x
-    y = bubble.y - height / 2
-  } else {
-    x = bubble.x - width / 2
-    y = aboveY >= edge ? aboveY : belowY
-  }
-
-  return {
-    bubble,
-    compact,
-    width,
-    height,
-    x: clamp(x, edge, plot.width - width - edge),
-    y: clamp(y, edge, plot.height - height - edge),
-  }
+  return { width, height, frame, baseline, callTicks, activeTicks, groups, labelFontSize, levelFontSize, valueFontSize, labelLineHeight }
 })
 
 function setComparisonHover(id) {
@@ -808,77 +546,26 @@ function clearComparisonHover(id) {
   if (comparisonHover.value === id) comparisonHover.value = null
 }
 
-function sparklineGeometry(values, width = 112, height = 36, padding = 3) {
-  const safeValues = values.map((value) => Number(value)).filter(Number.isFinite)
-  const series = safeValues.length ? safeValues : [0]
-  const minimum = Math.min(...series)
-  const maximum = Math.max(...series)
-  const span = Math.max(maximum - minimum, Math.max(Math.abs(maximum), 1) * .08)
-  const plotWidth = width - padding * 2
-  const plotHeight = height - padding * 2
-  const points = series.map((value, index) => {
-    const x = series.length === 1 ? width / 2 : padding + index / (series.length - 1) * plotWidth
-    const y = padding + (1 - (value - minimum) / span) * plotHeight
-    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) }
-  })
-  const line = points.map((point, index) => `${index ? 'L' : 'M'}${point.x} ${point.y}`).join(' ')
-  const baseline = height - padding
-
-  return {
-    width,
-    height,
-    line,
-    area: `M${points[0].x} ${baseline} ${points.map((point) => `L${point.x} ${point.y}`).join(' ')} L${points.at(-1).x} ${baseline} Z`,
-  }
-}
-
-const overviewMetricTrends = computed(() => {
-  const calls = trendData.value.map((point) => point.calls)
-  const averageCalls = calls.reduce((sum, value) => sum + value, 0) / Math.max(calls.length, 1)
-  const lastIndex = Math.max(calls.length - 1, 1)
-  const completion = calls.map((value, index) => {
-    const demandShift = (value / Math.max(averageCalls, 1) - 1) * .8
-    const periodProgress = (index / lastIndex - .5) * 1.8
-    const naturalChange = Math.sin((index + 1) * .72 + .4) * .45
-    return clamp(completionRate.value + demandShift + periodProgress + naturalChange, 0, 100)
-  })
-  const rawResponse = calls.map((value, index) => {
-    const demandShift = (value / Math.max(averageCalls, 1) - 1) * .14
-    const periodProgress = (index / lastIndex - .5) * -.08
-    const naturalChange = Math.sin((index + 1) * .58 + 1.1) * .035
-    return Math.max(.1, selectedScope.value.firstResponseSeconds * (1 + demandShift + periodProgress + naturalChange))
-  })
-  const responseAverage = rawResponse.reduce((sum, value) => sum + value, 0) / Math.max(rawResponse.length, 1)
-  const response = rawResponse.map((value) => value / Math.max(responseAverage, .1) * selectedScope.value.firstResponseSeconds)
-  const perUserCalls = calls.map((value) => value / Math.max(registeredUsers.value, 1))
-
-  return { calls, completion, response, perUserCalls }
-})
-
 const metricCards = computed(() => [
   {
     id: 'calls', label: '调用总量', value: number(currentCalls.value), unit: '次',
     tone: '#52c9ef', icon: Activity,
     comparison: selectedPeriod.value.comparison.calls, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true,
-    sparkline: sparklineGeometry(overviewMetricTrends.value.calls),
   },
   {
     id: 'completion', label: '任务完成率', value: percent(completionRate.value), unit: '',
     tone: '#54d6ba', icon: FileText,
     comparison: selectedPeriod.value.comparison.completion, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true,
-    sparkline: sparklineGeometry(overviewMetricTrends.value.completion),
   },
   {
     id: 'response', label: '平均首次响应', value: selectedScope.value.firstResponseSeconds.toFixed(1), unit: '秒',
     tone: '#e5b867', icon: Clock3,
     comparison: selectedPeriod.value.comparison.response, comparisonLabel: selectedPeriod.value.comparisonLabel, improved: true, lowerIsBetter: true,
-    sparkline: sparklineGeometry(overviewMetricTrends.value.response),
   },
   {
     id: 'per-user-calls', label: '用户均调用频次', value: perUserCallFrequency.value === null ? '—' : perUserCallFrequency.value.toFixed(1), unit: '次 / 人',
     tone: '#b99ae9', icon: UsersRound,
     context: `${number(currentCalls.value)} 次 ÷ ${number(registeredUsers.value)} 人`,
-    sparkline: sparklineGeometry(overviewMetricTrends.value.perUserCalls),
   },
 ])
 </script>
@@ -917,10 +604,6 @@ const metricCards = computed(() => [
           <article v-for="card in metricCards" :key="card.id" class="cockpit-kpi-card" :style="{ '--metric-tone': card.tone }">
             <header><span>{{ card.label }}</span><component :is="card.icon" :size="17" /></header>
             <b>{{ card.value }}<small>{{ card.unit }}</small></b>
-            <svg class="cockpit-kpi-sparkline" :viewBox="`0 0 ${card.sparkline.width} ${card.sparkline.height}`" preserveAspectRatio="none" role="img" :aria-label="`${card.label}${selectedPeriod.name}变化趋势`">
-              <path class="cockpit-kpi-sparkline-area" :d="card.sparkline.area" />
-              <path class="cockpit-kpi-sparkline-line" :d="card.sparkline.line" />
-            </svg>
             <p v-if="card.comparison" class="cockpit-kpi-comparison" :aria-label="`${card.label}${card.comparisonLabel}变化${card.comparison}`">
               <small>{{ card.comparisonLabel }}</small>
               <strong><ArrowDownRight v-if="card.lowerIsBetter" :size="13" /><ArrowUpRight v-else :size="13" />{{ card.comparison }}</strong>
@@ -989,93 +672,64 @@ const metricCards = computed(() => [
           <div class="cockpit-comparison-heading-copy">
             <h2><span>02 /</span> {{ comparisonTitle }}</h2>
           </div>
-          <div class="cockpit-comparison-controls">
-            <BaseSelect v-model="comparisonDimension" class="cockpit-comparison-dimension-select" :options="comparisonDimensionOptions" aria-label="选择比较维度" tone="dark" size="sm" menu-class="cockpit-comparison-select-menu" @change="selectComparisonFilter" />
-            <BaseSelect v-model="comparisonPeriod" class="cockpit-comparison-period-select" :options="comparisonPeriodOptions" aria-label="选择比较时间范围" tone="dark" size="sm" menu-class="cockpit-comparison-select-menu" @change="selectComparisonFilter" />
-          </div>
+          <p class="cockpit-comparison-scope">{{ comparisonScopeCaption }} · 跟随全局范围</p>
         </header>
         <div class="cockpit-comparison-content">
           <div class="cockpit-comparison-legend" aria-label="图表统计口径">
             <div class="cockpit-comparison-encoding">
-              <span><i class="axis-x" /><b>横轴</b>智能应用调用量 <em>越右越高</em></span>
-              <span><i class="axis-y" /><b>纵轴</b>任务完成率 <em>越上越高</em></span>
-              <span><i class="axis-size" /><b>大小</b>活跃用户占比 <em>越大越高</em></span>
-              <span><i class="axis-color" /><b>颜色</b>不同单位</span>
+              <span><i class="metric-calls" /><b>Agent 调用量</b><em>左轴 · 次</em></span>
+              <span><i class="metric-active" /><b>用户活跃度</b><em>右轴 · %</em></span>
             </div>
           </div>
-          <div class="cockpit-comparison-chart">
-            <svg ref="comparisonChartSvg" :viewBox="`0 0 ${comparisonPlot.width} ${comparisonPlot.height}`" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="`${comparisonTitle}。横轴为智能应用调用量，纵轴为任务完成率，气泡面积为活跃用户占比，颜色区分单位。`">
+          <div ref="comparisonChartContainer" class="cockpit-comparison-chart">
+            <svg
+              :style="{
+                minWidth: `${comparisonBarChart.width}px`,
+                '--comparison-label-size': `${comparisonBarChart.labelFontSize}px`,
+                '--comparison-level-size': `${comparisonBarChart.levelFontSize}px`,
+                '--comparison-value-size': `${comparisonBarChart.valueFontSize}px`,
+              }"
+              :viewBox="`0 0 ${comparisonBarChart.width} ${comparisonBarChart.height}`"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              :aria-label="`${comparisonTitle}。红色柱表示 Agent 调用量，紫色柱表示用户活跃度；统计范围为${comparisonScopeCaption}。`"
+            >
               <g class="cockpit-comparison-grid">
-                <line v-for="tick in comparisonPlot.yTicks" :key="`y-grid-${tick.value}`" :x1="comparisonPlot.frame.left" :x2="comparisonPlot.width - comparisonPlot.frame.right" :y1="tick.y" :y2="tick.y" />
-                <line v-for="tick in comparisonPlot.xTicks" :key="`x-grid-${tick.value}`" :x1="tick.x" :x2="tick.x" :y1="comparisonPlot.frame.top" :y2="comparisonPlot.height - comparisonPlot.frame.bottom" />
+                <line v-for="tick in comparisonBarChart.callTicks" :key="`grid-${tick.value}`" :x1="comparisonBarChart.frame.left" :x2="comparisonBarChart.width - comparisonBarChart.frame.right" :y1="tick.y" :y2="tick.y" />
               </g>
-              <line class="cockpit-comparison-axis" :x1="comparisonPlot.frame.left" :x2="comparisonPlot.width - comparisonPlot.frame.right" :y1="comparisonPlot.height - comparisonPlot.frame.bottom" :y2="comparisonPlot.height - comparisonPlot.frame.bottom" />
-              <line class="cockpit-comparison-axis" :x1="comparisonPlot.frame.left" :x2="comparisonPlot.frame.left" :y1="comparisonPlot.frame.top" :y2="comparisonPlot.height - comparisonPlot.frame.bottom" />
-              <g class="cockpit-comparison-ticks">
-                <text v-for="tick in comparisonPlot.xTicks" :key="`x-tick-${tick.value}`" :x="tick.x" :y="comparisonPlot.height - 13" text-anchor="middle">{{ number(tick.value) }}</text>
-                <text v-for="tick in comparisonPlot.yTicks" :key="`y-tick-${tick.value}`" :x="comparisonPlot.frame.left - 7" :y="tick.y + 3" text-anchor="end">{{ percent(tick.value) }}</text>
+              <line class="cockpit-comparison-axis" :x1="comparisonBarChart.frame.left" :x2="comparisonBarChart.width - comparisonBarChart.frame.right" :y1="comparisonBarChart.baseline" :y2="comparisonBarChart.baseline" />
+              <g class="cockpit-comparison-ticks cockpit-comparison-call-axis">
+                <text v-for="tick in comparisonBarChart.callTicks" :key="`call-${tick.value}`" :x="comparisonBarChart.frame.left - 8" :y="tick.y + 3" text-anchor="end">{{ number(tick.value) }}</text>
               </g>
-              <text
-                class="cockpit-comparison-axis-title y-axis"
-                :x="-((comparisonPlot.frame.top + comparisonPlot.height - comparisonPlot.frame.bottom) / 2)"
-                y="10"
-                text-anchor="middle"
-                transform="rotate(-90)"
-              >任务完成率（%）↑</text>
-              <text class="cockpit-comparison-axis-title x-axis" :x="comparisonPlot.width - comparisonPlot.frame.right" :y="comparisonPlot.height - 3" text-anchor="end">智能应用调用量（次）→</text>
-              <g class="cockpit-comparison-bubble-layer">
+              <g class="cockpit-comparison-ticks cockpit-comparison-active-axis">
+                <text v-for="tick in comparisonBarChart.activeTicks" :key="`active-${tick.value}`" :x="comparisonBarChart.width - comparisonBarChart.frame.right + 8" :y="tick.y + 3" text-anchor="start">{{ tick.value }}%</text>
+              </g>
+              <text class="cockpit-comparison-axis-title calls-axis" x="7" y="13">Agent 调用量（次）</text>
+              <text class="cockpit-comparison-axis-title active-axis" :x="comparisonBarChart.width - 7" y="13" text-anchor="end">用户活跃度（%）</text>
+              <g class="cockpit-comparison-bar-layer">
                 <g
-                  v-for="bubble in comparisonPlot.bubbles"
-                  :key="`bubble-${bubble.id}`"
-                  class="cockpit-comparison-bubble"
-                  :class="{ hovered: comparisonHover === bubble.id }"
-                  :data-bubble-id="bubble.id"
-                  :style="{ '--bubble-tone': bubble.tone, '--bubble-label-size': `${bubble.label?.fontSize || 8.4}px` }"
+                  v-for="group in comparisonBarChart.groups"
+                  :key="group.id"
+                  class="cockpit-comparison-bar-group"
+                  :class="{ hovered: comparisonHover === group.id }"
                   role="img"
                   tabindex="0"
-                  :aria-label="`${bubble.name}，${bubble.level}；智能应用调用量 ${number(bubble.calls)} 次，任务完成率 ${percent(bubble.completionRate)}，活跃用户占比 ${percent(bubble.activeRate)}。`"
-                  @mouseenter="setComparisonHover(bubble.id)"
-                  @mouseleave="clearComparisonHover(bubble.id)"
-                  @focus="setComparisonHover(bubble.id)"
-                  @blur="clearComparisonHover(bubble.id)"
+                  :aria-label="`${group.name}，${group.level}；Agent 调用量 ${number(group.calls)} 次，用户活跃度 ${percent(group.activeRate)}。`"
+                  @mouseenter="setComparisonHover(group.id)"
+                  @mouseleave="clearComparisonHover(group.id)"
+                  @focus="setComparisonHover(group.id)"
+                  @blur="clearComparisonHover(group.id)"
                 >
-                  <circle class="cockpit-comparison-bubble-point" :cx="bubble.x" :cy="bubble.y" :r="bubble.radius" />
+                  <title>{{ group.name }}：Agent 调用量 {{ number(group.calls) }} 次，用户活跃度 {{ percent(group.activeRate) }}</title>
+                  <rect class="cockpit-comparison-bar calls" :x="group.callBar.x" :y="group.callBar.y" :width="group.callBar.width" :height="group.callBar.height" rx="3" />
+                  <rect class="cockpit-comparison-bar active" :x="group.activeBar.x" :y="group.activeBar.y" :width="group.activeBar.width" :height="group.activeBar.height" rx="3" />
+                  <text class="cockpit-comparison-bar-value calls" :x="group.callBar.x + group.callBar.width / 2" :y="Math.max(25, group.callBar.y - 5)" text-anchor="middle">{{ number(group.calls) }}</text>
+                  <text class="cockpit-comparison-bar-value active" :x="group.activeBar.x + group.activeBar.width / 2" :y="Math.max(25, group.activeBar.y - 5)" text-anchor="middle">{{ percent(group.activeRate) }}</text>
+                  <text class="cockpit-comparison-bar-label" :x="group.center" :y="comparisonBarChart.baseline + 17" text-anchor="middle">
+                    <tspan v-for="(line, lineIndex) in group.labelLines" :key="`${line}-${lineIndex}`" :x="group.center" :dy="lineIndex ? comparisonBarChart.labelLineHeight : 0">{{ line }}</tspan>
+                    <tspan :x="group.center" :dy="comparisonBarChart.labelLineHeight" class="level">{{ group.level }}</tspan>
+                  </text>
                 </g>
-              </g>
-              <g class="cockpit-comparison-label-layer" aria-hidden="true">
-                <g
-                  v-for="bubble in comparisonPlot.bubbles"
-                  v-show="bubble.label"
-                  :key="`label-${bubble.id}`"
-                  class="cockpit-comparison-bubble-label"
-                  :class="{ hovered: comparisonHover === bubble.id }"
-                  :data-label-for="bubble.id"
-                  :style="{ '--bubble-tone': bubble.tone }"
-                >
-                  <text :x="bubble.label?.x" :y="bubble.label?.y" :text-anchor="bubble.label?.anchor">{{ bubble.name }}</text>
-                </g>
-              </g>
-              <g
-                v-if="comparisonTooltip"
-                class="cockpit-comparison-tooltip"
-                :style="{ '--bubble-tone': comparisonTooltip.bubble.tone }"
-                :transform="`translate(${comparisonTooltip.x} ${comparisonTooltip.y})`"
-                aria-hidden="true"
-              >
-                <rect class="cockpit-comparison-tooltip-card" :width="comparisonTooltip.width" :height="comparisonTooltip.height" rx="8" />
-                <rect class="cockpit-comparison-tooltip-accent" width="3" :height="comparisonTooltip.height - 14" x="7" y="7" rx="1.5" />
-                <text class="cockpit-comparison-tooltip-name" x="17" y="18">{{ comparisonTooltip.bubble.name }}</text>
-                <line class="cockpit-comparison-tooltip-divider" x1="17" :x2="comparisonTooltip.width - 10" y1="27" y2="27" />
-                <template v-if="comparisonTooltip.compact">
-                  <text class="cockpit-comparison-tooltip-metric" x="17" y="44">调用量 <tspan>{{ number(comparisonTooltip.bubble.calls) }} 次</tspan></text>
-                  <text class="cockpit-comparison-tooltip-metric" x="17" y="62">完成率 <tspan>{{ percent(comparisonTooltip.bubble.completionRate) }}</tspan></text>
-                  <text class="cockpit-comparison-tooltip-metric" x="102" y="62">活跃 <tspan>{{ percent(comparisonTooltip.bubble.activeRate) }}</tspan></text>
-                </template>
-                <template v-else>
-                  <text class="cockpit-comparison-tooltip-metric" x="17" y="47">调用 <tspan>{{ number(comparisonTooltip.bubble.calls) }} 次</tspan></text>
-                  <text class="cockpit-comparison-tooltip-metric" x="82" y="47">完成率 <tspan>{{ percent(comparisonTooltip.bubble.completionRate) }}</tspan></text>
-                  <text class="cockpit-comparison-tooltip-metric" x="160" y="47">活跃 <tspan>{{ percent(comparisonTooltip.bubble.activeRate) }}</tspan></text>
-                </template>
               </g>
             </svg>
           </div>
