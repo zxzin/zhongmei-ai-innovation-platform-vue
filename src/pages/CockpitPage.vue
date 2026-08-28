@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Activity, ArrowDownRight, ArrowUpRight, Clock3, FileText, Info, Maximize2, Minimize2, UsersRound, X } from '@lucide/vue'
+import { Activity, ArrowDownRight, ArrowUpRight, Clock3, FileText, Maximize2, Minimize2, UsersRound, X } from '@lucide/vue'
 import BaseSelect from '../components/BaseSelect.vue'
 import { useUiStore } from '../stores/ui.js'
 import { agentUsage } from '../data/demo.js'
@@ -25,7 +25,7 @@ const callTrendChartContainer = ref(null)
 const callTrendChartSize = ref({ width: 620, height: 184 })
 const activeUserTrendChartContainer = ref(null)
 const activeUserTrendChartSize = ref({ width: 300, height: 184 })
-const isDataDefinitionOpen = ref(false)
+const activeDefinitionId = ref(null)
 const dataDefinitionPanel = ref(null)
 const appTones = ['#52c9ef', '#66d6bf', '#8ba8ed', '#ddb46a', '#b99ae9', '#e78296']
 const cockpitAppOrder = ['技术问答', '语义检索', '技术预研报告', '创新性分析', '可行性分析', '技术交底书撰写']
@@ -37,7 +37,26 @@ const periodTabs = [
   { value: 'quarter', label: '季度' },
   { value: 'year', label: '年' },
 ]
-const dataDefinitionGroups = operationMetricDefinitionGroups
+const metricDefinitionItems = operationMetricDefinitionGroups.flatMap((group) => group.items)
+const metricDefinitionCatalog = {
+  calls: { title: '调用总量', labels: ['调用总量'] },
+  completion: { title: '任务完成率', labels: ['任务完成率'] },
+  response: { title: '平均首次响应', labels: ['平均首次响应'] },
+  'per-user-calls': { title: '用户均调用频次', labels: ['用户均调用频次'] },
+  'call-trend': { title: '调用次数趋势', labels: ['调用次数趋势'] },
+  'call-success': { title: '调用成功率', labels: ['调用成功率', '成功调用数', '未成功调用数'] },
+  'active-users': { title: '活跃用户数趋势', labels: ['活跃用户数', '活跃用户趋势'] },
+  comparison: { title: '各级单位活跃与调用对比', labels: ['单位调用量', '单位用户活跃度', '各级单位使用对比'] },
+  performance: { title: '智能应用运行与使用', labels: ['单应用调用量', '单应用任务完成率', '单应用平均首次响应', '单应用调用成功率', '运行状态与处理中任务'] },
+}
+const activeMetricDefinition = computed(() => {
+  const definition = metricDefinitionCatalog[activeDefinitionId.value]
+  if (!definition) return null
+  return {
+    ...definition,
+    items: definition.labels.map((label) => metricDefinitionItems.find((item) => item.label === label)).filter(Boolean),
+  }
+})
 
 const cockpitScopeOptions = computed(() => cockpitScopes.flatMap((scope) => [
   {
@@ -131,19 +150,19 @@ function scheduleCockpitChartSizeSync() {
   })
 }
 
-async function openDataDefinition() {
-  isDataDefinitionOpen.value = true
+async function openMetricDefinition(id) {
+  activeDefinitionId.value = id
   await nextTick()
   dataDefinitionPanel.value?.focus()
 }
 
-function closeDataDefinition() {
-  isDataDefinitionOpen.value = false
+function closeMetricDefinition() {
+  activeDefinitionId.value = null
 }
 
 function handleCockpitKeydown(event) {
-  if (event.key === 'Escape' && isDataDefinitionOpen.value) {
-    closeDataDefinition()
+  if (event.key === 'Escape' && activeMetricDefinition.value) {
+    closeMetricDefinition()
     return
   }
 
@@ -304,6 +323,16 @@ function trendAxisLabels(items) {
   }))
 }
 
+function trendDisplayBuckets(length, period) {
+  if (period === 'month') {
+    return Array.from({ length: Math.ceil(length / 5) }, (_, index) => ({
+      start: index * 5,
+      end: Math.min(length, (index + 1) * 5),
+    }))
+  }
+  return Array.from({ length }, (_, index) => ({ start: index, end: index + 1 }))
+}
+
 const activeUserTrend = computed(() => {
   const source = selectedPeriod.value.trend
   const scopeRatio = selectedScope.value.activeUsers / Math.max(groupScope.value.activeUsers, 1)
@@ -336,8 +365,8 @@ const activeUserTrendChart = computed(() => {
 const activeUserTrendCaption = computed(() => ({
   day: '分时有效用户趋势',
   month: '每日有效用户趋势',
-  quarter: '每周有效用户趋势',
-  year: '半月有效用户趋势',
+  quarter: '半月有效用户趋势',
+  year: '每月有效用户趋势',
 }[activePeriod.value]))
 
 const scopeProfileKey = computed(() => activeScope.value.split('__')[0])
@@ -368,27 +397,31 @@ const appRows = computed(() => {
 const onlineAppCount = computed(() => appRows.value.filter((app) => app.online).length)
 const maxAppCalls = computed(() => Math.max(...appRows.value.map((app) => app.calls), 1))
 const maxAppResponse = computed(() => Math.max(...appRows.value.map((app) => app.firstResponseSeconds), 1))
+const appTrendBuckets = computed(() => trendDisplayBuckets(trendData.value.length, activePeriod.value))
 const appTrendRows = computed(() => {
   const apps = appRows.value
   const periodWeights = trendData.value.map((point) => point.calls)
 
-  return apps.map((app, appIndex) => ({
-    ...app,
-    values: distributeMetricTotal(app.calls, periodWeights.map((weight, pointIndex) => {
+  return apps.map((app, appIndex) => {
+    const dailyValues = distributeMetricTotal(app.calls, periodWeights.map((weight, pointIndex) => {
       const primaryWave = Math.sin((pointIndex + 1) * .62 + appIndex * .91) * .12
       const secondaryWave = Math.sin((pointIndex + 1) * 1.08 + appIndex * .47) * .045
       return Math.max(.2, weight * (1 + primaryWave + secondaryWave))
-    })),
-  }))
+    }))
+
+    return {
+      ...app,
+      values: appTrendBuckets.value.map(({ start, end }) => {
+        const bucket = dailyValues.slice(start, end)
+        return Number((bucket.reduce((sum, value) => sum + value, 0) / bucket.length).toFixed(1))
+      }),
+    }
+  })
 })
-const appTrendLabels = computed(() => trendAxisLabels(trendData.value))
-const callTrendPeriodLabel = computed(() => ({
-  day: '按时段 · 今日',
-  month: '按日 · 近 30 天',
-  quarter: '按周 · 近 90 天',
-  year: '按半月 · 本年度',
-}[activePeriod.value]))
-const activeTrendPeriodLabel = computed(() => callTrendPeriodLabel.value)
+const appTrendLabels = computed(() => {
+  const labels = appTrendBuckets.value.map(({ end }) => trendData.value[end - 1]).filter(Boolean)
+  return trendAxisLabels(activePeriod.value === 'month' ? labels.map((item) => ({ label: item.label })) : labels)
+})
 const appCallTrendChart = computed(() => {
   const series = appTrendRows.value.map((app) => ({ id: app.id, name: app.name, tone: app.tone, values: app.values }))
   const dataMax = Math.max(...series.flatMap((item) => item.values), 1)
@@ -453,7 +486,6 @@ const comparisonUnits = computed(() => {
 const comparisonUnitCount = computed(() => comparisonUnits.value.length)
 const comparisonIsDense = computed(() => comparisonUnitCount.value > 6)
 const comparisonTitle = computed(() => '各级单位活跃与调用对比')
-const comparisonScopeCaption = computed(() => `${selectedScope.value.name} · ${selectedPeriod.value.name}`)
 
 function niceAxisStep(value) {
   const safeValue = Math.max(value, .1)
@@ -581,7 +613,6 @@ const metricCards = computed(() => [
           <button v-for="tab in periodTabs" :key="tab.value" type="button" :class="{ active: activePeriod === tab.value }" @click="selectPeriod(tab.value)">{{ tab.label }}</button>
         </nav>
         <BaseSelect v-model="activeScope" :options="cockpitScopeOptions" aria-label="选择组织范围" tone="dark" size="sm" />
-        <button class="cockpit-data-definition" type="button" aria-haspopup="dialog" :aria-expanded="isDataDefinitionOpen" @click="openDataDefinition"><Info :size="14" />统计口径</button>
         <button
           class="cockpit-fullscreen-toggle"
           type="button"
@@ -598,11 +629,17 @@ const metricCards = computed(() => [
     </header>
 
     <section class="cockpit-panel cockpit-overview-panel" aria-label="运营概览">
-      <header class="cockpit-panel-heading"><h2><span>01 /</span> 运营概览</h2><p>{{ selectedScope.name }} · {{ selectedPeriod.name }}</p></header>
+      <header class="cockpit-panel-heading"><h2><span>01 /</span> 运营概览</h2></header>
       <div class="cockpit-overview-content">
         <section class="cockpit-kpi-grid" aria-label="运营核心指标">
           <article v-for="card in metricCards" :key="card.id" class="cockpit-kpi-card" :style="{ '--metric-tone': card.tone }">
-            <header><span>{{ card.label }}</span><component :is="card.icon" :size="17" /></header>
+            <header>
+              <div class="cockpit-metric-title">
+                <span>{{ card.label }}</span>
+                <button class="cockpit-definition-trigger" type="button" :aria-label="`查看${card.label}统计口径`" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === card.id" @click="openMetricDefinition(card.id)"><span aria-hidden="true">!</span></button>
+              </div>
+              <component :is="card.icon" :size="17" />
+            </header>
             <b>{{ card.value }}<small>{{ card.unit }}</small></b>
             <p v-if="card.comparison" class="cockpit-kpi-comparison" :aria-label="`${card.label}${card.comparisonLabel}变化${card.comparison}`">
               <small>{{ card.comparisonLabel }}</small>
@@ -615,7 +652,7 @@ const metricCards = computed(() => [
         <div class="cockpit-overview-visuals">
           <div class="cockpit-call-overview">
             <section class="cockpit-call-trend" aria-label="六项智能应用调用次数趋势">
-              <header><span>调用次数趋势</span><small>{{ callTrendPeriodLabel }}</small></header>
+              <header><div class="cockpit-metric-title"><span>调用次数趋势</span><button class="cockpit-definition-trigger" type="button" aria-label="查看调用次数趋势统计口径" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === 'call-trend'" @click="openMetricDefinition('call-trend')"><span aria-hidden="true">!</span></button></div></header>
               <div class="cockpit-call-trend-legend" aria-label="智能应用图例">
                 <span v-for="app in appTrendRows" :key="app.id" :style="{ '--app-tone': app.tone }"><i /><b>{{ app.name }}</b></span>
               </div>
@@ -634,7 +671,7 @@ const metricCards = computed(() => [
               </div>
             </section>
             <section class="cockpit-call-success" aria-label="调用成功率">
-              <header><span>调用成功率</span></header>
+              <header><div class="cockpit-metric-title"><span>调用成功率</span><button class="cockpit-definition-trigger" type="button" aria-label="查看调用成功率统计口径" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === 'call-success'" @click="openMetricDefinition('call-success')"><span aria-hidden="true">!</span></button></div></header>
               <div class="cockpit-call-success-pie" :style="{ '--success-rate': `${callSuccessRate}%` }" role="img" :aria-label="`调用成功率 ${percent(callSuccessRate)}`">
                 <b>{{ percent(callSuccessRate) }}</b>
                 <small>成功</small>
@@ -647,9 +684,9 @@ const metricCards = computed(() => [
           </div>
 
           <section class="cockpit-active-user-trend" aria-label="活跃用户数趋势">
-            <header><span>活跃用户数趋势</span><small>{{ activeTrendPeriodLabel }}</small></header>
+            <header><div class="cockpit-metric-title"><span>活跃用户数趋势</span><button class="cockpit-definition-trigger" type="button" aria-label="查看活跃用户数趋势统计口径" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === 'active-users'" @click="openMetricDefinition('active-users')"><span aria-hidden="true">!</span></button></div></header>
             <div class="cockpit-active-user-summary" :aria-label="`${selectedPeriod.name}内活跃用户总数 ${number(activeUsers)} 人`">
-              <span>{{ selectedPeriod.name }}内活跃用户总数</span>
+              <span>活跃用户总数</span>
               <b>{{ number(activeUsers) }}<small>人</small></b>
             </div>
             <div ref="activeUserTrendChartContainer" class="cockpit-active-user-chart">
@@ -669,10 +706,10 @@ const metricCards = computed(() => [
     <section class="cockpit-comparison-wrap">
       <section class="cockpit-panel cockpit-comparison-panel" :class="{ 'is-dense': comparisonIsDense }" aria-label="组织使用情况横向对比">
         <header class="cockpit-panel-heading cockpit-comparison-heading">
-          <div class="cockpit-comparison-heading-copy">
+          <div class="cockpit-comparison-heading-copy cockpit-metric-title">
             <h2><span>02 /</span> {{ comparisonTitle }}</h2>
+            <button class="cockpit-definition-trigger" type="button" aria-label="查看各级单位对比统计口径" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === 'comparison'" @click="openMetricDefinition('comparison')"><span aria-hidden="true">!</span></button>
           </div>
-          <p class="cockpit-comparison-scope">{{ comparisonScopeCaption }} · 跟随全局范围</p>
         </header>
         <div class="cockpit-comparison-content">
           <div class="cockpit-comparison-legend" aria-label="图表统计口径">
@@ -692,7 +729,7 @@ const metricCards = computed(() => [
               :viewBox="`0 0 ${comparisonBarChart.width} ${comparisonBarChart.height}`"
               preserveAspectRatio="xMidYMid meet"
               role="img"
-              :aria-label="`${comparisonTitle}。红色柱表示 Agent 调用量，紫色柱表示用户活跃度；统计范围为${comparisonScopeCaption}。`"
+              :aria-label="`${comparisonTitle}。红色柱表示 Agent 调用量，紫色柱表示用户活跃度。`"
             >
               <g class="cockpit-comparison-grid">
                 <line v-for="tick in comparisonBarChart.callTicks" :key="`grid-${tick.value}`" :x1="comparisonBarChart.frame.left" :x2="comparisonBarChart.width - comparisonBarChart.frame.right" :y1="tick.y" :y2="tick.y" />
@@ -738,7 +775,7 @@ const metricCards = computed(() => [
     </section>
 
     <section class="cockpit-panel cockpit-performance-panel" aria-label="AI 应用运行与使用看板">
-      <header class="cockpit-panel-heading"><h2><span>03 /</span> 智能应用运行与使用</h2><p>运行快照 {{ onlineAppCount }} / {{ appRows.length }} 正常 · 指标周期 {{ selectedPeriod.name }}</p></header>
+      <header class="cockpit-panel-heading"><div class="cockpit-metric-title"><h2><span>03 /</span> 智能应用运行与使用</h2><button class="cockpit-definition-trigger" type="button" aria-label="查看智能应用运行与使用统计口径" aria-haspopup="dialog" :aria-expanded="activeDefinitionId === 'performance'" @click="openMetricDefinition('performance')"><span aria-hidden="true">!</span></button></div><p>运行快照 {{ onlineAppCount }} / {{ appRows.length }} 正常</p></header>
       <section class="cockpit-agent-comparison" aria-label="六项智能应用运行状态与四项使用指标对比">
         <header><span>智能应用与运行状态</span><span>调用量</span><span>任务完成率</span><span>平均首次响应<small>越短越好</small></span><span>调用成功率</span></header>
         <article v-for="app in appRows" :key="app.id" :class="{ offline: !app.online }" :style="{ '--app-tone': app.tone }" :aria-label="`${app.name}，${app.online ? '正常运行' : '已停用'}，调用 ${number(app.calls)} 次，任务完成率 ${percent(app.completion)}`">
@@ -754,19 +791,18 @@ const metricCards = computed(() => [
 
   <Teleport to="body">
     <Transition name="cockpit-definition">
-      <div v-if="isDataDefinitionOpen" class="cockpit-definition-layer" @click.self="closeDataDefinition">
+      <div v-if="activeMetricDefinition" class="cockpit-definition-layer" @click.self="closeMetricDefinition">
         <section ref="dataDefinitionPanel" class="cockpit-definition-panel" role="dialog" aria-modal="true" aria-labelledby="cockpit-definition-title" tabindex="-1">
           <header>
-            <h2 id="cockpit-definition-title">统计口径</h2>
-            <button type="button" aria-label="关闭统计口径" @click="closeDataDefinition"><X :size="18" /></button>
+            <h2 id="cockpit-definition-title">{{ activeMetricDefinition.title }}</h2>
+            <button type="button" aria-label="关闭统计口径" @click="closeMetricDefinition"><X :size="18" /></button>
           </header>
           <div class="cockpit-definition-body">
-            <div class="cockpit-definition-context"><span>当前范围</span><b>{{ selectedScope.name }}</b><i /> <b>{{ selectedPeriod.name }}</b><small>{{ selectedPeriod.label }}</small></div>
-            <section v-for="group in dataDefinitionGroups" :key="group.id" class="cockpit-definition-group">
-              <header><h3>{{ group.title }}</h3></header>
+            <section class="cockpit-definition-group">
               <dl>
-                <div v-for="item in group.items" :key="item.label">
-                  <dt>{{ item.label }}</dt><dd><b>{{ item.formula }}</b><small>{{ item.detail }}</small></dd>
+                <div v-for="item in activeMetricDefinition.items" :key="item.label">
+                  <dt v-if="activeMetricDefinition.items.length > 1 && item.label !== activeMetricDefinition.title">{{ item.label }}</dt>
+                  <dd><b>{{ item.formula }}</b><small>{{ item.detail }}</small></dd>
                 </div>
               </dl>
             </section>

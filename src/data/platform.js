@@ -156,22 +156,16 @@ const cockpitMonthTrend = buildCockpitTrend(
 
 const cockpitQuarterTrend = buildCockpitTrend(
   [
-    { label: '05月末', axisLabel: '05月' }, { label: '06月第1周', axisLabel: '' }, { label: '06月第2周', axisLabel: '' }, { label: '06月第3周', axisLabel: '' },
-    { label: '06月末', axisLabel: '06月' }, { label: '07月第1周', axisLabel: '' }, { label: '07月第2周', axisLabel: '' }, { label: '07月第3周', axisLabel: '' },
-    { label: '07月末', axisLabel: '07月' }, { label: '08月第1周', axisLabel: '' }, { label: '08月第2周', axisLabel: '' }, { label: '08月第3周', axisLabel: '' },
-    { label: '08月末', axisLabel: '08月' },
+    '05月末', '06月中', '06月末', '07月中', '07月末', '08月中', '08月末',
   ],
-  [118, 132, 125, 141, 136, 149, 143, 158, 151, 166, 154, 172, 161],
-  [75, 78, 76, 82, 84, 87, 86, 91, 93, 96, 94, 99, 100],
+  [118, 129, 139, 146, 155, 160, 167],
+  [75, 77, 83, 87, 92, 95, 100],
 )
 
 const cockpitYearTrend = buildCockpitTrend(
-  ['02月', '03月', '04月', '05月', '06月', '07月', '08月'].flatMap((month) => [
-    { label: `${month}上半月`, axisLabel: month },
-    { label: `${month}下半月`, axisLabel: '' },
-  ]),
-  [34, 39, 42, 49, 55, 63, 70, 79, 85, 93, 99, 110, 124, 141],
-  [52, 57, 61, 67, 72, 78, 84, 90, 95, 101, 107, 114, 119, 126],
+  ['01月', '02月', '03月', '04月', '05月', '06月', '07月', '08月', '09月', '10月', '11月', '12月'],
+  [31, 37, 46, 59, 75, 89, 105, 133, 148, 156, 169, 183],
+  [50, 55, 64, 75, 87, 98, 111, 123, 130, 137, 143, 149],
 )
 
 // 驾驶舱本地演示汇总：字段结构对应后续运营统计接口，不代表实时生产数据。trend.calls 为发起调用总量，包含成功、失败、超时和中止的调用；trend.results 仅统计成功形成的结果；activeUsers 为对应时间分段内发生有效行为的去重用户数；axisLabel 控制稀疏横轴标签，不改变实际统计节点数量。
@@ -186,7 +180,7 @@ export const cockpitPeriods = [
     ],
   },
   {
-    id: 'year', name: '本年度', label: '2026年02月—08月', scale: 1, userScale: 1, completionShift: 2.7, activeDays: 8.6, dayCount: 205,
+    id: 'year', name: '本年度', label: '2026年01月—12月', scale: 1, userScale: 1, completionShift: 2.7, activeDays: 8.6, dayCount: 365,
     comparisonLabel: '较上年同期', comparison: { calls: '+24.7%', completion: '+2.6%', response: '-11.3%', logins: '+17.8%' },
     trend: cockpitYearTrend,
   },
