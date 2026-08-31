@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { CircleAlert, Download, FileText, FileUp, Flag, LayoutGrid, Plus, Search, Table2, X } from '@lucide/vue'
+import { CircleAlert, Download, FileText, FileUp, Flag, LayoutGrid, Plus, Search, SlidersHorizontal, Table2, X } from '@lucide/vue'
 import ApplicationHeading from '../components/ApplicationHeading.vue'
 import { innovationReports } from '../data/innovationReports.js'
 import { technologyTopicPaperResults } from '../data/innovationResearchResults.js'
@@ -24,7 +24,7 @@ const stages = ['project', 'analysis', 'research', 'report']
 const stageAliases = { confirm: 'project', setup: 'project', evidence: 'research', themes: 'research', points: 'research', policy: 'research', run: 'report' }
 const workflowSteps = [
   { id: 'project', label: '信息确认' },
-  { id: 'analysis', label: '项目分析' },
+  { id: 'analysis', label: '检索要点' },
   { id: 'research', label: '数据检索' },
   { id: 'report', label: '报告生成' },
 ]
@@ -110,6 +110,18 @@ const researchAddOrderLocks = reactive({})
 const researchAddedCount = reactive({})
 const pointTop5Modal = ref(false)
 const pointTopicPreview = ref(null)
+const researchFilterOpen = reactive({ theme: false, point: false })
+const researchApplicantQuery = reactive({ theme: '', point: '' })
+function createResearchFilters() {
+  return {
+    patent: { filingStart: '', filingEnd: '', publicationStart: '', publicationEnd: '', priorityStart: '', priorityEnd: '', ipc: '', legalStatuses: [], applicants: [] },
+    paper: { yearStart: '', yearEnd: '', author: '', outlet: '' },
+    policy: { issuer: '', property: '', status: '' },
+    internal: { knowledgeType: '', property: '', scope: '' },
+  }
+}
+const researchFilterDraft = reactive({ theme: createResearchFilters(), point: createResearchFilters() })
+const researchFilters = reactive({ theme: createResearchFilters(), point: createResearchFilters() })
 const workflowCard = ref(null)
 const workflowActions = ref(null)
 let patentPreviewCloseTimer
@@ -156,6 +168,15 @@ const scopePoints = ref([
   '煤水共采协同调控方法',
   '高含盐矿井水纳滤分盐工艺',
   '浓盐水零排放经济性优化模型',
+])
+const scopeTopicSummaries = ref([
+  '随开采深度增加，矿井涌水量与矿化度同步上升，常规预处理加反渗透工艺出水难以稳定达标。',
+  '围绕工作面回采、井下排水与地面处理三段联动，开展煤水混杂采场环境下的协同调控。',
+])
+const scopePointSummaries = ref([
+  '以工作面回采推进度为输入，动态调控井下排水系统负荷。',
+  '采用两级纳滤实现一价盐与二价盐分离，支撑后续结晶盐提纯。',
+  '围绕浓盐水处置路径与单位处理成本开展优化，支撑矿井水资源化利用。',
 ])
 const themeAnalysisDetails = reactive([
   {
@@ -872,6 +893,134 @@ const activePointItems = computed(() => {
   if (source === 'paper') return retrievedPointPaperEvidence[pointTab.value].items
   return pointEvidence[pointTab.value][source]
 })
+
+function applicantNames(item) {
+  return String(item.assignee || item.applicant || item.owner || '')
+    .split(/[；;、]/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+function applicantEntityKey(name) {
+  return String(name || '')
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/等$/g, '')
+    .replace(/有限责任公司|股份有限公司|有限公司|集团公司|集团$/g, '')
+    .replace(/[\s·]/g, '')
+    .trim()
+}
+function applicantEntities(item) {
+  return applicantNames(item).map(applicantEntityKey).filter(Boolean)
+}
+function researchCandidateApplicants(panel) {
+  const items = panel === 'theme' ? activeResearchItems.value : activePointItems.value
+  const grouped = new Map()
+  items.forEach((item) => {
+    applicantNames(item).forEach((name) => {
+      const key = applicantEntityKey(name)
+      if (!key) return
+      const current = grouped.get(key) || { key, label: name, aliases: new Set(), count: 0 }
+      current.aliases.add(name)
+      current.count += 1
+      if (name.length < current.label.length) current.label = name
+      grouped.set(key, current)
+    })
+  })
+  const query = researchApplicantQuery[panel].trim().toLowerCase()
+  return [...grouped.values()]
+    .map((item) => ({ ...item, aliasCount: item.aliases.size }))
+    .filter((item) => !query || `${item.label} ${[...item.aliases].join(' ')}`.toLowerCase().includes(query))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-CN'))
+    .slice(0, 12)
+}
+function researchLegalStatuses(panel) {
+  const items = panel === 'theme' ? activeResearchItems.value : activePointItems.value
+  return [...new Set(items.map((item) => item.legalStatus).filter(Boolean))]
+}
+function researchFilterCount(panel) {
+  const source = panel === 'theme' ? themeSource.value : pointSource.value
+  const filters = researchFilters[panel][source]
+  if (source === 'patent') return [
+    filters.filingStart || filters.filingEnd,
+    filters.publicationStart || filters.publicationEnd,
+    filters.priorityStart || filters.priorityEnd,
+    filters.ipc,
+    filters.legalStatuses.length,
+    filters.applicants.length,
+  ].filter(Boolean).length
+  return Object.values(filters).filter((value) => Array.isArray(value) ? value.length : value).length
+}
+function researchDate(item, key) {
+  if (key === 'priority') return item.priorityDate || item.filingDate || item.applicationDate || ''
+  if (key === 'filing') return item.filingDate || item.applicationDate || ''
+  return item.publicationDate || item.publicDate || ''
+}
+function isDateInRange(value, start, end) {
+  if (!start && !end) return true
+  if (!value) return false
+  return (!start || value >= start) && (!end || value <= end)
+}
+function researchSearchText(item) {
+  return [item.title, item.source, item.meta, item.excerpt, item.abstract, item.authors, item.outlet, item.identifier, item.year, ...(item.classifications || [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+function filterResearchItems(items, panel, source) {
+  const filters = researchFilters[panel][source]
+  if (source === 'patent') return items.filter((item) => {
+    const classifications = (item.classifications || []).join(' ').toLowerCase()
+    return isDateInRange(researchDate(item, 'filing'), filters.filingStart, filters.filingEnd)
+      && isDateInRange(researchDate(item, 'publication'), filters.publicationStart, filters.publicationEnd)
+      && isDateInRange(researchDate(item, 'priority'), filters.priorityStart, filters.priorityEnd)
+      && (!filters.ipc || classifications.includes(filters.ipc.trim().toLowerCase()))
+      && (!filters.legalStatuses.length || filters.legalStatuses.includes(item.legalStatus))
+      && (!filters.applicants.length || applicantEntities(item).some((key) => filters.applicants.includes(key)))
+  })
+  if (source === 'paper') return items.filter((item) => {
+    const year = String(item.year || '')
+    return (!filters.yearStart || year >= filters.yearStart)
+      && (!filters.yearEnd || year <= filters.yearEnd)
+      && (!filters.author || String(item.authors || '').toLowerCase().includes(filters.author.trim().toLowerCase()))
+      && (!filters.outlet || String(item.outlet || item.source || '').toLowerCase().includes(filters.outlet.trim().toLowerCase()))
+  })
+  if (source === 'policy') return items.filter((item) => {
+    const text = researchSearchText(item)
+    return (!filters.issuer || String(item.source || '').toLowerCase().includes(filters.issuer.trim().toLowerCase()))
+      && (!filters.property || text.includes(filters.property.trim().toLowerCase()))
+      && (!filters.status || text.includes(filters.status.trim().toLowerCase()))
+  })
+  return items.filter((item) => {
+    const facts = researchFacts('internal', item, 0)
+    const factValue = (label) => String(facts.find((fact) => fact.label === label)?.value || '').toLowerCase()
+    return (!filters.knowledgeType || factValue('知识类型').includes(filters.knowledgeType.trim().toLowerCase()))
+      && (!filters.property || factValue('资料属性').includes(filters.property.trim().toLowerCase()))
+      && (!filters.scope || factValue('可用范围').includes(filters.scope.trim().toLowerCase()))
+  })
+}
+function applyResearchFilters(panel) {
+  researchFilters[panel] = JSON.parse(JSON.stringify(researchFilterDraft[panel]))
+  if (panel === 'theme') themePage.value = 1
+  else pointPage.value = 1
+}
+function resetResearchFilters(panel) {
+  researchFilterDraft[panel] = createResearchFilters()
+  researchFilters[panel] = createResearchFilters()
+  researchApplicantQuery[panel] = ''
+  if (panel === 'theme') themePage.value = 1
+  else pointPage.value = 1
+}
+function toggleResearchApplicant(panel, key) {
+  const source = panel === 'theme' ? themeSource.value : pointSource.value
+  const selected = researchFilterDraft[panel][source].applicants
+  const index = selected.indexOf(key)
+  if (index >= 0) selected.splice(index, 1)
+  else selected.push(key)
+}
+function applicantFilterLabel(panel, key) {
+  return researchCandidateApplicants(panel).find((item) => item.key === key)?.label || key
+}
+const filteredThemeItems = computed(() => filterResearchItems(activeResearchItems.value, 'theme', themeSource.value))
+const filteredPointItems = computed(() => filterResearchItems(activePointItems.value, 'point', pointSource.value))
 function sortResearchItems(items, sort) {
   const relevance = (item) => Number.parseFloat(item.relevance || item.highlight || 0) || 0
   const latest = (item) => {
@@ -919,7 +1068,7 @@ function openPointTop5Modal() {
   if (pointTop5Enabled.value) pointTop5Modal.value = true
 }
 const themeSourceIsPaged = computed(() => true)
-const themePageCount = computed(() => Math.max(1, Math.ceil(activeResearchItems.value.length / researchPageSize)))
+const themePageCount = computed(() => Math.max(1, Math.ceil(filteredThemeItems.value.length / researchPageSize)))
 const themePageOffset = computed(() => (themePage.value - 1) * researchPageSize)
 const themePaginationEntries = computed(() => {
   const count = themePageCount.value
@@ -933,12 +1082,12 @@ function setThemePage(page) {
 }
 const displayThemeItems = computed(() => {
   const items = researchAddOrderLocks[researchAddKey('theme', themeSource.value, patentTopicTab.value)]
-    ? activeResearchItems.value
-    : sortResearchItems(activeResearchItems.value, themeSort.value)
+    ? filteredThemeItems.value
+    : sortResearchItems(filteredThemeItems.value, themeSort.value)
   return items.slice(themePageOffset.value, themePageOffset.value + researchPageSize)
 })
 const pointSourceIsPaged = computed(() => true)
-const pointPageCount = computed(() => Math.max(1, Math.ceil(activePointItems.value.length / researchPageSize)))
+const pointPageCount = computed(() => Math.max(1, Math.ceil(filteredPointItems.value.length / researchPageSize)))
 const pointPaginationEntries = computed(() => {
   const count = pointPageCount.value
   const current = pointPage.value
@@ -951,8 +1100,8 @@ function setPointPage(page) {
 }
 const displayPointItems = computed(() => {
   const items = researchAddOrderLocks[researchAddKey('point', pointSource.value, pointTab.value)]
-    ? activePointItems.value
-    : sortResearchItems(activePointItems.value, pointSort.value)
+    ? filteredPointItems.value
+    : sortResearchItems(filteredPointItems.value, pointSort.value)
   const offset = (pointPage.value - 1) * researchPageSize
   return items.slice(offset, offset + researchPageSize)
 })
@@ -962,6 +1111,8 @@ function researchDisplayOrder(panel, index) {
 }
 function researchResultTotal(panel) {
   const source = panel === 'theme' ? themeSource.value : pointSource.value
+  const filtered = panel === 'theme' ? filteredThemeItems.value : filteredPointItems.value
+  if (researchFilterCount(panel)) return formatResearchTotal(filtered.length)
   const isDirectResult = source === 'patent' || source === 'paper'
   const base = panel === 'theme'
     ? (isDirectResult ? (source === 'patent' ? activePatentTopic.value.total : activePaperTopic.value.total) : sourceMeta[source].total)
@@ -1053,7 +1204,7 @@ watch([selectedReportScope, activeReportVersion, selectedReviewTemplate], ([scop
 })
 function syncProjectTextareaHeights() {
   nextTick(() => {
-    const resizeAll = () => document.querySelectorAll('.inn-project-identity textarea, .inn-project-confirm-item textarea, .inn-project-objectives textarea, .inn-project-source-item textarea, .inn-project-source-target-grid textarea, .inn-project-details textarea').forEach((textarea) => {
+    const resizeAll = () => document.querySelectorAll('.inn-project-identity textarea, .inn-project-confirm-item textarea, .inn-project-scope-item textarea, .inn-project-objectives textarea, .inn-project-source-item textarea, .inn-project-source-target-grid textarea, .inn-project-details textarea').forEach((textarea) => {
       textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
     })
@@ -1134,6 +1285,7 @@ function focusLatestAnalysisField(selector) {
 function addAnalysisTopic() {
   const index = scopeTopics.value.length
   scopeTopics.value.push('')
+  scopeTopicSummaries.value.push('')
   themeAnalysisDetails.push({ description: '' })
   patentTopicEvidence.push({ id: `custom-topic-${index + 1}`, total: '0', items: [] })
   paperTopicEvidence.push({ id: `custom-topic-${index + 1}`, total: '0', items: [] })
@@ -1142,6 +1294,7 @@ function addAnalysisTopic() {
 function addInnovationPoint() {
   const index = scopePoints.value.length
   scopePoints.value.push('')
+  scopePointSummaries.value.push('')
   innovationAnalysisDetails.push({ description: '' })
   pointTotals.push({ patent: '0', paper: '0', policy: '0', internal: '0' })
   pointEvidence.push({ patent: [], paper: [], policy: [], internal: [] })
@@ -1475,6 +1628,23 @@ function exportReport(format) {
                   <label class="inn-wf-field inn-project-confirm-item"><span>拟解决的关键技术问题</span><textarea v-model="profile.issue" rows="3" @input="autoResizeProjectTextarea" /></label>
                   <label class="inn-wf-field inn-project-confirm-item inn-project-route-item"><span>技术路线</span><textarea v-model="profile.solution" rows="4" @input="autoResizeProjectTextarea" /></label>
                 </div>
+                <section class="inn-project-scope">
+                  <header class="inn-project-section-head"><span>技术主题与创新点</span></header>
+                  <div class="inn-project-scope-grid">
+                    <section class="inn-project-scope-field">
+                      <span>技术主题</span>
+                      <div class="inn-project-scope-items">
+                        <div v-for="(topic, index) in scopeTopics" :key="`project-topic-${index}`" class="inn-project-scope-item"><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea class="inn-project-scope-title" v-model="scopeTopics[index]" rows="1" :aria-label="`技术主题 ${index + 1}`" @input="autoResizeProjectTextarea" /><textarea class="inn-project-scope-summary" v-model="scopeTopicSummaries[index]" rows="2" :aria-label="`技术主题 ${index + 1} 说明`" @input="autoResizeProjectTextarea" /></div></div>
+                      </div>
+                    </section>
+                    <section class="inn-project-scope-field inn-project-point-field">
+                      <span>创新点</span>
+                      <div class="inn-project-scope-items">
+                        <div v-for="(point, index) in scopePoints" :key="`project-point-${index}`" class="inn-project-scope-item"><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea class="inn-project-scope-title" v-model="scopePoints[index]" rows="1" :aria-label="`创新点 ${index + 1}`" @input="autoResizeProjectTextarea" /><textarea class="inn-project-scope-summary" v-model="scopePointSummaries[index]" rows="2" :aria-label="`创新点 ${index + 1} 说明`" @input="autoResizeProjectTextarea" /></div></div>
+                      </div>
+                    </section>
+                  </div>
+                </section>
               </section>
 
               <section class="inn-project-objectives">
@@ -1491,9 +1661,13 @@ function exportReport(format) {
             </section>
 
             <section v-else-if="stage === 'analysis'" class="inn-wf-section inn-wf-analysis-page">
-              <section class="inn-analysis-tag-panel" aria-labelledby="technology-tag-heading" aria-describedby="technology-tag-guidance">
-                <header><div class="inn-analysis-tag-heading"><div class="inn-analysis-tag-title-row"><span id="technology-tag-heading">技术标签</span><small class="inn-analysis-tag-ai-badge">AI 推荐</small><small class="inn-analysis-tag-count">{{ innovationBranchTags.length }} 项</small></div><p id="technology-tag-guidance">AI 已基于项目材料生成以下推荐标签。请确认后保留，删除不相关标签，或新增缺失标签。</p></div><button class="inn-analysis-add" type="button" @click="addInnovationBranchTag"><Plus :size="15" />新增标签</button></header>
-                <div class="inn-analysis-branch-tags" aria-describedby="technology-tag-guidance">
+              <section class="inn-analysis-hero" aria-labelledby="retrieval-optimization-heading">
+                <div class="inn-analysis-hero-copy"><span>AI 辅助</span><h2 id="retrieval-optimization-heading">检索依据优化</h2><p>AI 已基于已确认的技术主题与创新点，生成技术标签并补全检索表达。请核对并调整后进入资料检索。</p></div>
+                <dl class="inn-analysis-hero-stats" aria-label="检索依据构成"><div><dt>技术标签</dt><dd>{{ innovationBranchTags.length }} 项</dd></div><div><dt>技术主题</dt><dd>{{ scopeTopics.length }} 个</dd></div><div><dt>创新点</dt><dd>{{ scopePoints.length }} 个</dd></div></dl>
+              </section>
+              <section class="inn-analysis-tag-panel" aria-labelledby="technology-tag-heading">
+                <header><div class="inn-analysis-tag-heading"><div class="inn-analysis-tag-title-row"><span id="technology-tag-heading">技术标签</span><small class="inn-analysis-tag-ai-badge">AI 推荐</small><small class="inn-analysis-tag-count">{{ innovationBranchTags.length }} 项</small></div></div><button class="inn-analysis-add" type="button" @click="addInnovationBranchTag"><Plus :size="15" />新增标签</button></header>
+                <div class="inn-analysis-branch-tags">
                   <template v-for="(tag, index) in innovationBranchTags" :key="`branch-tag-${index}`">
                     <label class="inn-analysis-tag-editor"><input v-model="innovationBranchTags[index]" :aria-label="`技术标签 ${index + 1}`" @blur="normalizeInnovationBranchTag(index)" /><button type="button" :aria-label="`删除标签 ${tag}`" @click="removeInnovationBranchTag(index)"><X :size="15" /></button></label>
                   </template>
@@ -1502,7 +1676,7 @@ function exportReport(format) {
 
               <section class="inn-analysis-section">
                 <header class="inn-analysis-section-head">
-                  <span>研究技术主题</span>
+                  <span>技术主题 · 检索表达</span>
                   <div class="inn-analysis-section-actions">
                     <button class="inn-analysis-add" type="button" @click="addAnalysisTopic"><Plus :size="15" />新增技术主题</button>
                   </div>
@@ -1516,7 +1690,7 @@ function exportReport(format) {
               </section>
 
               <section class="inn-analysis-section">
-                <header class="inn-analysis-section-head"><span>创新技术点</span><button class="inn-analysis-add" type="button" @click="addInnovationPoint"><Plus :size="15" />新增创新点</button></header>
+                <header class="inn-analysis-section-head"><span>创新点 · 检索表达</span><button class="inn-analysis-add" type="button" @click="addInnovationPoint"><Plus :size="15" />新增创新点</button></header>
                 <div class="inn-analysis-point-list">
                   <article v-for="(point, index) in scopePoints" :key="`point-${index}`" class="inn-analysis-point-card" :class="{ 'is-empty': !point.trim() }">
                     <header><div class="inn-analysis-point-title"><i>{{ String(index + 1).padStart(2, '0') }}</i><div><textarea v-model="scopePoints[index]" rows="1" placeholder="输入创新技术点" @input="autoResizeAnalysisTextarea" /></div></div></header>
@@ -1542,9 +1716,23 @@ function exportReport(format) {
                   <div class="inn-recall-toolbar">
                     <div class="inn-recall-view-switch" role="group" aria-label="切换视图"><span>切换视图</span><button :class="{ active: researchViewMode === 'table' }" type="button" aria-label="表格视图" title="表格视图" :aria-pressed="researchViewMode === 'table'" @click="researchViewMode = 'table'"><Table2 :size="16" /></button><button :class="{ active: researchViewMode === 'card' }" type="button" aria-label="卡片视图" title="卡片视图" :aria-pressed="researchViewMode === 'card'" @click="researchViewMode = 'card'"><LayoutGrid :size="16" /></button></div>
                     <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('theme') }}</strong><b>{{ researchResultUnit(themeSource) }}</b><span v-if="themeSourceIsPaged">第 {{ themePage }} 页，每页 {{ researchPageSize }} 条</span></div>
-                    <div class="inn-recall-list-actions"><button class="inn-recall-add" type="button" @click="openResearchAddModal('theme')"><Plus :size="16" />新增</button></div>
+                    <div class="inn-recall-list-actions"><button class="inn-recall-filter-trigger" :class="{ active: researchFilterCount('theme') }" type="button" @click="researchFilterOpen.theme = !researchFilterOpen.theme"><SlidersHorizontal :size="16" />筛选<span v-if="researchFilterCount('theme')">{{ researchFilterCount('theme') }}</span></button><button class="inn-recall-add" type="button" @click="openResearchAddModal('theme')"><Plus :size="16" />新增</button></div>
                   </div>
                 </header>
+                <section v-if="researchFilterOpen.theme" class="inn-research-filter-panel">
+                  <div v-if="themeSource === 'patent'" class="inn-filter-grid is-patent">
+                    <label><span>申请日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.theme.patent.filingStart" type="date" /><i>至</i><input v-model="researchFilterDraft.theme.patent.filingEnd" type="date" /></div></label>
+                    <label><span>公开日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.theme.patent.publicationStart" type="date" /><i>至</i><input v-model="researchFilterDraft.theme.patent.publicationEnd" type="date" /></div></label>
+                    <label><span>优先权日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.theme.patent.priorityStart" type="date" /><i>至</i><input v-model="researchFilterDraft.theme.patent.priorityEnd" type="date" /></div></label>
+                    <label><span>IPC 分类</span><input v-model="researchFilterDraft.theme.patent.ipc" placeholder="输入技术分类" /></label>
+                    <div class="inn-filter-field"><span>法律状态</span><div class="inn-filter-chips"><button v-for="status in researchLegalStatuses('theme')" :key="status" type="button" :class="{ active: researchFilterDraft.theme.patent.legalStatuses.includes(status) }" @click="researchFilterDraft.theme.patent.legalStatuses.includes(status) ? researchFilterDraft.theme.patent.legalStatuses.splice(researchFilterDraft.theme.patent.legalStatuses.indexOf(status), 1) : researchFilterDraft.theme.patent.legalStatuses.push(status)">{{ status }}</button></div></div>
+                    <div class="inn-filter-field is-applicant"><span>申请人</span><input v-model="researchApplicantQuery.theme" placeholder="搜索申请人" /><div class="inn-applicant-options"><button v-for="applicant in researchCandidateApplicants('theme')" :key="applicant.key" type="button" :class="{ active: researchFilterDraft.theme.patent.applicants.includes(applicant.key) }" @click="toggleResearchApplicant('theme', applicant.key)"><b>{{ applicant.label }}</b><small>{{ applicant.count }} 条<span v-if="applicant.aliasCount > 1"> · 已归并 {{ applicant.aliasCount }} 个近似名称</span></small></button></div></div>
+                  </div>
+                  <div v-else-if="themeSource === 'paper'" class="inn-filter-grid"><label><span>年份</span><div class="inn-filter-range"><input v-model="researchFilterDraft.theme.paper.yearStart" type="number" min="1900" max="2100" placeholder="起始" /><i>至</i><input v-model="researchFilterDraft.theme.paper.yearEnd" type="number" min="1900" max="2100" placeholder="结束" /></div></label><label><span>作者</span><input v-model="researchFilterDraft.theme.paper.author" placeholder="输入作者" /></label><label><span>期刊 / 来源</span><input v-model="researchFilterDraft.theme.paper.outlet" placeholder="输入期刊或来源" /></label></div>
+                  <div v-else-if="themeSource === 'policy'" class="inn-filter-grid"><label><span>发布单位</span><input v-model="researchFilterDraft.theme.policy.issuer" placeholder="输入发布单位" /></label><label><span>文件属性</span><input v-model="researchFilterDraft.theme.policy.property" placeholder="输入文件属性" /></label><label><span>施行状态</span><input v-model="researchFilterDraft.theme.policy.status" placeholder="输入施行状态" /></label></div>
+                  <div v-else class="inn-filter-grid"><label><span>知识类型</span><input v-model="researchFilterDraft.theme.internal.knowledgeType" placeholder="输入知识类型" /></label><label><span>资料属性</span><input v-model="researchFilterDraft.theme.internal.property" placeholder="输入资料属性" /></label><label><span>可用范围</span><input v-model="researchFilterDraft.theme.internal.scope" placeholder="输入可用范围" /></label></div>
+                  <footer><button type="button" @click="resetResearchFilters('theme')">重置</button><button class="primary" type="button" @click="applyResearchFilters('theme')">应用筛选</button></footer>
+                </section>
                 <section v-if="researchViewMode === 'table' && themeSource === 'patent'" class="inn-patent-topic-list">
 <div class="inn-patent-table-wrap"><table class="inn-patent-table inn-theme-data-table"><thead><tr><th>序号</th><th>专利名称</th><th>公开(公告)号</th><th>相关度</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayThemeItems" :key="item.id"><tr><td>{{ researchDisplayOrder('theme', index) }}</td><td class="inn-patent-title-cell"><a v-if="index < 3 && item.detailUrl" class="inn-patent-title" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="toggleThemeDetail(item.id)">{{ item.title }}</button></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td><b>{{ item.relevance }}</b></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="themeExpanded === item.id" class="inn-patent-table-detail"><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
                 </section>
@@ -1595,9 +1783,23 @@ function exportReport(format) {
                   <div class="inn-recall-toolbar">
                     <div class="inn-recall-view-switch" role="group" aria-label="切换视图"><span>切换视图</span><button :class="{ active: researchViewMode === 'table' }" type="button" aria-label="表格视图" title="表格视图" :aria-pressed="researchViewMode === 'table'" @click="researchViewMode = 'table'"><Table2 :size="16" /></button><button :class="{ active: researchViewMode === 'card' }" type="button" aria-label="卡片视图" title="卡片视图" :aria-pressed="researchViewMode === 'card'" @click="researchViewMode = 'card'"><LayoutGrid :size="16" /></button></div>
                     <div class="inn-recall-list-summary"><strong>{{ researchResultTotal('point') }}</strong><b>{{ researchResultUnit(pointSource) }}</b><span v-if="pointSourceIsPaged">第 {{ pointPage }} 页，每页 {{ researchPageSize }} 条</span></div>
-                    <div class="inn-recall-list-actions"><button v-if="pointTop5Enabled" class="inn-top5-summary" type="button" @click="openPointTop5Modal"><Flag :size="15" />TOP {{ pointTop5Count }}/5</button><button class="inn-recall-add" type="button" @click="openResearchAddModal('point')"><Plus :size="16" />新增</button></div>
+                    <div class="inn-recall-list-actions"><button v-if="pointTop5Enabled" class="inn-top5-summary" type="button" @click="openPointTop5Modal"><Flag :size="15" />核心 {{ pointTop5Count }}/5</button><button class="inn-recall-filter-trigger" :class="{ active: researchFilterCount('point') }" type="button" @click="researchFilterOpen.point = !researchFilterOpen.point"><SlidersHorizontal :size="16" />筛选<span v-if="researchFilterCount('point')">{{ researchFilterCount('point') }}</span></button><button class="inn-recall-add" type="button" @click="openResearchAddModal('point')"><Plus :size="16" />新增</button></div>
                   </div>
                 </header>
+                <section v-if="researchFilterOpen.point" class="inn-research-filter-panel">
+                  <div v-if="pointSource === 'patent'" class="inn-filter-grid is-patent">
+                    <label><span>申请日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.point.patent.filingStart" type="date" /><i>至</i><input v-model="researchFilterDraft.point.patent.filingEnd" type="date" /></div></label>
+                    <label><span>公开日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.point.patent.publicationStart" type="date" /><i>至</i><input v-model="researchFilterDraft.point.patent.publicationEnd" type="date" /></div></label>
+                    <label><span>优先权日</span><div class="inn-filter-range"><input v-model="researchFilterDraft.point.patent.priorityStart" type="date" /><i>至</i><input v-model="researchFilterDraft.point.patent.priorityEnd" type="date" /></div></label>
+                    <label><span>IPC 分类</span><input v-model="researchFilterDraft.point.patent.ipc" placeholder="输入技术分类" /></label>
+                    <div class="inn-filter-field"><span>法律状态</span><div class="inn-filter-chips"><button v-for="status in researchLegalStatuses('point')" :key="status" type="button" :class="{ active: researchFilterDraft.point.patent.legalStatuses.includes(status) }" @click="researchFilterDraft.point.patent.legalStatuses.includes(status) ? researchFilterDraft.point.patent.legalStatuses.splice(researchFilterDraft.point.patent.legalStatuses.indexOf(status), 1) : researchFilterDraft.point.patent.legalStatuses.push(status)">{{ status }}</button></div></div>
+                    <div class="inn-filter-field is-applicant"><span>申请人</span><input v-model="researchApplicantQuery.point" placeholder="搜索申请人" /><div class="inn-applicant-options"><button v-for="applicant in researchCandidateApplicants('point')" :key="applicant.key" type="button" :class="{ active: researchFilterDraft.point.patent.applicants.includes(applicant.key) }" @click="toggleResearchApplicant('point', applicant.key)"><b>{{ applicant.label }}</b><small>{{ applicant.count }} 条<span v-if="applicant.aliasCount > 1"> · 已归并 {{ applicant.aliasCount }} 个近似名称</span></small></button></div></div>
+                  </div>
+                  <div v-else-if="pointSource === 'paper'" class="inn-filter-grid"><label><span>年份</span><div class="inn-filter-range"><input v-model="researchFilterDraft.point.paper.yearStart" type="number" min="1900" max="2100" placeholder="起始" /><i>至</i><input v-model="researchFilterDraft.point.paper.yearEnd" type="number" min="1900" max="2100" placeholder="结束" /></div></label><label><span>作者</span><input v-model="researchFilterDraft.point.paper.author" placeholder="输入作者" /></label><label><span>期刊 / 来源</span><input v-model="researchFilterDraft.point.paper.outlet" placeholder="输入期刊或来源" /></label></div>
+                  <div v-else-if="pointSource === 'policy'" class="inn-filter-grid"><label><span>发布单位</span><input v-model="researchFilterDraft.point.policy.issuer" placeholder="输入发布单位" /></label><label><span>文件属性</span><input v-model="researchFilterDraft.point.policy.property" placeholder="输入文件属性" /></label><label><span>施行状态</span><input v-model="researchFilterDraft.point.policy.status" placeholder="输入施行状态" /></label></div>
+                  <div v-else class="inn-filter-grid"><label><span>知识类型</span><input v-model="researchFilterDraft.point.internal.knowledgeType" placeholder="输入知识类型" /></label><label><span>资料属性</span><input v-model="researchFilterDraft.point.internal.property" placeholder="输入资料属性" /></label><label><span>可用范围</span><input v-model="researchFilterDraft.point.internal.scope" placeholder="输入可用范围" /></label></div>
+                  <footer><button type="button" @click="resetResearchFilters('point')">重置</button><button class="primary" type="button" @click="applyResearchFilters('point')">应用筛选</button></footer>
+                </section>
                 <section v-if="researchViewMode === 'table' && pointSource === 'patent'" class="inn-patent-topic-list">
 <div class="inn-patent-table-wrap"><table class="inn-patent-table"><thead><tr><th class="inn-top5-column-head"><span class="inn-top5-help" aria-label="TOP5 说明"><CircleAlert :size="15" /><i>TOP5 用于报告中的创新点重点对比，全部资料仍参与整体分析。</i></span></th><th>序号</th><th>专利名称</th><th>公开(公告)号</th><th>相关度</th><th>法律状态</th><th>当前申请人/权利人</th><th>技术分类</th><th>申请日</th><th>公开日</th></tr></thead><tbody><template v-for="(item, index) in displayPointItems" :key="item.id"><tr :class="{ 'is-top-focus': item.topFocus }"><td><button class="inn-top5-flag" :class="{ active: item.topFocus }" type="button" :aria-label="item.topFocus ? `取消${item.title}的重点标注` : `标注${item.title}为重点`" :title="item.topFocus ? '取消重点标注' : '标为重点'" @click="togglePointTop5(item)"><Flag :size="16" /></button></td><td>{{ researchDisplayOrder('point', index) }}</td><td class="inn-patent-title-cell"><a v-if="index < 3 && item.detailUrl" class="inn-patent-title" :href="item.detailUrl" target="_blank" rel="noopener" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose">{{ item.title }}</a><button v-else class="inn-patent-title" type="button" @mouseenter="showPatentPreview(item, 'title', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'title', $event)" @blur="schedulePatentPreviewClose" @click="togglePointDetail(item.id)">{{ item.title }}</button></td><td><span class="inn-patent-number" tabindex="0" @mouseenter="showPatentPreview(item, 'number', $event)" @mouseleave="schedulePatentPreviewClose" @focus="showPatentPreview(item, 'number', $event)" @blur="schedulePatentPreviewClose">{{ item.code }}</span></td><td><b>{{ item.relevance }}</b></td><td><em class="inn-patent-status" :class="`is-${item.legalStatus}`">{{ item.legalStatus }}</em></td><td><span class="inn-patent-assignee" :title="item.assignee">{{ item.assignee }}</span></td><td><div class="inn-patent-classifications"><span v-for="classification in item.classifications" :key="classification">{{ classification }}</span></div></td><td><time>{{ item.filingDate }}</time></td><td><time>{{ item.publicationDate }}</time></td></tr><tr v-if="pointExpanded === item.id" class="inn-patent-table-detail"><td></td><td colspan="9"><b>匹配要点</b><span>{{ item.match }}</span></td></tr></template></tbody></table></div>
                 </section>
@@ -3051,6 +3253,19 @@ function exportReport(format) {
 .inn-wf-card-project .inn-project-confirm-item>span{color:#426b83;font-size:14px;font-weight:800}
 .inn-wf-card-project .inn-project-confirm-item textarea{box-sizing:border-box;width:100%;min-height:0;border:1px solid transparent;border-radius:6px;background:transparent;padding:3px 6px;color:#31566d;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.72;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
 
+.inn-wf-card-project .inn-project-scope{margin:0;padding:0}
+.inn-wf-card-project .inn-project-scope-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:0;margin-top:0;border-top:1px solid #e1ebef;border-bottom:1px solid #e1ebef}
+.inn-wf-card-project .inn-project-scope-field{display:grid;grid-template-columns:84px minmax(0,1fr);align-content:start;gap:12px;min-height:0;border:0!important;border-radius:0;background:transparent!important;padding:14px 18px 14px 0;box-shadow:none!important}
+.inn-wf-card-project .inn-project-point-field{border-left:1px solid #e1ebef!important;padding-right:0;padding-left:20px}
+.inn-wf-card-project .inn-project-scope-field>span{padding-top:4px;color:#5e7d91;font-size:15px;font-weight:700;line-height:1.5}
+.inn-wf-card-project .inn-project-scope-items{display:grid;gap:7px;min-width:0}
+.inn-wf-card-project .inn-project-scope-item{display:grid;grid-template-columns:27px minmax(0,1fr);align-items:start;gap:6px;min-width:0}
+.inn-wf-card-project .inn-project-scope-item>i{display:grid;place-items:center;width:23px;height:23px;margin-top:2px;border-radius:6px;background:#e9f5f9;color:#167da9;font-size:11px;font-style:normal;font-weight:800;line-height:1}
+.inn-wf-card-project .inn-project-scope-item>div{display:grid;gap:2px;min-width:0}
+.inn-wf-card-project .inn-project-scope-item textarea{box-sizing:border-box;width:100%;min-height:0;border:1px solid transparent;border-radius:6px;background:transparent;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;outline:0;overflow:hidden;resize:none;transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+.inn-wf-card-project .inn-project-scope-item .inn-project-scope-title{padding:2px 5px;color:#173f5c;font-size:16px;font-weight:800;letter-spacing:-.018em;line-height:1.55}
+.inn-wf-card-project .inn-project-scope-item .inn-project-scope-summary{padding:1px 5px;color:#547286;font-size:14px;font-weight:600;line-height:1.58}
+
 .inn-wf-card-project .inn-project-objectives{margin-top:0}
 .inn-wf-card-project .inn-project-target-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:hidden;margin:0;border:1px solid #e1ebef;border-radius:10px;background:#fff;padding:0}
 .inn-wf-card-project .inn-project-target-grid article{display:grid;align-content:start;gap:9px;min-height:108px;background:transparent;padding:13px 14px}
@@ -3085,6 +3300,9 @@ function exportReport(format) {
   .inn-wf-card-project .inn-project-confirm-grid{grid-template-columns:1fr;gap:13px;margin-top:15px}
   .inn-wf-card-project .inn-project-confirm-item,.inn-wf-card-project.is-project-editing .inn-project-confirm-item{padding:0}
   .inn-wf-card-project .inn-project-route-item,.inn-wf-card-project.is-project-editing .inn-project-route-item{border-top:1px solid #e1ebef!important;border-left:0!important;padding:13px 0 0}
+  .inn-wf-card-project .inn-project-scope-grid{grid-template-columns:1fr;margin-top:0}
+  .inn-wf-card-project .inn-project-scope-field{grid-template-columns:78px minmax(0,1fr);padding:12px 0}
+  .inn-wf-card-project .inn-project-point-field{border-top:1px solid #e1ebef!important;border-left:0!important;padding-left:0}
   .inn-wf-card-project .inn-project-target-grid article{min-height:100px;padding:12px}
   .inn-wf-card-project .inn-project-target-current input,.inn-wf-card-project .inn-project-target-result input{font-size:14px}
   .inn-wf-card-project .inn-project-target-result input{font-size:15px}
@@ -3282,6 +3500,29 @@ function exportReport(format) {
 .inn-wf-card-research .inn-research-table.is-internal th:nth-child(4),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(4){width:29%!important;min-width:230px!important}
 .inn-wf-card-research .inn-research-table.is-internal th:nth-child(5),.inn-wf-card-research .inn-research-table.is-internal td:nth-child(5){width:16%!important;min-width:132px!important}
 .inn-report-export-menu{position:relative;display:inline-flex}.inn-report-export-popover{position:absolute;z-index:20;right:0;bottom:100%;display:grid;grid-template-columns:repeat(2,minmax(76px,1fr));gap:4px;min-width:166px;visibility:hidden;border:1px solid #c9dfe8;border-radius:9px;background:#fff;padding:5px;opacity:0;box-shadow:0 10px 24px rgba(21,63,88,.16);transform:translateY(4px);transition:opacity .14s ease,transform .14s ease,visibility .14s}.inn-report-export-menu:hover .inn-report-export-popover,.inn-report-export-menu:focus-within .inn-report-export-popover{visibility:visible;opacity:1;transform:translateY(0)}.inn-report-export-popover button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;border:0;border-radius:6px;background:transparent;padding:0 8px;color:#426d84;font-family:"Microsoft YaHei",sans-serif;font-size:13px;font-weight:800;cursor:pointer}.inn-report-export-popover button:hover,.inn-report-export-popover button:focus-visible{outline:0;background:#edf8fb;color:#087cad}
+
+/* 检索要点：以一个统领区说明 AI 对标签、主题和创新点的共同处理。 */
+.inn-wf-card-analysis .inn-analysis-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:center;overflow:hidden;border:1px solid #c8e1eb;border-radius:14px;background:linear-gradient(108deg,#edf8fb 0%,#f9fcfd 64%,#eff8fb 100%);padding:18px 20px 18px 22px;box-shadow:0 7px 18px rgba(21,85,111,.055)}
+.inn-wf-card-analysis .inn-analysis-hero-copy{min-width:0}
+.inn-wf-card-analysis .inn-analysis-hero-copy>span{display:block;margin-bottom:3px;color:#2781a6;font-size:12px;font-weight:800;letter-spacing:.08em;line-height:1.4}
+.inn-wf-card-analysis .inn-analysis-hero-copy h2{margin:0;color:#173f5c;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:22px;font-weight:800;letter-spacing:-.025em;line-height:1.35}
+.inn-wf-card-analysis .inn-analysis-hero-copy p{max-width:720px;margin:6px 0 0;color:#4b6e81;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px;font-weight:600;line-height:1.65}
+.inn-wf-card-analysis .inn-analysis-hero-stats{display:grid;grid-template-columns:repeat(3,minmax(76px,1fr));gap:0;margin:0;border:1px solid #cfe4ec;border-radius:9px;background:rgba(255,255,255,.7);overflow:hidden}
+.inn-wf-card-analysis .inn-analysis-hero-stats>div{min-width:0;padding:9px 12px}
+.inn-wf-card-analysis .inn-analysis-hero-stats>div+div{border-left:1px solid #dbeaf0}
+.inn-wf-card-analysis .inn-analysis-hero-stats dt{color:#7591a0;font-size:12px;font-weight:700;line-height:1.4;white-space:nowrap}
+.inn-wf-card-analysis .inn-analysis-hero-stats dd{margin:3px 0 0;color:#176d94;font-size:16px;font-weight:800;line-height:1.35;white-space:nowrap}
+.inn-wf-card-analysis .inn-analysis-tag-panel{margin:0;border-left-width:3px}
+.inn-wf-card-analysis .inn-analysis-tag-heading>p{display:none}
+@media(max-width:980px){.inn-wf-card-analysis .inn-analysis-hero{grid-template-columns:1fr;gap:14px}.inn-wf-card-analysis .inn-analysis-hero-stats{justify-self:start}}
+@media(max-width:720px){.inn-wf-card-analysis .inn-analysis-hero{gap:12px;border-radius:12px;padding:15px 14px 16px}.inn-wf-card-analysis .inn-analysis-hero-copy h2{font-size:20px}.inn-wf-card-analysis .inn-analysis-hero-copy p{font-size:14px;line-height:1.6}.inn-wf-card-analysis .inn-analysis-hero-stats{width:100%;grid-template-columns:repeat(3,minmax(0,1fr))}.inn-wf-card-analysis .inn-analysis-hero-stats>div{padding:8px 7px;text-align:center}.inn-wf-card-analysis .inn-analysis-hero-stats dt{font-size:12px}.inn-wf-card-analysis .inn-analysis-hero-stats dd{font-size:15px}}
+</style>
+<style>
+.inn-wf-card-research .inn-recall-filter-trigger{display:inline-flex;align-items:center;justify-content:center;gap:5px;border-color:#c9dee8;background:#fff;color:#396579}.inn-wf-card-research .inn-recall-filter-trigger.active{border-color:#77b9d2;background:#eff8fb;color:#0d7cab}.inn-wf-card-research .inn-recall-filter-trigger span{display:inline-grid;place-items:center;min-width:17px;height:17px;border-radius:9px;background:#1689ba;color:#fff;font-size:11px;font-weight:800;line-height:1}
+.inn-wf-card-research .inn-research-filter-panel{margin:0;border-top:1px solid #dceaf0;border-bottom:1px solid #dceaf0;background:#f8fbfc;padding:13px 20px 12px}.inn-wf-card-research .inn-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px}.inn-wf-card-research .inn-filter-grid.is-patent{grid-template-columns:repeat(4,minmax(0,1fr))}.inn-wf-card-research .inn-filter-grid>label,.inn-wf-card-research .inn-filter-field{display:grid;gap:5px;min-width:0}.inn-wf-card-research .inn-filter-grid>label>span,.inn-wf-card-research .inn-filter-field>span{color:#54768a;font-size:13px;font-weight:800;line-height:1.3}.inn-wf-card-research .inn-filter-grid input{box-sizing:border-box;width:100%;height:34px;border:1px solid #cfe1e9;border-radius:6px;outline:0;background:#fff;padding:0 9px;color:#244f68;font-family:"Microsoft YaHei",sans-serif;font-size:13px;font-weight:650}.inn-wf-card-research .inn-filter-grid input:focus{border-color:#62accb;box-shadow:0 0 0 2px rgba(31,142,183,.12)}.inn-wf-card-research .inn-filter-range{display:grid;grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr);gap:4px;align-items:center}.inn-wf-card-research .inn-filter-range i{color:#7c94a2;font-size:12px;font-style:normal;text-align:center}.inn-wf-card-research .inn-filter-chips{display:flex;min-height:34px;flex-wrap:wrap;align-items:center;gap:5px}.inn-wf-card-research .inn-filter-chips button{height:27px;border:1px solid #d4e4ea;border-radius:5px;background:#fff;padding:0 8px;color:#5d7b8b;font-family:"Microsoft YaHei",sans-serif;font-size:12px;font-weight:750;cursor:pointer}.inn-wf-card-research .inn-filter-chips button.active{border-color:#6eb5cf;background:#eaf7fb;color:#0879aa}.inn-wf-card-research .inn-filter-field.is-applicant{grid-column:span 2}.inn-wf-card-research .inn-applicant-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:138px;overflow:auto;border:1px solid #d7e6ec;border-radius:6px;background:#fff}.inn-wf-card-research .inn-applicant-options button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;min-width:0;border:0;border-bottom:1px solid #edf3f5;background:transparent;padding:7px 9px;color:#416b80;font-family:"Microsoft YaHei",sans-serif;text-align:left;cursor:pointer}.inn-wf-card-research .inn-applicant-options button:nth-last-child(-n+2){border-bottom:0}.inn-wf-card-research .inn-applicant-options button:hover{background:#f4fafc}.inn-wf-card-research .inn-applicant-options button.active{background:#eaf7fb;box-shadow:inset 2px 0 0 #1489b9}.inn-wf-card-research .inn-applicant-options b{overflow:hidden;color:#315d75;font-size:12px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}.inn-wf-card-research .inn-applicant-options small{color:#7b96a4;font-size:11px;line-height:1.45;text-align:right}.inn-wf-card-research .inn-research-filter-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.inn-wf-card-research .inn-research-filter-panel>footer button{min-width:64px;height:32px;border:1px solid #cfdee5;border-radius:6px;background:#fff;color:#527184;font-family:"Microsoft YaHei",sans-serif;font-size:13px;font-weight:750;cursor:pointer}.inn-wf-card-research .inn-research-filter-panel>footer button.primary{border-color:#1484b3;background:#1687b8;color:#fff}.inn-wf-card-research .inn-research-filter-panel>footer button:hover{border-color:#6fb5cf}.inn-wf-card-research .inn-research-filter-panel>footer button.primary:hover{background:#0c78a7}
+@media(max-width:1180px){.inn-wf-card-research .inn-filter-grid.is-patent{grid-template-columns:repeat(3,minmax(0,1fr))}.inn-wf-card-research .inn-filter-field.is-applicant{grid-column:span 3}}
+@media(max-width:820px){.inn-wf-card-research .inn-research-filter-panel{padding:12px 14px}.inn-wf-card-research .inn-filter-grid,.inn-wf-card-research .inn-filter-grid.is-patent{grid-template-columns:repeat(2,minmax(0,1fr))}.inn-wf-card-research .inn-filter-field.is-applicant{grid-column:span 2}.inn-wf-card-research .inn-applicant-options{grid-template-columns:1fr}.inn-wf-card-research .inn-applicant-options button:nth-last-child(-n+2){border-bottom:1px solid #edf3f5}.inn-wf-card-research .inn-applicant-options button:last-child{border-bottom:0}}
+@media(max-width:560px){.inn-wf-card-research .inn-filter-grid,.inn-wf-card-research .inn-filter-grid.is-patent{grid-template-columns:1fr}.inn-wf-card-research .inn-filter-field.is-applicant{grid-column:span 1}.inn-wf-card-research .inn-recall-filter-trigger{min-width:62px!important}.inn-wf-card-research .inn-research-filter-panel>footer button{height:36px}}
 </style>
 <style>
 /* v-html 正文不带组件作用域属性，完整报告样式在此做最小范围的全局限定。 */
